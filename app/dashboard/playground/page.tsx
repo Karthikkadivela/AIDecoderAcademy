@@ -32,6 +32,52 @@ function groupSessions(sessions: Session[]) {
 }
 
 // Build LLM context string from injected creations
+// Build context from the last assistant message of matching output type
+function buildPreviousOutputContext(
+  messages: Array<{ role: string; content: string; outputType?: string; isLoading?: boolean }>,
+  outputType: string,
+): string {
+  // Find the most recent assistant message of this output type that isn't loading
+  const last = [...messages]
+    .reverse()
+    .find(m => m.role === "assistant" && m.outputType === outputType && !m.isLoading && m.content);
+
+  if (!last) return "";
+
+  if (outputType === "image") {
+    // Only inject if it looks like a real URL
+    if (/^https?:\/\//i.test(last.content.trim())) {
+      return `[Image titled "previous output": ${last.content.trim()}]
+
+`;
+    }
+  }
+  if (outputType === "audio") {
+    try {
+      const p = JSON.parse(last.content);
+      const narrator  = p?.script?.narrator_text ?? "";
+      const dialogues = (p?.script?.dialogues ?? [])
+        .map((d: { character: string; text: string }) => `${d.character}: ${d.text}`)
+        .join(" | ");
+      return `[Audio titled "previous output": Narrator: ${narrator}. Dialogues: ${dialogues || "none"}]
+
+`;
+    } catch { return ""; }
+  }
+  if (outputType === "slides") {
+    try {
+      const p = JSON.parse(last.content);
+      const sections = (p?.sections ?? [])
+        .map((s: { title: string; concepts: string[] }) => `${s.title}: ${s.concepts?.join(", ")}`)
+        .join(" | ");
+      return `[Slides titled "previous output": ${sections}]
+
+`;
+    } catch { return ""; }
+  }
+  return "";
+}
+
 function buildCreationContext(creations: Creation[]): string {
   if (creations.length === 0) return "";
   const parts = creations.map(c => {
@@ -146,18 +192,36 @@ export default function PlaygroundPage() {
     setAttachments([]);
     setInjectedCreations([]);
 
-    // Prepend creation context if any were injected
-    const context      = buildCreationContext(creations);
-    const enrichedText = context ? context + text : text;
+    // Build enriched prompt with creation context for the API
+    // but keep original text for display in the message bubble
+    let context = buildCreationContext(creations);
+
+    // If no manual creation injected, auto-inject the previous output of the same type
+    // so the student can say "make it darker" / "add more detail" naturally
+    if (!context && (outputType === "image" || outputType === "audio" || outputType === "slides")) {
+      context = buildPreviousOutputContext(messages, outputType);
+    }
+
+    const enrichedText  = context ? context + text : text;
+    const hasContext    = !!context;
+    // Build attachmentMeta: file types + injected creation titles
+    const creationMeta  = creations.map(c => c.title);
+    const attFileMeta   = atts.map(a =>
+      a.mimeType.startsWith("image/") ? "image"
+      : a.mimeType.startsWith("audio/") ? "audio"
+      : a.mimeType.startsWith("application/pdf") ? "pdf" : "file"
+    );
+    // Combined meta for the bubble badge
+    const bubbleMeta = [...new Set([...attFileMeta, ...creationMeta])];
 
     if (outputType === "image") {
-      await sendImage(enrichedText);
+      await sendImage(enrichedText, hasContext ? text : undefined, bubbleMeta);
     } else if (outputType === "audio") {
-      await sendAudio(enrichedText, profile?.age_group ?? "11-13");
+      await sendAudio(enrichedText, profile?.age_group ?? "11-13", hasContext ? text : undefined, bubbleMeta);
     } else if (outputType === "slides") {
-      await sendSlides(enrichedText, profile?.age_group ?? "11-13");
+      await sendSlides(enrichedText, profile?.age_group ?? "11-13", hasContext ? text : undefined, bubbleMeta);
     } else {
-      await sendMessage(enrichedText, outputType, atts);
+      await sendMessage(enrichedText, outputType, atts, undefined, bubbleMeta);
     }
     setTimeout(refreshSessions, 2000);
     inputRef.current?.focus();
@@ -184,6 +248,16 @@ export default function PlaygroundPage() {
   const handleCreationSelect = (creation: Creation) => {
     if (injectedCreations.find(c => c.id === creation.id)) return;
     setInjectedCreations(prev => [...prev, creation]);
+    // Auto-switch output type to match the injected creation
+    const typeMap: Record<string, OutputType> = {
+      image:  "image",
+      audio:  "audio",
+      slides: "slides",
+      text:   "text",
+      json:   "json",
+    };
+    const matched = typeMap[creation.output_type];
+    if (matched) setOutputType(matched);
   };
 
   const openSave = (content: string, type: OutputType) => {
@@ -328,18 +402,46 @@ export default function PlaygroundPage() {
           {/* Chips — file attachments + injected creations */}
           {(attachments.length > 0 || injectedCreations.length > 0) && (
             <div className="flex gap-2 flex-wrap mb-2">
-              {attachments.map((att, i) => (
-                <div key={i} className="flex items-center gap-1.5 bg-[#EEF0FF] border border-purple-200 px-2.5 py-1 rounded-lg text-xs text-[#6C47FF] font-medium">
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <path d="M7 1H3a1 1 0 00-1 1v8a1 1 0 001 1h6a1 1 0 001-1V4L7 1z" stroke="currentColor" strokeWidth="1.2"/>
-                    <path d="M7 1v3h3" stroke="currentColor" strokeWidth="1.2"/>
-                  </svg>
-                  {att.name}
-                  <button onClick={() => setAttachments(prev => prev.filter((_, j) => j !== i))}>
-                    <X size={10}/>
-                  </button>
-                </div>
-              ))}
+              {attachments.map((att, i) => {
+                const isAudio = att.mimeType.startsWith("audio/");
+                const isImage = att.mimeType.startsWith("image/");
+                return (
+                  <div key={i} className={cn(
+                    "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all",
+                    isAudio
+                      ? "bg-pink-50 border-pink-200 text-pink-700"
+                      : "bg-[#EEF0FF] border-purple-200 text-[#6C47FF]"
+                  )}>
+                    {isAudio ? (
+                      <div className="flex items-center gap-1">
+                        {/* Mini waveform icon */}
+                        <div className="flex items-end gap-[2px] h-3">
+                          {[2,4,3,5,2,4,3].map((h, j) => (
+                            <div key={j} className="w-[2px] rounded-full bg-pink-400"
+                              style={{ height: `${h}px` }}/>
+                          ))}
+                        </div>
+                      </div>
+                    ) : isImage ? (
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                        <rect x="1" y="1" width="10" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
+                        <circle cx="4" cy="4" r="1" fill="currentColor"/>
+                        <path d="M1 8l3-3 2 2 2-2 3 3" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+                      </svg>
+                    ) : (
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                        <path d="M7 1H3a1 1 0 00-1 1v8a1 1 0 001 1h6a1 1 0 001-1V4L7 1z" stroke="currentColor" strokeWidth="1.2"/>
+                        <path d="M7 1v3h3" stroke="currentColor" strokeWidth="1.2"/>
+                      </svg>
+                    )}
+                    <span className="max-w-[120px] truncate">{att.name}</span>
+                    <button onClick={() => setAttachments(prev => prev.filter((_, j) => j !== i))}
+                      className="opacity-60 hover:opacity-100 transition-opacity">
+                      <X size={10}/>
+                    </button>
+                  </div>
+                );
+              })}
               {injectedCreations.map(c => (
                 <div key={c.id} className="flex items-center gap-1.5 bg-purple-600 border border-purple-700 px-2.5 py-1 rounded-lg text-xs text-white font-medium">
                   <span className="text-purple-200">
@@ -377,7 +479,7 @@ export default function PlaygroundPage() {
                 />
               )}
             </div>
-            <input ref={fileRef} type="file" multiple accept="image/*,.pdf" className="hidden" onChange={handleFileAttach}/>
+            <input ref={fileRef} type="file" multiple accept="image/*,.pdf,audio/*" className="hidden" onChange={handleFileAttach}/>
 
             <textarea
               ref={inputRef}

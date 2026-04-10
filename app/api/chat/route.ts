@@ -116,10 +116,20 @@ export async function POST(req: Request) {
       temperature: outputType === "json" ? 0.3 : 0.8,
     });
 
-    // Save user message (non-blocking)
+    // Save user message — encode attachment types as marker suffix for reload
+    const attMeta = attachments
+      .map((a: { mimeType: string }) =>
+        a.mimeType.startsWith("image/") ? "image"
+        : a.mimeType.startsWith("audio/") ? "audio"
+        : a.mimeType.startsWith("application/pdf") ? "pdf" : "file")
+      .filter((v: string, i: number, arr: string[]) => arr.indexOf(v) === i);
+    const savedContent = attMeta.length > 0
+      ? message + `
+__attach:${attMeta.join(",")}__`
+      : message;
     supabase.from("chat_messages").insert({
       session_id: sessionId, profile_id: profileId,
-      role: "user", content: message, output_type: outputType,
+      role: "user", content: savedContent, output_type: outputType,
     }).then(() => {});
 
     // Auto-title first message

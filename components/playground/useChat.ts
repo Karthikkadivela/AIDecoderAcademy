@@ -7,21 +7,53 @@ export interface Attachment {
 }
 
 export interface Message {
-  id:           string;
-  role:         "user" | "assistant";
-  content:      string;
-  outputType?:  OutputType;
-  attachments?: Attachment[];
-  isLoading?:   boolean;   // true while a generation is in progress
-  createdAt:    Date;
+  id:             string;
+  role:           "user" | "assistant";
+  content:        string;
+  outputType?:    OutputType;
+  attachments?:   Attachment[];
+  isLoading?:     boolean;
+  attachmentMeta?: string[]; // ["image","audio","pdf"] — survives DB reload
+  createdAt:      Date;
+}
+
+// ─── Attachment meta encoding ─────────────────────────────────────────────────
+// Appended to user message content before saving to DB so it survives reload.
+// Format: "user text\n__attach:image,audio__"
+
+const ATTACH_SEP = "\n__attach:";
+
+function getAttachTypes(attachments: Attachment[]): string[] {
+  return [...new Set(attachments.map(a =>
+    a.mimeType.startsWith("image/")            ? "image"
+    : a.mimeType.startsWith("audio/")          ? "audio"
+    : a.mimeType.startsWith("application/pdf") ? "pdf"
+    : "file"
+  ))];
+}
+
+function encodeForDB(text: string, types: string[]): string {
+  return types.length > 0 ? `${text}${ATTACH_SEP}${types.join(",")}__` : text;
+}
+
+function decodeFromDB(raw: string): { content: string; attachmentMeta?: string[] } {
+  const idx = raw.indexOf(ATTACH_SEP);
+  if (idx === -1) return { content: raw };
+  const content = raw.slice(0, idx);
+  const tail    = raw.slice(idx + ATTACH_SEP.length);
+  const match   = tail.match(/^([^_]+)__/);
+  return {
+    content,
+    attachmentMeta: match ? match[1].split(",") : undefined,
+  };
 }
 
 export function useChat(profile: Profile | null, mode: PlaygroundMode) {
   const [messages,    setMessages]    = useState<Message[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [sessionId,   setSessionId]  = useState<string | null>(null);
-  const abortRef                     = useRef<AbortController | null>(null);
-  const pendingSessionRef            = useRef<Promise<string> | null>(null);
+  const abortRef          = useRef<AbortController | null>(null);
+  const pendingSessionRef = useRef<Promise<string> | null>(null);
 
   const createSession = useCallback(async (m: PlaygroundMode): Promise<string> => {
     if (pendingSessionRef.current) return pendingSessionRef.current;
@@ -56,23 +88,30 @@ export function useChat(profile: Profile | null, mode: PlaygroundMode) {
     const loaded: Message[] = (dbMessages ?? []).map((m: {
       id: string; role: "user" | "assistant"; content: string;
       created_at: string; output_type?: string;
-    }) => ({
-      id:         m.id,
-      role:       m.role,
-      content:    m.content,
-      createdAt:  new Date(m.created_at),
-      outputType: (m.output_type ?? "text") as OutputType,
-      isLoading:  false,
-    }));
+    }) => {
+      const decoded = decodeFromDB(m.content);
+      return {
+        id:             m.id,
+        role:           m.role,
+        content:        decoded.content,
+        createdAt:      new Date(m.created_at),
+        outputType:     (m.output_type ?? "text") as OutputType,
+        isLoading:      false,
+        attachmentMeta: decoded.attachmentMeta,
+      };
+    });
     setMessages(loaded);
   }, []);
+
+  // ─── Text / JSON streaming ────────────────────────────────────────────────
 
   const sendMessage = useCallback(
     async (
       text:        string,
-      outputType:  OutputType    = "text",
-      attachments: Attachment[]  = [],
-      forceSid?:   string
+      outputType:  OutputType   = "text",
+      attachments: Attachment[] = [],
+      forceSid?:   string,
+      bubbleMeta?: string[]
     ) => {
       if (!profile || isStreaming) return;
       const isInit = text === "__init__";
@@ -84,17 +123,19 @@ export function useChat(profile: Profile | null, mode: PlaygroundMode) {
         .map(m => ({ role: m.role, content: m.content }));
 
       if (!isInit) {
+        const attTypes = bubbleMeta ?? getAttachTypes(attachments);
         setMessages(prev => [...prev, {
           id: crypto.randomUUID(), role: "user", content: text,
-          outputType, attachments, createdAt: new Date(),
+          outputType, attachments,
+          attachmentMeta: attTypes.length > 0 ? attTypes : undefined,
+          createdAt: new Date(),
         }]);
       }
 
       setIsStreaming(true);
       const assistantId = crypto.randomUUID();
       setMessages(prev => [...prev, {
-        id: assistantId, role: "assistant", content: "",
-        outputType, createdAt: new Date(),
+        id: assistantId, role: "assistant", content: "", outputType, createdAt: new Date(),
       }]);
 
       let activeSid = forceSid ?? sessionId;
@@ -163,21 +204,22 @@ export function useChat(profile: Profile | null, mode: PlaygroundMode) {
 
   // ─── Image generation ─────────────────────────────────────────────────────
 
-  const sendImage = useCallback(async (prompt: string) => {
+  const sendImage = useCallback(async (prompt: string, displayPrompt?: string, bubbleMeta?: string[]) => {
     if (!profile || isStreaming) return;
+    const cleanUserText = displayPrompt ?? prompt;
 
     setMessages(prev => [...prev, {
-      id: crypto.randomUUID(), role: "user", content: prompt,
-      outputType: "image", createdAt: new Date(),
+      id: crypto.randomUUID(), role: "user", content: cleanUserText,
+      outputType: "image",
+      attachmentMeta: bubbleMeta && bubbleMeta.length > 0 ? bubbleMeta : undefined,
+      createdAt: new Date(),
     }]);
 
     const asstId = crypto.randomUUID();
     setMessages(prev => [...prev, {
       id: asstId, role: "assistant",
-      content:   "Generating your image...",
-      outputType: "image",
-      isLoading:  true,         // ← flag, not string matching
-      createdAt: new Date(),
+      content: "Generating your image...",
+      outputType: "image", isLoading: true, createdAt: new Date(),
     }]);
     setIsStreaming(true);
 
@@ -193,14 +235,12 @@ export function useChat(profile: Profile | null, mode: PlaygroundMode) {
 
       if (data.url) {
         setMessages(prev => prev.map(m =>
-          m.id === asstId
-            ? { ...m, content: data.url, isLoading: false }   // ← clear flag
-            : m
+          m.id === asstId ? { ...m, content: data.url, isLoading: false } : m
         ));
         fetch("/api/sessions/messages-save", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            session_id: activeSid, user_content: prompt,
+            session_id: activeSid, user_content: cleanUserText,
             assistant_content: data.url, output_type: "image",
           }),
         }).catch(() => {});
@@ -224,21 +264,22 @@ export function useChat(profile: Profile | null, mode: PlaygroundMode) {
 
   // ─── Audio generation ─────────────────────────────────────────────────────
 
-  const sendAudio = useCallback(async (prompt: string, ageGroup: string) => {
+  const sendAudio = useCallback(async (prompt: string, ageGroup: string, displayPrompt?: string, bubbleMeta?: string[]) => {
     if (!profile || isStreaming) return;
+    const cleanUserText = displayPrompt ?? prompt;
 
     setMessages(prev => [...prev, {
-      id: crypto.randomUUID(), role: "user", content: prompt,
-      outputType: "audio", createdAt: new Date(),
+      id: crypto.randomUUID(), role: "user", content: cleanUserText,
+      outputType: "audio",
+      attachmentMeta: bubbleMeta && bubbleMeta.length > 0 ? bubbleMeta : undefined,
+      createdAt: new Date(),
     }]);
 
     const asstId = crypto.randomUUID();
     setMessages(prev => [...prev, {
       id: asstId, role: "assistant",
-      content:    "Writing the scene script and generating voices...",
-      outputType: "audio",
-      isLoading:  true,         // ← flag
-      createdAt:  new Date(),
+      content: "Writing the scene script and generating voices...",
+      outputType: "audio", isLoading: true, createdAt: new Date(),
     }]);
     setIsStreaming(true);
 
@@ -255,14 +296,12 @@ export function useChat(profile: Profile | null, mode: PlaygroundMode) {
       if (data.url) {
         const audioPayload = JSON.stringify({ url: data.url, script: data.script });
         setMessages(prev => prev.map(m =>
-          m.id === asstId
-            ? { ...m, content: audioPayload, isLoading: false }   // ← clear flag
-            : m
+          m.id === asstId ? { ...m, content: audioPayload, isLoading: false } : m
         ));
         fetch("/api/sessions/messages-save", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            session_id: activeSid, user_content: prompt,
+            session_id: activeSid, user_content: cleanUserText,
             assistant_content: audioPayload, output_type: "audio",
           }),
         }).catch(() => {});
@@ -286,21 +325,22 @@ export function useChat(profile: Profile | null, mode: PlaygroundMode) {
 
   // ─── Slides generation ────────────────────────────────────────────────────
 
-  const sendSlides = useCallback(async (prompt: string, ageGroup: string) => {
+  const sendSlides = useCallback(async (prompt: string, ageGroup: string, displayPrompt?: string, bubbleMeta?: string[]) => {
     if (!profile || isStreaming) return;
+    const cleanUserText = displayPrompt ?? prompt;
 
     setMessages(prev => [...prev, {
-      id: crypto.randomUUID(), role: "user", content: prompt,
-      outputType: "slides", createdAt: new Date(),
+      id: crypto.randomUUID(), role: "user", content: cleanUserText,
+      outputType: "slides",
+      attachmentMeta: bubbleMeta && bubbleMeta.length > 0 ? bubbleMeta : undefined,
+      createdAt: new Date(),
     }]);
 
     const asstId = crypto.randomUUID();
     setMessages(prev => [...prev, {
       id: asstId, role: "assistant",
-      content:    "Building your slides...",
-      outputType: "slides",
-      isLoading:  true,         // ← flag
-      createdAt:  new Date(),
+      content: "Building your slides...",
+      outputType: "slides", isLoading: true, createdAt: new Date(),
     }]);
     setIsStreaming(true);
 
@@ -317,14 +357,12 @@ export function useChat(profile: Profile | null, mode: PlaygroundMode) {
       if (data.pptBase64) {
         const slidesPayload = JSON.stringify(data);
         setMessages(prev => prev.map(m =>
-          m.id === asstId
-            ? { ...m, content: slidesPayload, isLoading: false }  // ← clear flag
-            : m
+          m.id === asstId ? { ...m, content: slidesPayload, isLoading: false } : m
         ));
         fetch("/api/sessions/messages-save", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            session_id: activeSid, user_content: prompt,
+            session_id: activeSid, user_content: cleanUserText,
             assistant_content: slidesPayload, output_type: "slides",
           }),
         }).catch(() => {});
@@ -346,7 +384,7 @@ export function useChat(profile: Profile | null, mode: PlaygroundMode) {
     }
   }, [profile, isStreaming, sessionId, mode, createSession]);
 
-  // ─── Static message (no API) ──────────────────────────────────────────────
+  // ─── Static message ───────────────────────────────────────────────────────
 
   const sendStaticMessage = useCallback((
     text:       string,
@@ -358,6 +396,13 @@ export function useChat(profile: Profile | null, mode: PlaygroundMode) {
       outputType, createdAt: new Date(),
     }]);
   }, []);
+
+  // ─── Encode attachment types when saving text messages to DB ─────────────
+  // This is done in chat/route.ts for text messages.
+  // For sendMessage with attachments, we need to store the marker.
+  // We expose encodeForDB so chat/route.ts can use it.
+  // Actually we handle it fully here: after the stream completes, the chat route
+  // saves the message. We patch the saved content via the route.
 
   const reset = useCallback(() => {
     abortRef.current?.abort();
@@ -372,5 +417,7 @@ export function useChat(profile: Profile | null, mode: PlaygroundMode) {
     startSession, loadSession,
     sendMessage, sendImage, sendAudio, sendSlides, sendStaticMessage,
     reset,
+    // Expose for use in playground page
+    encodeForDB, getAttachTypes,
   };
 }

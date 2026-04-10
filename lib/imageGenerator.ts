@@ -51,6 +51,14 @@ const FAL_CONFIGS: Record<string, { endpoint: string; fallback?: string; payload
       num_inference_steps: 28,
     },
   },
+  "fal-img2img": {
+    endpoint: "fal-ai/flux-pro/v1.1/redux",
+    payload: {
+      image_size: "landscape_16_9",
+      output_format: "png",
+      num_inference_steps: 28,
+    },
+  },
   "fal-juggernaut": {
     endpoint: "rundiffusion-fal/juggernaut-flux/pro",
     fallback: "fal-ai/flux-pro/v1.1",
@@ -76,7 +84,7 @@ async function downloadBuffer(url: string): Promise<Buffer> {
   return Buffer.from(await r.arrayBuffer());
 }
 
-async function generateFal(prompt: string, model: ImageModel): Promise<Buffer> {
+async function generateFal(prompt: string, model: ImageModel, imageUrl?: string): Promise<Buffer> {
   const falKey = process.env.FAL_KEY;
   if (!falKey) throw new Error("FAL_KEY not set");
 
@@ -85,13 +93,22 @@ async function generateFal(prompt: string, model: ImageModel): Promise<Buffer> {
   const clean   = prompt.replace(/[\x00-\x1f\x7f]/g, " ").replace(/\s+/g, " ").trim();
 
   let resp: Response | null = null;
-  let endpoint = cfg.endpoint;
+  // Use dedicated img2img endpoint when a source image is provided
+  const img2imgCfg = FAL_CONFIGS["fal-img2img"];
+  let endpoint = imageUrl ? img2imgCfg.endpoint : cfg.endpoint;
+  const activePayload = imageUrl ? img2imgCfg.payload : cfg.payload;
 
   for (let i = 0; i < 3; i++) {
     try {
+      const body: Record<string, unknown> = { prompt: clean, ...activePayload };
+      if (imageUrl) {
+        // flux-pro/v1.1/redux uses image_url for the reference image
+        body.image_url = imageUrl;
+        body.strength  = 0.8; // how much to follow the prompt vs preserve original
+      }
       resp = await fetch(`https://queue.fal.run/${endpoint}`, {
         method: "POST", headers,
-        body: JSON.stringify({ prompt: clean, ...cfg.payload }),
+        body: JSON.stringify(body),
       });
       if (resp.status < 500) break;
       await sleep(2 ** i * 1000);
@@ -100,9 +117,11 @@ async function generateFal(prompt: string, model: ImageModel): Promise<Buffer> {
 
   if ((!resp || resp.status >= 500) && cfg.fallback) {
     endpoint = cfg.fallback;
+    const fallbackBody: Record<string, unknown> = { prompt: clean, ...FAL_CONFIGS["fal-flux2pro"].payload };
+    if (imageUrl) { fallbackBody.image_url = imageUrl; fallbackBody.strength = 0.75; }
     resp = await fetch(`https://queue.fal.run/${endpoint}`, {
       method: "POST", headers,
-      body: JSON.stringify({ prompt: clean, ...FAL_CONFIGS["fal-flux2pro"].payload }),
+      body: JSON.stringify(fallbackBody),
     });
   }
 
@@ -154,7 +173,8 @@ async function generateOpenAI(prompt: string): Promise<Buffer> {
 export async function generateImage(
   prompt: string,
   model: ImageModel = "fal-flux2pro",
-  applyStyle = true,         // legacy param — now overridden by intent detection
+  applyStyle = true,
+  imageUrl?: string,         // if provided, do image-to-image refinement
 ): Promise<Buffer> {
   // Intent detection always wins over the caller's applyStyle flag
   // Exception: if caller explicitly passes false, always skip style
@@ -166,5 +186,5 @@ export async function generateImage(
   console.log(`[imageGenerator] prompt: ${finalPrompt.slice(0, 120)}...`);
 
   if (model === "gpt-image-1") return generateOpenAI(finalPrompt);
-  return generateFal(finalPrompt, model);
+  return generateFal(finalPrompt, model, imageUrl);
 }

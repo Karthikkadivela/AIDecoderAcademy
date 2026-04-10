@@ -52,7 +52,6 @@
   50%      { transform: translateY(-8px); }
 }
 .animate-float { animation: float 3s ease-in-out infinite; }
-
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #c4b5fd; border-radius: 99px; }

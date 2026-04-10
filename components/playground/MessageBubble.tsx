@@ -208,7 +208,39 @@ export function MessageBubble({ message, avatarEmoji, isStreaming, onSave }: Pro
           {/* Plain text */}
           {!isEmpty && !isLoading && !isImage && !audioData && !slideData && (
             isUser ? (
+            <div>
               <p className="whitespace-pre-wrap">{message.content}</p>
+              {message.attachmentMeta && message.attachmentMeta.length > 0 && (
+                <div className="flex gap-1 mt-2 flex-wrap">
+                  {message.attachmentMeta.map((item, i) => {
+                    const isFileType = item === "image" || item === "audio" || item === "pdf" || item === "file";
+                    return (
+                      <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-white/20 text-white/80">
+                        {item === "image" ? (
+                          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                            <rect x="0.5" y="0.5" width="9" height="9" rx="1" stroke="currentColor" strokeWidth="1"/>
+                            <circle cx="3" cy="3.5" r="1" fill="currentColor"/>
+                            <path d="M0.5 7l2.5-2.5 2 2 1.5-1.5L9.5 7" stroke="currentColor" strokeWidth="1" strokeLinejoin="round"/>
+                          </svg>
+                        ) : item === "audio" ? (
+                          <div className="flex items-end gap-[1.5px]">
+                            {[2,3,2,4,2,3,2].map((h, j) => (
+                              <div key={j} className="w-[1.5px] rounded-full bg-white/80" style={{ height: `${h}px` }}/>
+                            ))}
+                          </div>
+                        ) : (
+                          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                            <path d="M6 1H2.5a1 1 0 00-1 1v6a1 1 0 001 1h5a1 1 0 001-1V3.5L6 1z" stroke="currentColor" strokeWidth="1"/>
+                            <path d="M6 1v2.5h2.5" stroke="currentColor" strokeWidth="1"/>
+                          </svg>
+                        )}
+                        {isFileType ? `${item} attached` : item}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
             ) : (
               <ReactMarkdown components={{
                 p:      ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,

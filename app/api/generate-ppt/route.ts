@@ -9,94 +9,105 @@ export const maxDuration = 180;
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
-async function generateSlideStructure(prompt: string, ageGroup: string): Promise<PPTInput> {
-  const systemPrompt = `You are an educational content creator for students aged ${ageGroup}.
-Generate a PowerPoint presentation structure as valid JSON only.
-Return ONLY the JSON object — no markdown, no backticks, no explanation.
-
-The JSON must follow this exact structure:
-{
-  "title": "Presentation title",
-  "subject": "Subject area",
-  "class_level": "Grade X",
-  "sections": [
-    {
-      "title": "Section title",
-      "concepts": ["concept 1", "concept 2", "concept 3"],
-      "scenes": [
-        {
-          "scene_id": "S1",
-          "scene_goal": "What this scene teaches (max 15 words)",
-          "image_prompt": "See image_prompt rules below"
-        }
-      ]
-    }
-  ]
+// Extract existing slide structure from creation context if present
+function extractExistingSlides(prompt: string): {
+  existingSlides: PPTInput | null;
+  cleanPrompt: string;
+} {
+  const slideStart = prompt.indexOf('[Slides titled "');
+  const slideEnd   = slideStart > -1 ? prompt.indexOf(']', slideStart) : -1;
+  const match      = slideStart > -1 && slideEnd > -1
+    ? prompt.slice(slideStart, slideEnd + 1).match(/\[Slides titled "[^"]*": ([\s\S]*?)\]/)
+    : null;
+  if (match) {
+    const cleanPrompt = prompt.replace(match[0], "").trim();
+    // We only have section summaries in the context string — flag as "has existing"
+    // The full structure needs to come from a re-parse, so we signal modification mode
+    return { existingSlides: { title: "existing", sections: [] }, cleanPrompt };
+  }
+  return { existingSlides: null, cleanPrompt: prompt };
 }
 
-STRUCTURE RULES:
+async function generateSlideStructure(
+  prompt: string,
+  ageGroup: string,
+  isModification: boolean,
+  existingSummary?: string,
+): Promise<PPTInput> {
+
+  const baseRules = `STRUCTURE RULES:
 - 2 to 3 sections
 - 1 scene per section
 - concepts: 3 to 5 bullet points per section, each under 8 words
-- scene_goal: what the student should understand after this slide, max 15 words
+- scene_goal: what the student should understand, max 15 words
 
-IMAGE PROMPT RULES (critical — this drives the actual image generation):
-- Write the image_prompt as if briefing a 2D animation studio in the style of Pixar and Studio Ghibli
-- Must be 40 to 60 words — detailed enough for the image model to generate something accurate
-- Always include: the specific subject/object, the setting/environment, the mood, and what action or concept is being shown
-- For science topics: show the concept happening physically in a vivid scene — not just "a diagram of X"
-- For history/geography: show the era, location, and key figures or landmarks
-- For math: show characters interacting with numbers, shapes or patterns in a physical environment
-- Characters should look like energetic teens (not adults) in a bright colourful world
-- NEVER write vague prompts like "students learning" or "a classroom scene" — be specific
-- BAD: "Two students learning about photosynthesis in a classroom"
-- GOOD: "A teenage girl with bright eyes holds a glowing green leaf up to golden sunlight in a lush garden, tiny arrows showing water rising through roots and oxygen bubbles floating upward, warm Ghibli-style illustration"
+IMAGE PROMPT RULES:
+- 40 to 60 words, Pixar/Ghibli 2D animation style
+- Include: subject, setting, mood, and what is being shown
+- Characters: energetic teens in a bright colourful world
+- BAD: "students in a classroom"
+- GOOD: "A teenage girl holds a glowing leaf to sunlight in a lush garden, tiny arrows showing water rising through roots, Ghibli style"`;
 
-Return COMPLETE valid JSON only.`;
+  const systemPrompt = isModification
+    ? `You are an educational content creator for students aged ${ageGroup}.
+The student has EXISTING slides they want to modify.
+Apply their requested changes while keeping the overall topic and structure.
 
-  const response = await openai.chat.completions.create({
-    model:           "gpt-4o-mini",
+EXISTING SLIDE SUMMARY: ${existingSummary ?? ""}
+
+The student's modification request will follow. Apply it — change specific sections, 
+add content, adjust concepts, update image prompts — but keep what they didn't ask to change.
+
+Return ONLY valid JSON:
+{
+  "title": "...", "subject": "...", "class_level": "...",
+  "sections": [{
+    "title": "...", "concepts": ["..."],
+    "scenes": [{ "scene_id": "S1", "scene_goal": "...", "image_prompt": "..." }]
+  }]
+}
+
+${baseRules}`
+    : `You are an educational content creator for students aged ${ageGroup}.
+Generate a PowerPoint presentation. Return ONLY valid JSON:
+{
+  "title": "...", "subject": "...", "class_level": "...",
+  "sections": [{
+    "title": "...", "concepts": ["..."],
+    "scenes": [{ "scene_id": "S1", "scene_goal": "...", "image_prompt": "..." }]
+  }]
+}
+
+${baseRules}`;
+
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
     messages: [
       { role: "system", content: systemPrompt },
-      { role: "user",   content: `Create a presentation about: ${prompt}` },
+      { role: "user",   content: isModification ? `Modification: ${prompt}` : `Create a presentation about: ${prompt}` },
     ],
-    temperature:     0.7,
-    max_tokens:      2048,
+    temperature: 0.7, max_tokens: 2048,
     response_format: { type: "json_object" },
   });
 
-  const raw = response.choices[0]?.message?.content ?? "{}";
-  try {
-    return JSON.parse(raw) as PPTInput;
-  } catch (e) {
-    console.error("[generate-ppt] JSON parse failed:", raw.slice(0, 200));
-    throw new Error(`Invalid JSON from OpenAI: ${e instanceof Error ? e.message : e}`);
-  }
+  return JSON.parse(res.choices[0]?.message?.content ?? "{}") as PPTInput;
 }
 
 async function generateSceneImages(structure: PPTInput): Promise<PPTInput> {
   const enriched = JSON.parse(JSON.stringify(structure)) as PPTInput;
-
   for (let si = 0; si < enriched.sections.length; si++) {
     for (let sci = 0; sci < enriched.sections[si].scenes.length; sci++) {
       const scene = enriched.sections[si].scenes[sci];
       try {
-        // Prefer image_prompt; fall back to scene_goal + section title for context
-        const rawPrompt = scene.image_prompt?.trim()
-          || `${scene.scene_goal} — ${enriched.sections[si].title}`;
-
-        console.log(`[generate-ppt] Image for ${scene.scene_id}: "${rawPrompt.slice(0, 80)}..."`);
-
-        // Always apply style for slide images — they are always scene/educational illustrations
+        const rawPrompt = scene.image_prompt?.trim() || `${scene.scene_goal} — ${enriched.sections[si].title}`;
+        console.log(`[generate-ppt] Image for ${scene.scene_id}: "${rawPrompt.slice(0, 60)}..."`);
         const buffer = await generateImage(rawPrompt, "fal-flux2pro", true);
         enriched.sections[si].scenes[sci].imageBase64 = buffer.toString("base64");
       } catch (err) {
         console.error(`[generate-ppt] Image failed for ${scene.scene_id}:`, err);
-        // Continue — missing image gets a placeholder in the PPTX
       }
     }
   }
-
   return enriched;
 }
 
@@ -108,27 +119,32 @@ export async function POST(req: Request) {
     const { prompt, ageGroup = "11-13" } = await req.json();
     if (!prompt?.trim()) return NextResponse.json({ error: "Prompt required" }, { status: 400 });
 
-    console.log("[generate-ppt] Step 1: Generating slide structure...");
-    const structure = await generateSlideStructure(prompt, ageGroup);
-    console.log(`[generate-ppt] ${structure.sections.length} sections, ${structure.sections.reduce((n, s) => n + s.scenes.length, 0)} scenes`);
+    const { existingSlides, cleanPrompt } = extractExistingSlides(prompt);
+    const isModification = !!existingSlides;
 
-    console.log("[generate-ppt] Step 2: Generating scene images...");
-    const enriched = await generateSceneImages(structure);
+    // Extract the section summary from the original prompt context for GPT
+  const slideSummaryStart = prompt.indexOf('[Slides titled "');
+  const slideSummaryEnd   = slideSummaryStart > -1 ? prompt.indexOf(']', slideSummaryStart) : -1;
+  const slideSummaryMatch  = slideSummaryStart > -1 && slideSummaryEnd > -1
+    ? prompt.slice(slideSummaryStart, slideSummaryEnd + 1).match(/\[Slides titled "[^"]*": ([\s\S]*?)\]/)
+    : null;
+    const existingSummary = slideSummaryMatch ? slideSummaryMatch[1] : undefined;
 
-    console.log("[generate-ppt] Step 3: Building PPTX...");
+    console.log(`[generate-ppt] mode=${isModification ? "modify" : "fresh"}`);
+
+    const structure = await generateSlideStructure(cleanPrompt, ageGroup, isModification, existingSummary);
+    console.log(`[generate-ppt] ${structure.sections.length} sections`);
+
+    const enriched  = await generateSceneImages(structure);
     const pptBuffer = await generatePPT(enriched);
     const pptBase64 = Buffer.from(pptBuffer).toString("base64");
 
     return NextResponse.json({
-      title:    structure.title,
-      subject:  structure.subject,
-      sections: enriched.sections,
-      pptBase64,
+      title: structure.title, subject: structure.subject,
+      sections: enriched.sections, pptBase64,
     });
   } catch (err) {
     console.error("[generate-ppt]", err);
-    return NextResponse.json({
-      error: err instanceof Error ? err.message : "PPT generation failed",
-    }, { status: 500 });
+    return NextResponse.json({ error: err instanceof Error ? err.message : "PPT generation failed" }, { status: 500 });
   }
 }

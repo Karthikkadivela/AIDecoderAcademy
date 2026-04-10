@@ -7,6 +7,7 @@ const nunito = Nunito({
   subsets: ["latin"],
   variable: "--font-nunito",
   display: "swap",
+
 });
 
 const inter = Inter({
