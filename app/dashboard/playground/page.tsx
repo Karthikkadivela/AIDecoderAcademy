@@ -1,17 +1,22 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
+import { AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { RefreshCw, Plus, X } from "lucide-react";
 import { MessageBubble } from "@/components/playground/MessageBubble";
 import { SaveCreationModal } from "@/components/playground/SaveCreationModal";
 import { CreationPicker } from "@/components/playground/CreationPicker";
+import { PlaygroundWorld } from "@/components/playground/PlaygroundWorld";
+import { PlaygroundFlyers } from "@/components/playground/PlaygroundFlyers";
 import { LevelUpModal } from "@/components/gamification/LevelUpModal";
 import { ArenaSelector } from "@/components/gamification/ArenaSelector";
+import { BadgeUnlockToast } from "@/components/gamification/BadgeUnlockToast";
+import { StreakMeter } from "@/components/gamification/StreakMeter";
 import { XPFlash } from "@/components/gamification/XPFlash";
 import { XPBar } from "@/components/gamification/XPBar";
 import { useChat, type Attachment } from "@/components/playground/useChat";
 import { useXP, type XPResult } from "@/lib/useXP";
-import { getArena, dispatchActiveArenaChanged } from "@/lib/arenas";
+import { getArena, dispatchActiveArenaChanged, type Badge } from "@/lib/arenas";
 import { cn } from "@/lib/utils";
 import type { Profile, PlaygroundMode, OutputType, Session, Creation } from "@/types";
 
@@ -35,6 +40,20 @@ function groupSessions(sessions: Session[]) {
     else                     groups.Earlier.push(s);
   });
   return groups;
+}
+
+function mergeProfileFromXp(p: Profile, r: XPResult): Profile {
+  const ids = new Set((p.badges ?? []).map(b => b.id));
+  const added = (r.new_badges ?? [])
+    .filter(b => !ids.has(b.id))
+    .map(b => ({ id: b.id, earned_at: b.earned_at }));
+  return {
+    ...p,
+    xp:          r.total_xp,
+    level:       r.level,
+    streak_days: r.streak_days,
+    badges:      [...(p.badges ?? []), ...added],
+  };
 }
 
 function buildPreviousOutputContext(
@@ -118,6 +137,8 @@ export default function PlaygroundPage() {
   const [arenaSelectorOpen, setArenaSelectorOpen]  = useState(false);
   const [xpFlash,           setXpFlash]            = useState<{ amount: number; streak: boolean } | null>(null);
   const [activeArenaId,     setActiveArenaId]      = useState(1);
+  const [badgeToast,        setBadgeToast]         = useState<(Badge & { earned_at: string }) | null>(null);
+  const badgeQueueRef      = useRef<(Badge & { earned_at: string })[]>([]);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLTextAreaElement>(null);
@@ -131,13 +152,36 @@ export default function PlaygroundPage() {
     reset,
   } = useChat(profile, mode);
 
-  // ── XP / gamification ─────────────────────────────────────────────────
-  const { awardXP } = useXP((result) => setLevelUpResult(result));
+  // ── XP / gamification (P3: live profile sync + badge toasts) ──────────
+  const onBadgeUnlock = useCallback((b: Badge & { earned_at: string }) => {
+    setBadgeToast(prev => {
+      if (prev) {
+        badgeQueueRef.current.push(b);
+        return prev;
+      }
+      return b;
+    });
+  }, []);
+
+  const dismissBadgeToast = useCallback(() => {
+    setBadgeToast(() => badgeQueueRef.current.shift() ?? null);
+  }, []);
+
+  const { awardXP } = useXP(
+    (result) => setLevelUpResult(result),
+    onBadgeUnlock,
+  );
 
   const showXPFlash = (amount: number, streak = false) => {
     setXpFlash({ amount, streak });
     setTimeout(() => setXpFlash(null), 2500);
   };
+
+  const handleXpResult = useCallback((r: XPResult | null) => {
+    if (!r) return;
+    setProfile(p => (p ? mergeProfileFromXp(p, r) : null));
+    showXPFlash(r.xp_earned, r.streak_bonus > 0);
+  }, []);
 
   const handleSwitchArena = async (arenaId: number) => {
     await fetch("/api/arena", {
@@ -228,16 +272,16 @@ export default function PlaygroundPage() {
 
     if (outputType === "image") {
       await sendImage(enrichedText, hasContext ? text : undefined, bubbleMeta);
-      awardXP("generate_image").then(r => r && showXPFlash(r.xp_earned, r.streak_bonus > 0));
+      awardXP("generate_image").then(handleXpResult);
     } else if (outputType === "audio") {
       await sendAudio(enrichedText, profile?.age_group ?? "11-13", hasContext ? text : undefined, bubbleMeta);
-      awardXP("generate_audio").then(r => r && showXPFlash(r.xp_earned, r.streak_bonus > 0));
+      awardXP("generate_audio").then(handleXpResult);
     } else if (outputType === "slides") {
       await sendSlides(enrichedText, profile?.age_group ?? "11-13", hasContext ? text : undefined, bubbleMeta);
-      awardXP("generate_slides").then(r => r && showXPFlash(r.xp_earned, r.streak_bonus > 0));
+      awardXP("generate_slides").then(handleXpResult);
     } else {
       await sendMessage(enrichedText, outputType, atts, undefined, bubbleMeta);
-      awardXP("generate_text").then(r => r && showXPFlash(r.xp_earned, r.streak_bonus > 0));
+      awardXP("generate_text").then(handleXpResult);
     }
     setTimeout(refreshSessions, 2000);
     inputRef.current?.focus();
@@ -278,7 +322,7 @@ export default function PlaygroundPage() {
   };
 
   const handleSave = async (title: string, outType: OutputType, tags: string[], projectId?: string) => {
-    awardXP("save_creation").then(r => r && showXPFlash(r.xp_earned));
+    awardXP("save_creation").then(handleXpResult);
     await fetch("/api/creations", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
@@ -370,16 +414,25 @@ export default function PlaygroundPage() {
           )}
         </div>
 
+        <div className="px-3 pb-2 flex-shrink-0">
+          <StreakMeter
+            streakDays={profile.streak_days ?? 0}
+            accent={arena.accent}
+            accentDim={arena.accentDim}
+            accentGlow={arena.accentGlow}
+          />
+        </div>
+
         <div className="px-3 pt-3 border-t border-white/[0.07]">
           <p className="text-[10px] text-white/30 text-center">Last 10 chats saved</p>
         </div>
       </aside>
 
-      {/* ── Main chat area ── */}
-      <div className="relative z-10 flex-1 flex flex-col min-w-0">
+      {/* ── Main chat area (scrollable world + transcript) ── */}
+      <div className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
 
         {/* Sub-header — arena switcher + XP bar */}
-        <div className="border-b px-4 py-2.5 flex items-center gap-3 flex-shrink-0 backdrop-blur-xl"
+        <div className="flex flex-shrink-0 items-center gap-3 border-b px-4 py-2.5 backdrop-blur-xl"
           style={{ background: "rgba(15,15,26,0.9)", borderColor: "rgba(255,255,255,0.07)" }}>
 
           {/* Arena switcher */}
@@ -414,8 +467,11 @@ export default function PlaygroundPage() {
           </div>
         </div>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+        <div className="relative min-h-0 flex-1">
+          <PlaygroundWorld arenaId={activeArenaId} />
+          <PlaygroundFlyers arenaId={activeArenaId} />
+          {/* Messages — above parallax world; bubbles stay readable with glass panels */}
+          <div className="relative z-10 h-full min-h-0 overflow-y-auto px-6 py-5 space-y-4">
           {welcomeShown && messages.length === 0 && (
             <div className="flex gap-3 message-in">
               <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0 mt-1 bg-white/[0.06] border border-white/[0.08] backdrop-blur-md">
@@ -444,6 +500,7 @@ export default function PlaygroundPage() {
             />
           ))}
           <div ref={bottomRef}/>
+          </div>
         </div>
 
         {/* ── Input area ── */}
@@ -604,6 +661,18 @@ export default function PlaygroundPage() {
 
       {/* ── Gamification overlays ── */}
       {xpFlash && <XPFlash amount={xpFlash.amount} visible streak={xpFlash.streak}/>}
+
+      <AnimatePresence mode="wait">
+        {badgeToast && (
+          <BadgeUnlockToast
+            key={badgeToast.id}
+            badge={badgeToast}
+            accent={arena.accent}
+            accentGlow={arena.accentGlow}
+            onDismiss={dismissBadgeToast}
+          />
+        )}
+      </AnimatePresence>
 
       {levelUpResult?.leveled_up && (
         <LevelUpModal

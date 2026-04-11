@@ -1,11 +1,12 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
 import { cn } from "@/lib/utils";
 import { ArenaEnvironment } from "@/components/dashboard/ArenaEnvironment";
 import { getArena, ACTIVE_ARENA_CHANGED_EVENT } from "@/lib/arenas";
+import { playArenaEnterSound } from "@/lib/gameAudio";
 import type { Profile } from "@/types";
 
 const NAV = [
@@ -18,6 +19,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [arenaOverride, setArenaOverride] = useState<number | null>(null);
+  const prevArenaRef = useRef<number | null>(null);
 
   useEffect(() => {
     fetch("/api/profile")
@@ -43,6 +45,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const effectiveArenaId = arenaOverride ?? profile?.active_arena ?? 1;
   const arena = getArena(effectiveArenaId);
+
+  // P2: soft chime on arena change (opt-in + no chime until profile loaded — avoids default “1” → real id false positive)
+  useEffect(() => {
+    if (profile == null) return;
+    if (prevArenaRef.current === null) {
+      prevArenaRef.current = effectiveArenaId;
+      return;
+    }
+    if (prevArenaRef.current !== effectiveArenaId) {
+      playArenaEnterSound(arena.environmentPreset);
+      prevArenaRef.current = effectiveArenaId;
+    }
+  }, [profile, effectiveArenaId, arena.environmentPreset]);
   const xp    = profile?.xp    ?? 0;
   const level = profile?.level ?? 1;
 

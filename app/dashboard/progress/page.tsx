@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Heart, MoreHorizontal, Search, Plus, Folder, Star, Grid } from "lucide-react";
+import { Heart, MoreHorizontal, Search, Plus, Folder, Star, Grid, Flame, Trophy } from "lucide-react";
 import Link from "next/link";
 import { cn, formatDate, truncate } from "@/lib/utils";
 import { AudioPlayer, type AudioData } from "@/components/playground/AudioPlayer";
@@ -205,6 +205,30 @@ export default function ProgressPage() {
 
       {/* ── Main content ── */}
       <div className="relative z-10 flex-1 flex flex-col min-w-0">
+
+        {profile && (
+          <div
+            className="flex flex-shrink-0 flex-wrap items-center gap-3 border-b border-white/[0.06] px-6 py-2 text-xs"
+            style={{ background: "rgba(15,15,26,0.65)" }}>
+            <Link
+              href="/dashboard/playground"
+              className="flex items-center gap-1.5 font-display font-bold text-white/70 transition-colors hover:text-white">
+              <Flame size={14} className={(profile.streak_days ?? 0) >= 3 ? "text-orange-400" : "text-white/35"} />
+              <span>{profile.streak_days ?? 0} day streak</span>
+            </Link>
+            <span className="text-white/15" aria-hidden>
+              ·
+            </span>
+            <Link
+              href="/dashboard/profile"
+              className="flex items-center gap-1.5 font-display font-bold text-white/70 transition-colors hover:text-white">
+              <Trophy size={14} style={{ color: arena.accent }} />
+              <span>
+                Level {profile.level ?? 1} · view badges
+              </span>
+            </Link>
+          </div>
+        )}
 
         {/* Top bar */}
         <div className="border-b border-white/[0.07] px-6 py-3 flex items-center gap-3 flex-shrink-0"

@@ -8,6 +8,7 @@ import {
   getArena, getUnlockedArenas, getXPProgress, getXPForNextLevel,
   BADGES, XP_THRESHOLDS, ARENAS, type ArenaConfig,
 } from "@/lib/arenas";
+import { isGameSfxEnabled, setGameSfxEnabled } from "@/lib/gameAudio";
 import type { AgeGroup, Profile } from "@/types";
 
 // ─── Onboarding helpers ───────────────────────────────────────────────────────
@@ -223,6 +224,18 @@ function OnboardingFlow() {
 
 // ─── Trophy Room (profile dashboard) ─────────────────────────────────────────
 function TrophyRoom({ profile }: { profile: Profile }) {
+  const [arenaSfx, setArenaSfx] = useState(false);
+  const [creationCount, setCreationCount] = useState<number | null>(null);
+  useEffect(() => {
+    setArenaSfx(isGameSfxEnabled());
+  }, []);
+  useEffect(() => {
+    fetch("/api/creations")
+      .then(r => (r.ok ? r.json() : { creations: [] }))
+      .then(({ creations }) => setCreationCount((creations ?? []).length))
+      .catch(() => setCreationCount(null));
+  }, []);
+
   const arena        = getArena(profile.active_arena ?? 1);
   const xp           = profile.xp ?? 0;
   const level        = profile.level ?? 1;
@@ -333,6 +346,64 @@ function TrophyRoom({ profile }: { profile: Profile }) {
               <div className="text-[10px] text-white/40 mt-0.5">{stat.label}</div>
             </motion.div>
           ))}
+        </div>
+
+        {/* ── P3: Goals / next achievements ── */}
+        <div
+          className="rounded-2xl border border-white/10 p-5"
+          style={{ background: "rgba(255,255,255,0.03)" }}>
+          <h2 className="font-display font-black text-lg text-white mb-4 flex items-center gap-2">
+            <span>🎯</span> Next goals
+          </h2>
+          <div className="space-y-4">
+            {!earnedBadges.has("streak_7") && (
+              <div>
+                <div className="flex justify-between text-[11px] font-display font-bold text-white/70 mb-1">
+                  <span>Week Warrior streak</span>
+                  <span className="font-mono text-white/40">{streak} / 7 days</span>
+                </div>
+                <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-700"
+                    style={{
+                      width:      `${Math.min(100, Math.round((streak / 7) * 100))}%`,
+                      background: arena.accent,
+                      boxShadow:  `0 0 10px ${arena.accentGlow}`,
+                    }}
+                  />
+                </div>
+                <p className="text-[10px] text-white/35 mt-1">Use the playground on consecutive days.</p>
+              </div>
+            )}
+            {!earnedBadges.has("librarian") && creationCount != null && (
+              <div>
+                <div className="flex justify-between text-[11px] font-display font-bold text-white/70 mb-1">
+                  <span>Librarian badge</span>
+                  <span className="font-mono text-white/40">{creationCount} / 10 saves</span>
+                </div>
+                <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-700"
+                    style={{
+                      width:      `${Math.min(100, Math.round((creationCount / 10) * 100))}%`,
+                      background: "#FF6B2B",
+                      boxShadow:  "0 0 10px rgba(255,107,43,0.35)",
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+            {!earnedBadges.has("all_tools") && (
+              <p className="text-[11px] text-white/40 leading-relaxed">
+                Try every output format (text, JSON, image, audio, slides) to earn <span className="text-white/60 font-bold">Full Toolkit</span>.
+              </p>
+            )}
+            {earnedBadges.has("streak_7") && earnedBadges.has("librarian") && earnedBadges.has("all_tools") && (
+              <p className="text-sm text-white/45 font-display font-bold">
+                You have cleared the starter goals — keep creating for fun and new arenas!
+              </p>
+            )}
+          </div>
         </div>
 
         {/* ── Arenas unlocked ── */}
@@ -475,6 +546,50 @@ function TrophyRoom({ profile }: { profile: Profile }) {
             </div>
           </div>
         )}
+
+        {/* ── Game audio (arena + level up) ── */}
+        <div
+          className="rounded-2xl border border-white/10 p-4"
+          style={{ background: "rgba(255,255,255,0.03)" }}>
+          <h2 className="font-display font-black text-lg text-white mb-3 flex items-center gap-2">
+            <span>🎛️</span> Sounds & celebrations
+          </h2>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="font-display font-bold text-sm text-white">Arena & level-up audio</p>
+              <p className="text-[10px] text-white/35 mt-0.5 leading-snug max-w-md">
+                Arena stings, level-up fanfare, and badge unlock sounds. Off unless you enable it. No audio if your device uses reduced motion.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={arenaSfx}
+              aria-label="Arena and level-up sounds"
+              onClick={() => {
+                const next = !arenaSfx;
+                setGameSfxEnabled(next);
+                setArenaSfx(next);
+              }}
+              className={cn(
+                "relative h-8 w-14 shrink-0 rounded-full border transition-colors",
+                arenaSfx ? "border-white/25" : "border-white/10 bg-white/[0.06]",
+              )}
+              style={
+                arenaSfx
+                  ? { background: arena.accentDim, borderColor: `${arena.accent}55` }
+                  : undefined
+              }>
+              <span
+                className={cn(
+                  "absolute top-1 h-6 w-6 rounded-full bg-white shadow-md transition-transform duration-200",
+                  arenaSfx ? "translate-x-[1.75rem]" : "translate-x-1",
+                )}
+                style={arenaSfx ? { boxShadow: `0 0 12px ${arena.accentGlow}` } : undefined}
+              />
+            </button>
+          </div>
+        </div>
 
         <div className="h-8" />
       </div>
