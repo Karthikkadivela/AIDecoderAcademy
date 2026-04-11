@@ -11,7 +11,7 @@ import { XPFlash } from "@/components/gamification/XPFlash";
 import { XPBar } from "@/components/gamification/XPBar";
 import { useChat, type Attachment } from "@/components/playground/useChat";
 import { useXP, type XPResult } from "@/lib/useXP";
-import { getArena } from "@/lib/arenas";
+import { getArena, dispatchActiveArenaChanged } from "@/lib/arenas";
 import { cn } from "@/lib/utils";
 import type { Profile, PlaygroundMode, OutputType, Session, Creation } from "@/types";
 
@@ -147,6 +147,7 @@ export default function PlaygroundPage() {
     });
     setActiveArenaId(arenaId);
     setArenaSelectorOpen(false);
+    dispatchActiveArenaChanged(arenaId);
   };
 
   const refreshSessions = useCallback(() => {
@@ -317,12 +318,10 @@ export default function PlaygroundPage() {
   const arena   = getArena(activeArenaId);
 
   return (
-    <div className="studio-bg flex text-white relative overflow-hidden" style={{ height: "calc(100vh - 57px)" }}>
-      {/* Arena ambient glow — changes per arena */}
-      <div className="pointer-events-none absolute inset-0 z-0 transition-all duration-1000"
-        style={{ background: arena.gradient }} />
-      <div className="pointer-events-none absolute inset-0 z-0" />
-
+    <div
+      className="relative flex min-h-0 flex-1 overflow-hidden bg-transparent text-white"
+      style={{ height: "calc(100vh - 57px)" }}
+    >
       {/* ── Left sidebar ── */}
       <aside className="relative z-10 w-56 border-r border-white/[0.07] flex flex-col py-4 flex-shrink-0"
         style={{ background: "#0F0F1A" }}>

@@ -127,10 +127,7 @@ export default function ProgressPage() {
   ];
 
   return (
-    <div className="studio-bg flex text-white" style={{ height: "calc(100vh - 57px)" }}>
-      {/* Arena ambient glow */}
-      <div className="pointer-events-none fixed inset-0 z-0" style={{ background: arena.gradient }}/>
-
+    <div className="relative flex min-h-0 flex-1 bg-transparent text-white" style={{ height: "calc(100vh - 57px)", minHeight: 0 }}>
       {/* ── Left sidebar ── */}
       <aside className="relative z-10 w-56 border-r border-white/[0.07] flex flex-col py-5 flex-shrink-0"
         style={{ background: "#0F0F1A" }}>

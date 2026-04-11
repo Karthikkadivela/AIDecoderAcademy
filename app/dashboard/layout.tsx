@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
 import { cn } from "@/lib/utils";
-import { getArena } from "@/lib/arenas";
+import { ArenaEnvironment } from "@/components/dashboard/ArenaEnvironment";
+import { getArena, ACTIVE_ARENA_CHANGED_EVENT } from "@/lib/arenas";
 import type { Profile } from "@/types";
 
 const NAV = [
@@ -16,6 +17,7 @@ const NAV = [
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [arenaOverride, setArenaOverride] = useState<number | null>(null);
 
   useEffect(() => {
     fetch("/api/profile")
@@ -24,7 +26,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       .catch(() => {});
   }, []);
 
-  const arena = getArena(profile?.active_arena ?? 1);
+  useEffect(() => {
+    const onArena = (e: Event) => {
+      const ce = e as CustomEvent<{ arenaId: number }>;
+      if (typeof ce.detail?.arenaId === "number") setArenaOverride(ce.detail.arenaId);
+    };
+    window.addEventListener(ACTIVE_ARENA_CHANGED_EVENT, onArena);
+    return () => window.removeEventListener(ACTIVE_ARENA_CHANGED_EVENT, onArena);
+  }, []);
+
+  useEffect(() => {
+    if (arenaOverride != null && profile?.active_arena === arenaOverride) {
+      setArenaOverride(null);
+    }
+  }, [profile?.active_arena, arenaOverride]);
+
+  const effectiveArenaId = arenaOverride ?? profile?.active_arena ?? 1;
+  const arena = getArena(effectiveArenaId);
   const xp    = profile?.xp    ?? 0;
   const level = profile?.level ?? 1;
 
@@ -36,9 +54,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     : Math.round(((xp - currentThreshold) / (nextThreshold - currentThreshold)) * 100);
 
   return (
-    <div className="flex flex-col" style={{ height: "100vh", background: "#08080F" }}>
+    <div
+      className="relative flex flex-col overflow-hidden bg-[#08080F]"
+      style={{ height: "100vh" }}
+    >
+      <ArenaEnvironment preset={arena.environmentPreset} gradient={arena.gradient} />
+
       {/* Top nav */}
-      <header className="flex-shrink-0 z-30 border-b"
+      <header className="relative z-20 flex-shrink-0 border-b"
         style={{ background: "rgba(15,15,26,0.95)", borderColor: "rgba(255,255,255,0.07)", backdropFilter: "blur(20px)" }}>
         <div className="flex items-center justify-between px-5 py-2.5 w-full gap-4">
 
@@ -122,7 +145,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </header>
 
-      <main className="flex-1 overflow-hidden" style={{ height: "calc(100vh - 57px)" }}>
+      <main className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden" style={{ height: "calc(100vh - 57px)" }}>
         {children}
       </main>
     </div>

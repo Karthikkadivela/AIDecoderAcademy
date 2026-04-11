@@ -4,6 +4,24 @@
 // The playground reads this to skin itself per arena.
 // ═══════════════════════════════════════════════════════
 
+/** P1 dashboard “terrain” — one CSS motion layer per arena (`ArenaEnvironment`). */
+export type ArenaEnvironmentPreset =
+  | "nebula"     // AI Explorer — deep space drift
+  | "circuit"    // Prompt Lab — scrolling grid
+  | "ember"      // Story Forge — warm rising haze
+  | "canvas"     // Visual Studio — paint-field drift
+  | "soundwave"  // Sound Booth — lateral wave scan
+  | "cinema";    // Director's Suite — film vignette pulse
+
+export const ACTIVE_ARENA_CHANGED_EVENT = "ada-active-arena-changed";
+
+export function dispatchActiveArenaChanged(arenaId: number) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent(ACTIVE_ARENA_CHANGED_EVENT, { detail: { arenaId } }),
+  );
+}
+
 export interface ArenaConfig {
   id:            number;
   name:          string;         // "AI Explorer Arena"
@@ -17,6 +35,8 @@ export interface ArenaConfig {
   accentGlow:    string;         // rgba for glow effects
   surface:       string;         // Card/panel background
   gradient:      string;         // CSS gradient for hero backgrounds
+  /** Full-dashboard environment motion (CSS class suffix). */
+  environmentPreset: ArenaEnvironmentPreset;
   bgPattern:     string;         // Description of bg pattern (used by Cursor for visuals)
   tutorPersona:  string;         // How the AI tutor sounds in this arena
   welcomeMsg:    (name: string) => string;
@@ -39,6 +59,7 @@ export const ARENAS: ArenaConfig[] = [
     accentGlow:  "rgba(124,58,237,0.35)",
     surface:     "rgba(124,58,237,0.08)",
     gradient:    "radial-gradient(ellipse at top, rgba(124,58,237,0.2) 0%, transparent 70%)",
+    environmentPreset: "nebula",
     bgPattern:   "deep space with subtle star particles and a distant galaxy glow",
     tutorPersona:"curious and encouraging — like a friendly scientist showing you something amazing for the first time",
     welcomeMsg:  (name) => `Welcome to your launchpad, ${name}! 🚀 You're now an AI Explorer. Ask me anything — let's discover what AI can do together!`,
@@ -59,6 +80,7 @@ export const ARENAS: ArenaConfig[] = [
     accentGlow:  "rgba(0,212,255,0.3)",
     surface:     "rgba(0,212,255,0.06)",
     gradient:    "radial-gradient(ellipse at top right, rgba(0,212,255,0.15) 0%, transparent 60%)",
+    environmentPreset: "circuit",
     bgPattern:   "dark terminal with faint circuit board grid lines in deep cyan",
     tutorPersona:"sharp and technical — like a senior engineer who loves helping you write the perfect prompt",
     welcomeMsg:  (name) => `The lab is open, ${name}! ⚡ You're now a Prompt Strategist. Let's craft prompts that get exactly what you want from AI.`,
@@ -79,6 +101,7 @@ export const ARENAS: ArenaConfig[] = [
     accentGlow:  "rgba(255,107,43,0.3)",
     surface:     "rgba(255,107,43,0.06)",
     gradient:    "radial-gradient(ellipse at bottom left, rgba(255,107,43,0.18) 0%, transparent 65%)",
+    environmentPreset: "ember",
     bgPattern:   "dark warm background with faint ember particles and a firelit parchment texture",
     tutorPersona:"dramatic and inspiring — like a storyteller who sees narrative potential in everything",
     welcomeMsg:  (name) => `The forge is lit, ${name}! 📖 You're now a Narrative Engineer. Every chapter becomes a story here. What will you create?`,
@@ -99,6 +122,7 @@ export const ARENAS: ArenaConfig[] = [
     accentGlow:  "rgba(0,255,148,0.28)",
     surface:     "rgba(0,255,148,0.05)",
     gradient:    "radial-gradient(ellipse at top left, rgba(0,255,148,0.12) 0%, transparent 60%)",
+    environmentPreset: "canvas",
     bgPattern:   "dark canvas with faint paint splash texture and subtle grid lines",
     tutorPersona:"visual and enthusiastic — like an art director who thinks in images and composition",
     welcomeMsg:  (name) => `Canvas unlocked, ${name}! 🎨 You're now a Visual Architect. Describe it — and watch it appear. What do you see in your mind?`,
@@ -119,6 +143,7 @@ export const ARENAS: ArenaConfig[] = [
     accentGlow:  "rgba(255,45,120,0.3)",
     surface:     "rgba(255,45,120,0.06)",
     gradient:    "radial-gradient(ellipse at center right, rgba(255,45,120,0.15) 0%, transparent 60%)",
+    environmentPreset: "soundwave",
     bgPattern:   "dark studio with horizontal soundwave lines and acoustic panel texture",
     tutorPersona:"rhythmic and expressive — like a music producer who hears the audio in every word",
     welcomeMsg:  (name) => `The booth is yours, ${name}! 🎙️ You're now a Voice Designer. Give your words a voice — rap, narrate, or perform. What sounds do you hear?`,
@@ -139,6 +164,7 @@ export const ARENAS: ArenaConfig[] = [
     accentGlow:  "rgba(200,255,0,0.3)",
     surface:     "rgba(200,255,0,0.05)",
     gradient:    "radial-gradient(ellipse at top, rgba(200,255,0,0.12) 0%, transparent 60%)",
+    environmentPreset: "cinema",
     bgPattern:   "dark cinematic background with film grain texture and subtle clapperboard motif",
     tutorPersona:"visionary and commanding — like a film director who sees the whole picture",
     welcomeMsg:  (name) => `Lights. Camera. Action, ${name}! 🎬 You're now an AI Learning Architect. Every tool is unlocked. This is your director's suite — create your masterpiece.`,

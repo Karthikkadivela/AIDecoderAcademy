@@ -235,12 +235,11 @@ function TrophyRoom({ profile }: { profile: Profile }) {
   const isMaxLevel   = level >= 6;
 
   return (
-    <div className="studio-bg min-h-full text-white overflow-y-auto" style={{ height: "calc(100vh - 57px)" }}>
-      {/* Arena ambient glow */}
-      <div className="pointer-events-none fixed inset-0 z-0 transition-all duration-1000"
-        style={{ background: arena.gradient }}/>
-
-      <div className="relative z-10 max-w-4xl mx-auto px-6 py-8 space-y-6">
+    <div
+      className="relative overflow-y-auto bg-transparent text-white"
+      style={{ minHeight: "calc(100vh - 57px)" }}
+    >
+      <div className="relative z-10 mx-auto max-w-4xl space-y-6 px-6 py-8">
 
         {/* ── Hero card ── */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
