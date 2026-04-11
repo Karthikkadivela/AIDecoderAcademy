@@ -5,7 +5,13 @@ import { RefreshCw, Plus, X } from "lucide-react";
 import { MessageBubble } from "@/components/playground/MessageBubble";
 import { SaveCreationModal } from "@/components/playground/SaveCreationModal";
 import { CreationPicker } from "@/components/playground/CreationPicker";
+import { LevelUpModal } from "@/components/gamification/LevelUpModal";
+import { ArenaSelector } from "@/components/gamification/ArenaSelector";
+import { XPFlash } from "@/components/gamification/XPFlash";
+import { XPBar } from "@/components/gamification/XPBar";
 import { useChat, type Attachment } from "@/components/playground/useChat";
+import { useXP, type XPResult } from "@/lib/useXP";
+import { getArena } from "@/lib/arenas";
 import { cn } from "@/lib/utils";
 import type { Profile, PlaygroundMode, OutputType, Session, Creation } from "@/types";
 
@@ -24,33 +30,24 @@ function groupSessions(sessions: Session[]) {
   const groups: Record<string, Session[]> = { Today: [], Yesterday: [], Earlier: [] };
   sessions.forEach(s => {
     const d = new Date(s.started_at);
-    if (d >= today)         groups.Today.push(s);
+    if (d >= today)          groups.Today.push(s);
     else if (d >= yesterday) groups.Yesterday.push(s);
     else                     groups.Earlier.push(s);
   });
   return groups;
 }
 
-// Build LLM context string from injected creations
-// Build context from the last assistant message of matching output type
 function buildPreviousOutputContext(
   messages: Array<{ role: string; content: string; outputType?: string; isLoading?: boolean }>,
   outputType: string,
 ): string {
-  // Find the most recent assistant message of this output type that isn't loading
   const last = [...messages]
     .reverse()
     .find(m => m.role === "assistant" && m.outputType === outputType && !m.isLoading && m.content);
-
   if (!last) return "";
-
   if (outputType === "image") {
-    // Only inject if it looks like a real URL
-    if (/^https?:\/\//i.test(last.content.trim())) {
-      return `[Image titled "previous output": ${last.content.trim()}]
-
-`;
-    }
+    if (/^https?:\/\//i.test(last.content.trim()))
+      return `[Image titled "previous output": ${last.content.trim()}]\n\n`;
   }
   if (outputType === "audio") {
     try {
@@ -59,9 +56,7 @@ function buildPreviousOutputContext(
       const dialogues = (p?.script?.dialogues ?? [])
         .map((d: { character: string; text: string }) => `${d.character}: ${d.text}`)
         .join(" | ");
-      return `[Audio titled "previous output": Narrator: ${narrator}. Dialogues: ${dialogues || "none"}]
-
-`;
+      return `[Audio titled "previous output": Narrator: ${narrator}. Dialogues: ${dialogues || "none"}]\n\n`;
     } catch { return ""; }
   }
   if (outputType === "slides") {
@@ -70,9 +65,7 @@ function buildPreviousOutputContext(
       const sections = (p?.sections ?? [])
         .map((s: { title: string; concepts: string[] }) => `${s.title}: ${s.concepts?.join(", ")}`)
         .join(" | ");
-      return `[Slides titled "previous output": ${sections}]
-
-`;
+      return `[Slides titled "previous output": ${sections}]\n\n`;
     } catch { return ""; }
   }
   return "";
@@ -81,9 +74,7 @@ function buildPreviousOutputContext(
 function buildCreationContext(creations: Creation[]): string {
   if (creations.length === 0) return "";
   const parts = creations.map(c => {
-    if (c.output_type === "image") {
-      return `[Image titled "${c.title}": ${c.content}]`;
-    }
+    if (c.output_type === "image") return `[Image titled "${c.title}": ${c.content}]`;
     if (c.output_type === "audio") {
       try {
         const p = JSON.parse(c.content);
@@ -110,18 +101,24 @@ function buildCreationContext(creations: Creation[]): string {
 
 export default function PlaygroundPage() {
   const router = useRouter();
-  const [profile,            setProfile]            = useState<Profile | null>(null);
-  const [mode]                                       = useState<PlaygroundMode>("free");
-  const [input,              setInput]               = useState("");
-  const [outputType,         setOutputType]          = useState<OutputType>("text");
-  const [attachments,        setAttachments]         = useState<Attachment[]>([]);
-  const [injectedCreations,  setInjectedCreations]   = useState<Creation[]>([]);
-  const [pickerOpen,         setPickerOpen]          = useState(false);
-  const [saveOpen,           setSaveOpen]            = useState(false);
-  const [saveContent,        setSaveContent]         = useState("");
-  const [saveOutputType,     setSaveOutputType]      = useState<OutputType>("text");
-  const [sessions,           setSessions]            = useState<Session[]>([]);
-  const [welcomeShown,       setWelcomeShown]        = useState(false);
+  const [profile,           setProfile]           = useState<Profile | null>(null);
+  const [mode]                                     = useState<PlaygroundMode>("free");
+  const [input,             setInput]              = useState("");
+  const [outputType,        setOutputType]         = useState<OutputType>("text");
+  const [attachments,       setAttachments]        = useState<Attachment[]>([]);
+  const [injectedCreations, setInjectedCreations]  = useState<Creation[]>([]);
+  const [pickerOpen,        setPickerOpen]         = useState(false);
+  const [saveOpen,          setSaveOpen]           = useState(false);
+  const [saveContent,       setSaveContent]        = useState("");
+  const [saveOutputType,    setSaveOutputType]     = useState<OutputType>("text");
+  const [sessions,          setSessions]           = useState<Session[]>([]);
+  const [welcomeShown,      setWelcomeShown]       = useState(false);
+  // ── Gamification state ──────────────────────────────────────────────────
+  const [levelUpResult,     setLevelUpResult]      = useState<XPResult | null>(null);
+  const [arenaSelectorOpen, setArenaSelectorOpen]  = useState(false);
+  const [xpFlash,           setXpFlash]            = useState<{ amount: number; streak: boolean } | null>(null);
+  const [activeArenaId,     setActiveArenaId]      = useState(1);
+
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLTextAreaElement>(null);
   const fileRef   = useRef<HTMLInputElement>(null);
@@ -133,6 +130,24 @@ export default function PlaygroundPage() {
     sendMessage, sendImage, sendAudio, sendSlides,
     reset,
   } = useChat(profile, mode);
+
+  // ── XP / gamification ─────────────────────────────────────────────────
+  const { awardXP } = useXP((result) => setLevelUpResult(result));
+
+  const showXPFlash = (amount: number, streak = false) => {
+    setXpFlash({ amount, streak });
+    setTimeout(() => setXpFlash(null), 2500);
+  };
+
+  const handleSwitchArena = async (arenaId: number) => {
+    await fetch("/api/arena", {
+      method:  "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ arena_id: arenaId }),
+    });
+    setActiveArenaId(arenaId);
+    setArenaSelectorOpen(false);
+  };
 
   const refreshSessions = useCallback(() => {
     fetch("/api/sessions")
@@ -147,7 +162,10 @@ export default function PlaygroundPage() {
       .then(r => r.ok ? r.json() : { profile: null })
       .then(({ profile }) => {
         if (!profile) router.replace("/dashboard/profile");
-        else setProfile(profile);
+        else {
+          setProfile(profile);
+          setActiveArenaId(profile.active_arena ?? 1);
+        }
       });
     refreshSessions();
   }, [router, refreshSessions]);
@@ -186,42 +204,39 @@ export default function PlaygroundPage() {
     setInput("");
     setWelcomeShown(false);
 
-    // Capture and clear state before async ops
-    const atts     = [...attachments];
+    const atts      = [...attachments];
     const creations = [...injectedCreations];
     setAttachments([]);
     setInjectedCreations([]);
 
-    // Build enriched prompt with creation context for the API
-    // but keep original text for display in the message bubble
     let context = buildCreationContext(creations);
-
-    // If no manual creation injected, auto-inject the previous output of the same type
-    // so the student can say "make it darker" / "add more detail" naturally
     if (!context && (outputType === "image" || outputType === "audio" || outputType === "slides")) {
       context = buildPreviousOutputContext(messages, outputType);
     }
 
-    const enrichedText  = context ? context + text : text;
-    const hasContext    = !!context;
-    // Build attachmentMeta: file types + injected creation titles
-    const creationMeta  = creations.map(c => c.title);
-    const attFileMeta   = atts.map(a =>
+    const enrichedText = context ? context + text : text;
+    const hasContext   = !!context;
+
+    const creationMeta = creations.map(c => c.title);
+    const attFileMeta  = atts.map(a =>
       a.mimeType.startsWith("image/") ? "image"
       : a.mimeType.startsWith("audio/") ? "audio"
       : a.mimeType.startsWith("application/pdf") ? "pdf" : "file"
     );
-    // Combined meta for the bubble badge
     const bubbleMeta = [...new Set([...attFileMeta, ...creationMeta])];
 
     if (outputType === "image") {
       await sendImage(enrichedText, hasContext ? text : undefined, bubbleMeta);
+      awardXP("generate_image").then(r => r && showXPFlash(r.xp_earned, r.streak_bonus > 0));
     } else if (outputType === "audio") {
       await sendAudio(enrichedText, profile?.age_group ?? "11-13", hasContext ? text : undefined, bubbleMeta);
+      awardXP("generate_audio").then(r => r && showXPFlash(r.xp_earned, r.streak_bonus > 0));
     } else if (outputType === "slides") {
       await sendSlides(enrichedText, profile?.age_group ?? "11-13", hasContext ? text : undefined, bubbleMeta);
+      awardXP("generate_slides").then(r => r && showXPFlash(r.xp_earned, r.streak_bonus > 0));
     } else {
       await sendMessage(enrichedText, outputType, atts, undefined, bubbleMeta);
+      awardXP("generate_text").then(r => r && showXPFlash(r.xp_earned, r.streak_bonus > 0));
     }
     setTimeout(refreshSessions, 2000);
     inputRef.current?.focus();
@@ -248,13 +263,8 @@ export default function PlaygroundPage() {
   const handleCreationSelect = (creation: Creation) => {
     if (injectedCreations.find(c => c.id === creation.id)) return;
     setInjectedCreations(prev => [...prev, creation]);
-    // Auto-switch output type to match the injected creation
     const typeMap: Record<string, OutputType> = {
-      image:  "image",
-      audio:  "audio",
-      slides: "slides",
-      text:   "text",
-      json:   "json",
+      image: "image", audio: "audio", slides: "slides", text: "text", json: "json",
     };
     const matched = typeMap[creation.output_type];
     if (matched) setOutputType(matched);
@@ -267,8 +277,9 @@ export default function PlaygroundPage() {
   };
 
   const handleSave = async (title: string, outType: OutputType, tags: string[], projectId?: string) => {
+    awardXP("save_creation").then(r => r && showXPFlash(r.xp_earned));
     await fetch("/api/creations", {
-      method: "POST",
+      method:  "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         title, type: "chat", output_type: outType,
@@ -303,15 +314,26 @@ export default function PlaygroundPage() {
   );
 
   const grouped = groupSessions(sessions);
+  const arena   = getArena(activeArenaId);
 
   return (
-    <div className="studio-bg flex text-white" style={{ height: "calc(100vh - 57px)" }}>
+    <div className="studio-bg flex text-white relative overflow-hidden" style={{ height: "calc(100vh - 57px)" }}>
+      {/* Arena ambient glow — changes per arena */}
+      <div className="pointer-events-none absolute inset-0 z-0 transition-all duration-1000"
+        style={{ background: arena.gradient }} />
+      <div className="pointer-events-none absolute inset-0 z-0" />
 
       {/* ── Left sidebar ── */}
-      <aside className="w-56 bg-[#0F0F1A] border-r border-white/[0.07] flex flex-col py-4 flex-shrink-0">
+      <aside className="relative z-10 w-56 border-r border-white/[0.07] flex flex-col py-4 flex-shrink-0"
+        style={{ background: "#0F0F1A" }}>
         <div className="px-3 mb-4">
           <button onClick={handleNewChat}
-            className="w-full flex items-center justify-center gap-2 bg-[#C8FF00] text-[#08080F] font-display font-extrabold text-sm px-4 py-2.5 rounded-xl transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:scale-[1.02] hover:shadow-[0_0_28px_rgba(200,255,0,0.35)] active:scale-[0.97]">
+            className="w-full flex items-center justify-center gap-2 font-display font-extrabold text-sm px-4 py-2.5 rounded-xl transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:scale-[1.02] active:scale-[0.97]"
+            style={{
+              background: arena.accent,
+              color: "#08080F",
+              boxShadow: `0 0 20px ${arena.accentGlow}`,
+            }}>
             <Plus size={15} strokeWidth={2.5}/> New Chat
           </button>
         </div>
@@ -328,9 +350,13 @@ export default function PlaygroundPage() {
                     className={cn(
                       "w-full text-left px-3 py-2 rounded-xl text-xs transition-all mb-1 border-l-[3px]",
                       s.id === sessionId
-                        ? "border-l-[#7C3AED] bg-[#7C3AED]/10 text-white"
+                        ? "text-white"
                         : "border-l-transparent text-white/70 hover:bg-white/[0.04]"
-                    )}>
+                    )}
+                    style={s.id === sessionId ? {
+                      borderLeftColor: arena.accent,
+                      background: arena.accentDim,
+                    } : {}}>
                     <div className="truncate font-semibold">{s.title || "Chat"}</div>
                     <div className="text-[10px] text-white/35 mt-0.5">{s.message_count} messages</div>
                   </button>
@@ -339,7 +365,7 @@ export default function PlaygroundPage() {
             )
           )}
           {sessions.length === 0 && (
-            <p className="text-xs text-slate-400 text-center px-2 pt-4">
+            <p className="text-xs text-white/35 text-center px-2 pt-4">
               No chats yet — start a conversation!
             </p>
           )}
@@ -351,15 +377,38 @@ export default function PlaygroundPage() {
       </aside>
 
       {/* ── Main chat area ── */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="relative z-10 flex-1 flex flex-col min-w-0">
 
-        {/* Sub-header */}
-        <div className="bg-[#0F0F1A]/80 border-b border-white/[0.07] px-6 py-2.5 flex items-center gap-3 flex-shrink-0 backdrop-blur-xl">
-          <span className="text-lg">{profile.avatar_emoji}</span>
-          <span className="font-display font-extrabold tracking-tight text-sm text-white">Hey, {profile.display_name}! 👋</span>
+        {/* Sub-header — arena switcher + XP bar */}
+        <div className="border-b px-4 py-2.5 flex items-center gap-3 flex-shrink-0 backdrop-blur-xl"
+          style={{ background: "rgba(15,15,26,0.9)", borderColor: "rgba(255,255,255,0.07)" }}>
+
+          {/* Arena switcher */}
+          <button
+            onClick={() => setArenaSelectorOpen(true)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all hover:scale-[1.02] active:scale-95"
+            style={{
+              background:  arena.accentDim,
+              borderColor: arena.accent + "40",
+              color:       arena.accent,
+            }}
+          >
+            <span className="text-base">{arena.emoji}</span>
+            <span className="font-display font-black text-xs hidden sm:block">{arena.name}</span>
+          </button>
+
+          {/* XP bar */}
+          <div className="flex-1 max-w-48 hidden md:block">
+            <XPBar xp={profile.xp ?? 0} level={profile.level ?? 1} compact />
+          </div>
+
+          <span className="text-sm text-white/50 hidden sm:block">
+            Hey, {profile.display_name}! 👋
+          </span>
+
           <div className="ml-auto">
             <button onClick={handleNewChat}
-              className="p-2 rounded-xl text-white/40 hover:bg-white/[0.06] hover:text-[#C8FF00] transition-all"
+              className="p-2 rounded-xl text-white/30 hover:text-white hover:bg-white/[0.06] hover:text-[#C8FF00] transition-all"
               title="New chat">
               <RefreshCw size={16}/>
             </button>
@@ -382,7 +431,7 @@ export default function PlaygroundPage() {
           {messages.length === 0 && !welcomeShown && (
             <div className="flex flex-col items-center justify-center h-full text-center gap-3 opacity-40">
               <span className="text-5xl animate-float">🧠</span>
-              <p className="font-bold text-slate-500 text-sm">Select a chat or start a new one</p>
+              <p className="font-bold text-white/50 text-sm">Select a chat or start a new one</p>
             </div>
           )}
 
@@ -411,18 +460,15 @@ export default function PlaygroundPage() {
                   <div key={i} className={cn(
                     "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all",
                     isAudio
-                      ? "bg-pink-50 border-pink-200 text-pink-700"
-                      : "bg-[#EEF0FF] border-purple-200 text-[#6C47FF]"
+                      ? "bg-[#FF2D78]/10 border-[#FF2D78]/30 text-[#FF2D78]"
+                      : "bg-white/[0.06] border-white/[0.12] text-white/70"
                   )}>
                     {isAudio ? (
-                      <div className="flex items-center gap-1">
-                        {/* Mini waveform icon */}
-                        <div className="flex items-end gap-[2px] h-3">
-                          {[2,4,3,5,2,4,3].map((h, j) => (
-                            <div key={j} className="w-[2px] rounded-full bg-pink-400"
-                              style={{ height: `${h}px` }}/>
-                          ))}
-                        </div>
+                      <div className="flex items-end gap-[2px] h-3">
+                        {[2,4,3,5,2,4,3].map((h, j) => (
+                          <div key={j} className="w-[2px] rounded-full bg-[#FF2D78]"
+                            style={{ height: `${h}px` }}/>
+                        ))}
                       </div>
                     ) : isImage ? (
                       <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -445,13 +491,14 @@ export default function PlaygroundPage() {
                 );
               })}
               {injectedCreations.map(c => (
-                <div key={c.id} className="flex items-center gap-1.5 bg-purple-600 border border-purple-700 px-2.5 py-1 rounded-lg text-xs text-white font-medium">
-                  <span className="text-purple-200">
+                <div key={c.id} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs text-white font-medium border"
+                  style={{ background: arena.accentDim, borderColor: arena.accent + "40", color: arena.accent }}>
+                  <span>
                     {c.output_type === "image" ? "🖼" : c.output_type === "audio" ? "🎙️" : c.output_type === "slides" ? "▦" : "T"}
                   </span>
                   {c.title}
                   <button onClick={() => setInjectedCreations(prev => prev.filter(x => x.id !== c.id))}
-                    className="text-purple-200 hover:text-white transition-colors">
+                    className="opacity-60 hover:opacity-100 transition-opacity ml-0.5">
                     <X size={10}/>
                   </button>
                 </div>
@@ -460,16 +507,21 @@ export default function PlaygroundPage() {
           )}
 
           <div className="flex gap-2 items-end">
-            {/* + button with CreationPicker popover */}
+            {/* + button */}
             <div className="relative flex-shrink-0">
               <button
                 onClick={() => setPickerOpen(prev => !prev)}
                 className={cn(
                   "p-2.5 rounded-xl border transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] active:scale-95",
                   pickerOpen
-                    ? "bg-[#C8FF00] border-[#C8FF00]/60 text-[#08080F] shadow-[0_0_24px_rgba(200,255,0,0.35)]"
+                    ? "text-[#08080F]"
                     : "bg-white/[0.06] border-white/[0.12] text-white/50 hover:bg-white/[0.1] hover:text-white/80 hover:border-white/20"
                 )}
+                style={pickerOpen ? {
+                  background:  arena.accent,
+                  borderColor: arena.accent,
+                  boxShadow:   `0 0 20px ${arena.accentGlow}`,
+                } : {}}
                 title="Add from My Creations"
               >
                 <Plus size={18} strokeWidth={2.2}/>
@@ -506,7 +558,8 @@ export default function PlaygroundPage() {
             <button
               onClick={handleSend}
               disabled={!input.trim() || isStreaming}
-              className="p-2.5 bg-[#C8FF00] text-[#08080F] rounded-xl transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] active:scale-95 disabled:opacity-40 hover:scale-[1.02] hover:shadow-[0_0_28px_rgba(200,255,0,0.4)] disabled:hover:scale-100 disabled:hover:shadow-none flex-shrink-0"
+              className="p-2.5 rounded-xl transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] active:scale-95 disabled:opacity-40 hover:scale-[1.02] disabled:hover:scale-100 flex-shrink-0"
+              style={{ background: arena.accent, color: "#08080F", boxShadow: `0 0 20px ${arena.accentGlow}` }}
             >
               <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                 <path d="M2 9l14-7-7 14V10L2 9z" fill="currentColor"/>
@@ -527,9 +580,15 @@ export default function PlaygroundPage() {
                     fmt.soon
                       ? "border-white/[0.06] text-white/25 cursor-not-allowed bg-white/[0.03]"
                       : outputType === fmt.value
-                        ? "bg-[#C8FF00] text-[#08080F] border-[#C8FF00]/80 font-display font-extrabold shadow-[0_0_18px_rgba(200,255,0,0.25)]"
-                        : "border-white/[0.1] bg-white/[0.04] text-white/45 hover:border-[#7C3AED]/40 hover:text-white/80"
-                  )}>
+                        ? "font-display font-extrabold"
+                        : "border-white/[0.1] bg-white/[0.04] text-white/45 hover:border-white/20 hover:text-white/80"
+                  )}
+                  style={!fmt.soon && outputType === fmt.value ? {
+                    background:  arena.accent,
+                    color:       "#08080F",
+                    borderColor: arena.accent,
+                    boxShadow:   `0 0 14px ${arena.accentGlow}`,
+                  } : {}}>
                   <span className="font-mono text-[10px]">{fmt.icon}</span>
                   {fmt.label}
                   {fmt.soon && <span className="text-[9px] text-white/25 ml-0.5">soon</span>}
@@ -543,6 +602,26 @@ export default function PlaygroundPage() {
           </p>
         </div>
       </div>
+
+      {/* ── Gamification overlays ── */}
+      {xpFlash && <XPFlash amount={xpFlash.amount} visible streak={xpFlash.streak}/>}
+
+      {levelUpResult?.leveled_up && (
+        <LevelUpModal
+          result={levelUpResult}
+          onClose={() => setLevelUpResult(null)}
+          onSwitchArena={handleSwitchArena}
+        />
+      )}
+
+      {arenaSelectorOpen && (
+        <ArenaSelector
+          currentLevel={profile.level ?? 1}
+          activeArenaId={activeArenaId}
+          onSelect={handleSwitchArena}
+          onClose={() => setArenaSelectorOpen(false)}
+        />
+      )}
 
       <SaveCreationModal
         open={saveOpen}

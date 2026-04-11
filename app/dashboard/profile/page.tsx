@@ -4,22 +4,23 @@ import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn, INTEREST_OPTIONS } from "@/lib/utils";
-import type { AgeGroup } from "@/types";
+import {
+  getArena, getUnlockedArenas, getXPProgress, getXPForNextLevel,
+  BADGES, XP_THRESHOLDS, ARENAS, type ArenaConfig,
+} from "@/lib/arenas";
+import type { AgeGroup, Profile } from "@/types";
 
+// ─── Onboarding helpers ───────────────────────────────────────────────────────
 const BOARDS = ["CBSE", "ICSE", "State Board"];
 const GRADES = ["6", "7", "8", "9", "10", "11", "12"];
 
-// Default avatar based on first letter of name
 function getDefaultAvatar(name: string): string {
   const initials: Record<string, string> = {
-    a:"🦁", b:"🐻", c:"🐱", d:"🐶", e:"🦅",
-    f:"🦊", g:"🦍", h:"🐹", i:"🦔", j:"🐯",
-    k:"🦘", l:"🦁", m:"🐭", n:"🦎", o:"🦉",
-    p:"🐼", q:"🦆", r:"🐰", s:"🐍", t:"🐯",
-    u:"🦄", v:"🦅", w:"🐺", x:"🦖", y:"🦚", z:"🦓",
+    a:"🦁",b:"🐻",c:"🐱",d:"🐶",e:"🦅",f:"🦊",g:"🦍",h:"🐹",i:"🦔",j:"🐯",
+    k:"🦘",l:"🦁",m:"🐭",n:"🦎",o:"🦉",p:"🐼",q:"🦆",r:"🐰",s:"🐍",t:"🐯",
+    u:"🦄",v:"🦅",w:"🐺",x:"🦖",y:"🦚",z:"🦓",
   };
-  const first = name?.charAt(0).toLowerCase() ?? "s";
-  return initials[first] ?? "🚀";
+  return initials[name?.charAt(0).toLowerCase() ?? "s"] ?? "🚀";
 }
 
 function gradeToAgeGroup(grade: string): AgeGroup {
@@ -30,17 +31,14 @@ function gradeToAgeGroup(grade: string): AgeGroup {
   return "14+";
 }
 
-function isProfileComplete(profile: Record<string, unknown>): boolean {
-  return !!(profile.display_name && profile.age_group);
+function isProfileComplete(p: Record<string, unknown>): boolean {
+  return !!(p.display_name && p.age_group);
 }
 
-const STEPS = ["Your photo", "Academic profile"];
-
-export default function ProfilePage() {
+// ─── Onboarding flow ──────────────────────────────────────────────────────────
+function OnboardingFlow() {
   const router   = useRouter();
   const { user } = useUser();
-
-  const [loading,      setLoading]      = useState(true);
   const [saving,       setSaving]       = useState(false);
   const [step,         setStep]         = useState(0);
   const [board,        setBoard]        = useState("CBSE");
@@ -49,23 +47,10 @@ export default function ProfilePage() {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoFile,    setPhotoFile]    = useState<File | null>(null);
 
-  const displayName = user?.firstName ?? user?.username ?? "Explorer";
+  const displayName  = user?.firstName ?? user?.username ?? "Explorer";
   const defaultAvatar = getDefaultAvatar(displayName);
-  // Use Clerk profile image if available
-  const clerkPhoto = user?.imageUrl && !user.imageUrl.includes("gravatar") ? user.imageUrl : null;
-
-  useEffect(() => {
-    fetch("/api/profile")
-      .then(r => r.ok ? r.json() : { profile: null })
-      .then(({ profile }) => {
-        if (profile && isProfileComplete(profile)) {
-          router.replace("/dashboard/playground");
-        } else {
-          setLoading(false);
-        }
-      })
-      .catch(() => setLoading(false));
-  }, [router]);
+  const clerkPhoto   = user?.imageUrl && !user.imageUrl.includes("gravatar") ? user.imageUrl : null;
+  const displayPhoto = photoPreview ?? clerkPhoto;
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -77,220 +62,154 @@ export default function ProfilePage() {
   };
 
   const toggleInterest = (i: string) =>
-    setInterests(prev =>
-      prev.includes(i) ? prev.filter(x => x !== i) : prev.length < 8 ? [...prev, i] : prev
-    );
+    setInterests(prev => prev.includes(i) ? prev.filter(x => x !== i) : prev.length < 8 ? [...prev, i] : prev);
 
   const handleSave = async () => {
     setSaving(true);
-
-    // Upload photo to Supabase storage if provided
     let avatarUrl: string | null = null;
     if (photoFile) {
-      const formData = new FormData();
-      formData.append("file", photoFile);
-      const res = await fetch("/api/profile/photo", { method: "POST", body: formData });
-      if (res.ok) {
-        const { url } = await res.json();
-        avatarUrl = url;
-      }
+      const fd = new FormData();
+      fd.append("file", photoFile);
+      const r = await fetch("/api/profile/photo", { method: "POST", body: fd });
+      if (r.ok) ({ url: avatarUrl } = await r.json());
     }
-
     await fetch("/api/profile", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        display_name: displayName,
-        avatar_emoji: defaultAvatar,
-        avatar_url:   avatarUrl ?? clerkPhoto ?? null,
-        age_group:    gradeToAgeGroup(grade),
-        interests,
+        display_name: displayName, avatar_emoji: defaultAvatar,
+        avatar_url: avatarUrl ?? clerkPhoto ?? null,
+        age_group: gradeToAgeGroup(grade), interests,
       }),
     });
     router.push("/dashboard/playground");
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center bg-[#F5F6FF]" style={{ height: "calc(100vh - 57px)" }}>
-        <div className="flex gap-2">
-          {[0,1,2].map(i => <div key={i} className="dot w-3 h-3 rounded-full bg-[#6C47FF]" />)}
-        </div>
-      </div>
-    );
-  }
-
-  // Display photo: user-uploaded > Clerk photo > default emoji
-  const displayPhoto = photoPreview ?? clerkPhoto;
-
   return (
-    <div className="min-h-full bg-[#F5F6FF] flex items-center justify-center p-8">
+    <div className="studio-bg min-h-full flex items-center justify-center p-8 text-white">
       <div className="w-full max-w-lg">
-        {/* Progress dots */}
         <div className="flex gap-2 justify-center mb-8">
-          {STEPS.map((_, i) => (
+          {[0,1].map(i => (
             <div key={i} className={cn(
-              "h-2 rounded-full transition-all duration-300",
-              i === step ? "w-8 bg-[#6C47FF]" : i < step ? "w-2 bg-purple-300" : "w-2 bg-slate-200"
-            )} />
+              "h-1.5 rounded-full transition-all duration-300",
+              i === step ? "w-8 bg-[#C8FF00]" : i < step ? "w-2 bg-[#C8FF00]/40" : "w-2 bg-white/10"
+            )}/>
           ))}
         </div>
 
         <AnimatePresence mode="wait">
-          <motion.div
-            key={step}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.2 }}
-            className="bg-white rounded-3xl shadow-sm border border-purple-100 overflow-hidden"
-          >
-            <div className="px-8 pt-7 pb-5 border-b border-slate-100">
-              <span className="text-xs font-bold bg-[#6C47FF] text-white px-3 py-1 rounded-full">
-                STEP {step + 1}/{STEPS.length}
+          <motion.div key={step}
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.25 }}
+            className="rounded-3xl overflow-hidden"
+            style={{ background: "rgba(15,15,26,0.95)", border: "1px solid rgba(255,255,255,0.08)" }}>
+
+            <div className="px-8 pt-7 pb-5 border-b border-white/[0.07]">
+              <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#C8FF00]">
+                Step {step + 1} of 2
               </span>
-              <h1 className="text-2xl font-black text-[#1a1a2e] mb-1 mt-3">
-                {step === 0 ? `Welcome, ${displayName}! 👋` : "Your academic profile"}
+              <h1 className="text-2xl font-display font-black text-white mb-1 mt-3">
+                {step === 0 ? `Welcome, ${displayName}! 👋` : "Your learning profile"}
               </h1>
-              <p className="text-sm text-slate-500">
-                {step === 0
-                  ? "Add a profile photo (optional) — or we'll pick one for you."
-                  : "Help us personalise your AI learning experience."
-                }
+              <p className="text-sm text-white/50">
+                {step === 0 ? "Add a profile photo, or we'll pick one for you." : "Help us personalise your AI experience."}
               </p>
             </div>
 
             <div className="px-8 py-6">
-              {/* Step 0 — Photo upload */}
               {step === 0 && (
                 <div className="flex flex-col items-center gap-6">
-                  {/* Avatar preview */}
                   <div className="relative">
-                    <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-purple-100 bg-[#EEF0FF] flex items-center justify-center">
-                      {displayPhoto ? (
-                        <img src={displayPhoto} alt="Profile" className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-5xl">{defaultAvatar}</span>
-                      )}
+                    <div className="w-28 h-28 rounded-full overflow-hidden flex items-center justify-center"
+                      style={{ background: "rgba(200,255,0,0.1)", border: "3px solid rgba(200,255,0,0.3)" }}>
+                      {displayPhoto
+                        ? <img src={displayPhoto} alt="Profile" className="w-full h-full object-cover"/>
+                        : <span className="text-5xl">{defaultAvatar}</span>}
                     </div>
-                    {/* Upload button overlay */}
-                    <label className="absolute bottom-0 right-0 w-9 h-9 bg-[#6C47FF] rounded-full flex items-center justify-center cursor-pointer hover:bg-[#5538ee] transition-all shadow-lg">
+                    <label className="absolute bottom-0 right-0 w-9 h-9 rounded-full flex items-center justify-center cursor-pointer transition-all hover:scale-110"
+                      style={{ background: "#C8FF00" }}>
                       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <path d="M8 3v10M3 8l5-5 5 5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M8 3v10M3 8l5-5 5 5" stroke="#08080F" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
-                      <input type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
+                      <input type="file" accept="image/*" className="hidden" onChange={handlePhotoChange}/>
                     </label>
                   </div>
-
-                  <div className="text-center">
-                    <p className="text-sm font-semibold text-slate-700">
-                      {displayPhoto ? "Looking great! 🎉" : `We'll use ${defaultAvatar} for now`}
-                    </p>
-                    <p className="text-xs text-slate-400 mt-1">
-                      {displayPhoto
-                        ? "You can change this anytime in your profile settings."
-                        : "Upload a photo to personalise your account, or skip to continue."}
-                    </p>
-                  </div>
-
-                  {/* Show Clerk photo info if applicable */}
-                  {clerkPhoto && !photoPreview && (
-                    <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-2.5 text-xs text-green-700 font-medium">
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                        <circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.5"/>
-                        <path d="M4.5 7l2 2 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                      Using your Google profile photo
-                    </div>
-                  )}
+                  <p className="text-sm text-white/60 text-center">
+                    {displayPhoto ? "Looking great! 🎉" : `We'll use ${defaultAvatar} for now`}
+                  </p>
                 </div>
               )}
 
-              {/* Step 1 — Board + Grade + Interests */}
               {step === 1 && (
                 <div className="space-y-5">
                   <div>
-                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 block">
-                      Education Board
-                    </label>
+                    <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-2 block">Education Board</label>
                     <div className="flex gap-2 flex-wrap">
                       {BOARDS.map(b => (
-                        <button key={b} type="button" onClick={() => setBoard(b)}
-                          className={cn("px-4 py-2 rounded-full text-sm font-semibold border-2 transition-all",
-                            board === b
-                              ? "bg-[#6C47FF] text-white border-[#6C47FF]"
-                              : "border-slate-200 text-slate-600 hover:border-[#6C47FF]"
-                          )}>
+                        <button key={b} onClick={() => setBoard(b)}
+                          className={cn("px-4 py-2 rounded-xl text-sm font-bold border transition-all",
+                            board === b ? "text-[#08080F] border-transparent" : "border-white/10 text-white/50 hover:border-white/20")}
+                          style={board === b ? { background: "#C8FF00", boxShadow: "0 0 20px rgba(200,255,0,0.3)" } : {}}>
                           {b}
                         </button>
                       ))}
                     </div>
                   </div>
-
                   <div>
-                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 block">
-                      Current Grade / Class
-                    </label>
+                    <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-2 block">Grade / Class</label>
                     <div className="flex gap-2 flex-wrap">
                       {GRADES.map(g => (
-                        <button key={g} type="button" onClick={() => setGrade(g)}
-                          className={cn("w-12 h-12 rounded-xl text-sm font-bold border-2 transition-all",
-                            grade === g
-                              ? "bg-white border-[#4ADE80] text-green-700 shadow-sm"
-                              : "border-slate-200 text-slate-600 hover:border-slate-300"
-                          )}>
+                        <button key={g} onClick={() => setGrade(g)}
+                          className={cn("w-12 h-12 rounded-xl text-sm font-bold border transition-all",
+                            grade === g ? "text-[#08080F] border-transparent" : "border-white/10 text-white/50 hover:border-white/20")}
+                          style={grade === g ? { background: "#C8FF00" } : {}}>
                           {g}
                         </button>
                       ))}
                     </div>
-                    <p className="text-xs text-slate-400 mt-2">Helps us customise your AI learning modules.</p>
                   </div>
-
                   <div>
-                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 block">
-                      Interests <span className="text-slate-300 normal-case font-normal">(pick up to 8)</span>
+                    <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-2 block">
+                      Interests <span className="normal-case font-normal text-white/25">(pick up to 8)</span>
                     </label>
                     <div className="flex flex-wrap gap-2">
                       {INTEREST_OPTIONS.map(interest => (
-                        <button key={interest} type="button" onClick={() => toggleInterest(interest)}
-                          className={cn("px-3 py-1.5 rounded-full text-xs font-semibold border-2 transition-all",
-                            interests.includes(interest)
-                              ? "border-[#6C47FF] bg-[#6C47FF] text-white"
-                              : "border-slate-200 text-slate-600 hover:border-[#6C47FF]"
-                          )}>
+                        <button key={interest} onClick={() => toggleInterest(interest)}
+                          className={cn("px-3 py-1.5 rounded-full text-xs font-bold border transition-all",
+                            interests.includes(interest) ? "text-[#08080F] border-transparent" : "border-white/10 text-white/40 hover:border-white/20")}
+                          style={interests.includes(interest) ? { background: "#C8FF00" } : {}}>
                           {interest}
                         </button>
                       ))}
                     </div>
-                    <p className="text-xs text-slate-400 mt-2">{interests.length}/8 selected</p>
+                    <p className="text-[10px] text-white/30 mt-2">{interests.length}/8 selected</p>
                   </div>
                 </div>
               )}
 
-              {/* Navigation */}
               <div className="flex gap-3 mt-8">
                 {step > 0 && (
                   <button onClick={() => setStep(s => s - 1)}
-                    className="flex-1 border-2 border-purple-200 text-[#6C47FF] font-bold py-3.5 rounded-xl hover:bg-purple-50 transition-all">
+                    className="flex-1 py-3.5 rounded-xl font-display font-bold text-sm border border-white/10 text-white/50 hover:text-white hover:border-white/20 transition-all">
                     ← Back
                   </button>
                 )}
-                {step < STEPS.length - 1 ? (
-                  <button onClick={() => setStep(s => s + 1)}
-                    className="flex-1 bg-[#6C47FF] hover:bg-[#5538ee] text-white font-bold py-3.5 rounded-xl transition-all active:scale-95 shadow-lg shadow-purple-200">
+                {step === 0 ? (
+                  <button onClick={() => setStep(1)}
+                    className="flex-1 py-3.5 rounded-xl font-display font-black text-sm transition-all hover:scale-[1.02] active:scale-95"
+                    style={{ background: "#C8FF00", color: "#08080F", boxShadow: "0 0 24px rgba(200,255,0,0.35)" }}>
                     Next →
                   </button>
                 ) : (
                   <button onClick={handleSave} disabled={saving}
-                    className="flex-1 bg-[#6C47FF] hover:bg-[#5538ee] text-white font-bold py-3.5 rounded-xl transition-all active:scale-95 shadow-lg shadow-purple-200 disabled:opacity-60">
+                    className="flex-1 py-3.5 rounded-xl font-display font-black text-sm transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50"
+                    style={{ background: "#C8FF00", color: "#08080F", boxShadow: "0 0 24px rgba(200,255,0,0.35)" }}>
                     {saving ? "Setting up…" : "Let's go! 🚀"}
                   </button>
                 )}
               </div>
-
               {step === 0 && (
-                <button onClick={() => setStep(1)}
-                  className="w-full text-center text-xs text-slate-400 hover:text-slate-600 mt-4 transition-colors">
+                <button onClick={() => setStep(1)} className="w-full text-center text-xs text-white/30 hover:text-white/50 mt-4 transition-colors">
                   Skip photo →
                 </button>
               )}
@@ -300,4 +219,300 @@ export default function ProfilePage() {
       </div>
     </div>
   );
+}
+
+// ─── Trophy Room (profile dashboard) ─────────────────────────────────────────
+function TrophyRoom({ profile }: { profile: Profile }) {
+  const arena        = getArena(profile.active_arena ?? 1);
+  const xp           = profile.xp ?? 0;
+  const level        = profile.level ?? 1;
+  const streak       = profile.streak_days ?? 0;
+  const earnedBadges = new Set((profile.badges ?? []).map((b: { id: string }) => b.id));
+  const unlockedArenas = getUnlockedArenas(level);
+  const progress     = getXPProgress(xp, level);
+  const currentXPThreshold = XP_THRESHOLDS[level - 1] ?? 0;
+  const nextXPThreshold    = getXPForNextLevel(level);
+  const isMaxLevel   = level >= 6;
+
+  return (
+    <div className="studio-bg min-h-full text-white overflow-y-auto" style={{ height: "calc(100vh - 57px)" }}>
+      {/* Arena ambient glow */}
+      <div className="pointer-events-none fixed inset-0 z-0 transition-all duration-1000"
+        style={{ background: arena.gradient }}/>
+
+      <div className="relative z-10 max-w-4xl mx-auto px-6 py-8 space-y-6">
+
+        {/* ── Hero card ── */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+          className="rounded-3xl p-6 border"
+          style={{
+            background:  `linear-gradient(135deg, ${arena.accentDim}, rgba(15,15,26,0.9))`,
+            borderColor: arena.accent + "30",
+            boxShadow:   `0 0 60px ${arena.accentGlow}`,
+          }}>
+          <div className="flex items-start gap-5">
+            {/* Avatar */}
+            <div className="relative flex-shrink-0">
+              <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-4xl"
+                style={{ background: arena.accentDim, border: `2px solid ${arena.accent}40` }}>
+                {profile.avatar_emoji}
+              </div>
+              <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full flex items-center justify-center text-sm font-display font-black"
+                style={{ background: arena.accent, color: "#08080F" }}>
+                {level}
+              </div>
+            </div>
+
+            {/* Name + role */}
+            <div className="flex-1 min-w-0">
+              <h1 className="font-display font-black text-2xl text-white leading-tight">
+                {profile.display_name}
+              </h1>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-lg">{arena.emoji}</span>
+                <span className="font-display font-bold text-sm" style={{ color: arena.accent }}>
+                  {arena.role}
+                </span>
+                <span className="text-white/30 text-xs">{arena.weekLabel}</span>
+              </div>
+
+              {/* XP bar */}
+              <div className="mt-3 space-y-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] text-white/40 font-mono">
+                    {isMaxLevel ? "MAX LEVEL" : `Level ${level} → ${level + 1}`}
+                  </span>
+                  <span className="text-[10px] font-mono" style={{ color: arena.accent }}>
+                    {xp} XP {!isMaxLevel && `/ ${nextXPThreshold}`}
+                  </span>
+                </div>
+                <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${isMaxLevel ? 100 : progress}%` }}
+                    transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
+                    className="h-full rounded-full"
+                    style={{
+                      background:  arena.accent,
+                      boxShadow:   `0 0 10px ${arena.accentGlow}`,
+                    }}
+                  />
+                </div>
+                {!isMaxLevel && (
+                  <p className="text-[10px] text-white/30">
+                    {nextXPThreshold - xp} XP to unlock {ARENAS[level]?.name}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Streak */}
+            <div className="flex-shrink-0 text-center px-4 py-3 rounded-2xl border border-white/10"
+              style={{ background: "rgba(255,107,43,0.1)", borderColor: "rgba(255,107,43,0.2)" }}>
+              <div className="text-3xl">{streak >= 3 ? "🔥" : "⚡"}</div>
+              <div className="font-display font-black text-xl text-white">{streak}</div>
+              <div className="text-[10px] text-white/40">day streak</div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* ── Stats row ── */}
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: "Total XP",      value: xp,     icon: "⚡", color: arena.accent },
+            { label: "Level",         value: level,  icon: arena.emoji, color: arena.accent },
+            { label: "Badges Earned", value: (profile.badges ?? []).length, icon: "🏅", color: "#FF6B2B" },
+          ].map((stat, i) => (
+            <motion.div key={stat.label}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.08 }}
+              className="rounded-2xl p-4 text-center border border-white/[0.07]"
+              style={{ background: "rgba(255,255,255,0.03)" }}>
+              <div className="text-2xl mb-1">{stat.icon}</div>
+              <div className="font-display font-black text-2xl text-white">{stat.value}</div>
+              <div className="text-[10px] text-white/40 mt-0.5">{stat.label}</div>
+            </motion.div>
+          ))}
+        </div>
+
+        {/* ── Arenas unlocked ── */}
+        <div>
+          <h2 className="font-display font-black text-lg text-white mb-3 flex items-center gap-2">
+            <span>🏟️</span> Your Arenas
+          </h2>
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+            {ARENAS.map((a, i) => {
+              const unlocked = a.unlockLevel <= level;
+              const active   = a.id === (profile.active_arena ?? 1);
+              return (
+                <motion.div key={a.id}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: i * 0.05 }}
+                  className={cn("rounded-2xl p-3 text-center border transition-all", !unlocked && "opacity-30")}
+                  style={{
+                    background:  unlocked ? a.accentDim : "rgba(255,255,255,0.02)",
+                    borderColor: active ? a.accent : unlocked ? a.accent + "30" : "rgba(255,255,255,0.06)",
+                    boxShadow:   active ? `0 0 16px ${a.accentGlow}` : "none",
+                  }}>
+                  <div className="text-2xl mb-1">{unlocked ? a.emoji : "🔒"}</div>
+                  <div className="text-[9px] font-bold leading-tight" style={{ color: unlocked ? a.accent : "rgba(255,255,255,0.3)" }}>
+                    {a.weekLabel}
+                  </div>
+                  {active && (
+                    <div className="text-[8px] text-white/50 mt-0.5">active</div>
+                  )}
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── XP Journey ── */}
+        <div>
+          <h2 className="font-display font-black text-lg text-white mb-3 flex items-center gap-2">
+            <span>📈</span> XP Journey
+          </h2>
+          <div className="rounded-2xl p-5 border border-white/[0.07]"
+            style={{ background: "rgba(255,255,255,0.02)" }}>
+            <div className="flex items-end gap-0 h-16 mb-3">
+              {XP_THRESHOLDS.map((threshold, i) => {
+                const nextThreshold = XP_THRESHOLDS[i + 1] ?? threshold + 500;
+                const isCurrentLevel = i + 1 === level;
+                const isPast = i + 1 < level;
+                const pct = isPast ? 100 : isCurrentLevel ? progress : 0;
+                return (
+                  <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                    <div className="w-full mx-0.5 rounded-t-lg overflow-hidden bg-white/5" style={{ height: "48px" }}>
+                      <motion.div
+                        initial={{ height: 0 }}
+                        animate={{ height: `${pct}%` }}
+                        transition={{ duration: 1, delay: i * 0.1, ease: [0.16, 1, 0.3, 1] }}
+                        className="w-full rounded-t-lg"
+                        style={{
+                          background: isPast || isCurrentLevel ? ARENAS[i]?.accent : "transparent",
+                          opacity:    isPast ? 0.5 : 1,
+                          marginTop:  "auto",
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex">
+              {ARENAS.map((a, i) => (
+                <div key={a.id} className="flex-1 text-center">
+                  <div className="text-[8px] text-white/30 leading-tight">{a.weekLabel}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Badges ── */}
+        <div>
+          <h2 className="font-display font-black text-lg text-white mb-3 flex items-center gap-2">
+            <span>🏅</span> Badges
+            <span className="text-sm font-normal text-white/30">
+              {earnedBadges.size} / {BADGES.length}
+            </span>
+          </h2>
+          <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
+            {BADGES.map((badge, i) => {
+              const earned = earnedBadges.has(badge.id);
+              return (
+                <motion.div key={badge.id}
+                  initial={{ opacity: 0, scale: 0.85 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: i * 0.04 }}
+                  className={cn(
+                    "rounded-2xl p-3 text-center border transition-all",
+                    earned ? "border-white/10" : "border-white/[0.04] opacity-35"
+                  )}
+                  style={{
+                    background: earned ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.02)",
+                    boxShadow:  earned ? "0 0 20px rgba(200,255,0,0.08)" : "none",
+                  }}>
+                  <div className={cn("text-2xl mb-1.5", !earned && "grayscale")}>
+                    {badge.emoji}
+                  </div>
+                  <div className={cn("font-display font-bold text-[10px] leading-tight mb-0.5",
+                    earned ? "text-white" : "text-white/30")}>
+                    {badge.name}
+                  </div>
+                  <div className="text-[9px] text-white/25 leading-tight">
+                    {badge.condition}
+                  </div>
+                  {earned && (
+                    <div className="mt-1.5 w-1.5 h-1.5 rounded-full mx-auto"
+                      style={{ background: "#C8FF00", boxShadow: "0 0 6px rgba(200,255,0,0.6)" }}/>
+                  )}
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── Interests ── */}
+        {profile.interests?.length > 0 && (
+          <div>
+            <h2 className="font-display font-black text-lg text-white mb-3 flex items-center gap-2">
+              <span>✨</span> Your Interests
+            </h2>
+            <div className="flex flex-wrap gap-2">
+              {profile.interests.map(interest => (
+                <span key={interest}
+                  className="px-3 py-1.5 rounded-full text-xs font-bold border"
+                  style={{
+                    background:  arena.accentDim,
+                    borderColor: arena.accent + "40",
+                    color:       arena.accent,
+                  }}>
+                  {interest}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="h-8" />
+      </div>
+    </div>
+  );
+}
+
+// ─── Main export ──────────────────────────────────────────────────────────────
+export default function ProfilePage() {
+  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<Profile | null>(null);
+
+  useEffect(() => {
+    fetch("/api/profile")
+      .then(r => r.ok ? r.json() : { profile: null })
+      .then(({ profile }) => {
+        setProfile(profile);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  if (loading) return (
+    <div className="studio-bg flex items-center justify-center" style={{ height: "calc(100vh - 57px)" }}>
+      <div className="flex gap-2">
+        {[0,1,2].map(i => (
+          <div key={i} className="dot w-3 h-3 rounded-full bg-[#C8FF00] shadow-[0_0_12px_rgba(200,255,0,0.45)]"/>
+        ))}
+      </div>
+    </div>
+  );
+
+  // Not set up yet — show onboarding
+  if (!profile || !isProfileComplete(profile as unknown as Record<string, unknown>)) {
+    return <OnboardingFlow />;
+  }
+
+  // Set up — show trophy room
+  return <TrophyRoom profile={profile} />;
 }
