@@ -27,8 +27,9 @@ module.exports = {
         },
       },
       fontFamily: {
-        display: ["var(--font-nunito)", "sans-serif"],
-        body:    ["var(--font-inter)",  "sans-serif"],
+        display: ["var(--font-syne)", "system-ui", "sans-serif"],
+        body: ["var(--font-dm-sans)", "system-ui", "sans-serif"],
+        mono: ["var(--font-jetbrains-mono)", "ui-monospace", "monospace"],
       },
       borderRadius: {
         "2xl": "1rem",

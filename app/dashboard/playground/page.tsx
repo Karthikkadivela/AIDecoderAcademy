@@ -293,9 +293,11 @@ export default function PlaygroundPage() {
   };
 
   if (!profile) return (
-    <div className="flex items-center justify-center bg-[#F5F6FF]" style={{ height: "calc(100vh - 57px)" }}>
+    <div className="studio-bg flex items-center justify-center" style={{ height: "calc(100vh - 57px)" }}>
       <div className="flex gap-2">
-        {[0,1,2].map(i => <div key={i} className="dot w-3 h-3 rounded-full bg-[#6C47FF]"/>)}
+        {[0,1,2].map(i => (
+          <div key={i} className="dot w-3 h-3 rounded-full bg-[#C8FF00] shadow-[0_0_12px_rgba(200,255,0,0.45)]"/>
+        ))}
       </div>
     </div>
   );
@@ -303,14 +305,14 @@ export default function PlaygroundPage() {
   const grouped = groupSessions(sessions);
 
   return (
-    <div className="flex bg-[#F5F6FF]" style={{ height: "calc(100vh - 57px)" }}>
+    <div className="studio-bg flex text-white" style={{ height: "calc(100vh - 57px)" }}>
 
       {/* ── Left sidebar ── */}
-      <aside className="w-56 bg-white border-r border-purple-100 flex flex-col py-4 flex-shrink-0">
+      <aside className="w-56 bg-[#0F0F1A] border-r border-white/[0.07] flex flex-col py-4 flex-shrink-0">
         <div className="px-3 mb-4">
           <button onClick={handleNewChat}
-            className="w-full flex items-center justify-center gap-2 bg-[#6C47FF] hover:bg-[#5538ee] text-white font-bold text-sm px-4 py-2.5 rounded-xl transition-all shadow-lg shadow-purple-200">
-            <Plus size={15}/> New Chat
+            className="w-full flex items-center justify-center gap-2 bg-[#C8FF00] text-[#08080F] font-display font-extrabold text-sm px-4 py-2.5 rounded-xl transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:scale-[1.02] hover:shadow-[0_0_28px_rgba(200,255,0,0.35)] active:scale-[0.97]">
+            <Plus size={15} strokeWidth={2.5}/> New Chat
           </button>
         </div>
 
@@ -318,19 +320,19 @@ export default function PlaygroundPage() {
           {Object.entries(grouped).map(([group, items]) =>
             items.length === 0 ? null : (
               <div key={group}>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 px-1">
+                <p className="text-[10px] font-semibold text-white/30 uppercase tracking-widest mb-1.5 px-1">
                   {group}
                 </p>
                 {items.map(s => (
                   <button key={s.id} onClick={() => handleLoadSession(s)}
                     className={cn(
-                      "w-full text-left px-3 py-2 rounded-xl text-xs transition-all mb-1",
+                      "w-full text-left px-3 py-2 rounded-xl text-xs transition-all mb-1 border-l-[3px]",
                       s.id === sessionId
-                        ? "bg-[#EEF0FF] text-[#6C47FF]"
-                        : "text-slate-600 hover:bg-slate-50"
+                        ? "border-l-[#7C3AED] bg-[#7C3AED]/10 text-white"
+                        : "border-l-transparent text-white/70 hover:bg-white/[0.04]"
                     )}>
                     <div className="truncate font-semibold">{s.title || "Chat"}</div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">{s.message_count} messages</div>
+                    <div className="text-[10px] text-white/35 mt-0.5">{s.message_count} messages</div>
                   </button>
                 ))}
               </div>
@@ -343,8 +345,8 @@ export default function PlaygroundPage() {
           )}
         </div>
 
-        <div className="px-3 pt-3 border-t border-purple-100">
-          <p className="text-[10px] text-slate-400 text-center">Last 10 chats saved</p>
+        <div className="px-3 pt-3 border-t border-white/[0.07]">
+          <p className="text-[10px] text-white/30 text-center">Last 10 chats saved</p>
         </div>
       </aside>
 
@@ -352,12 +354,12 @@ export default function PlaygroundPage() {
       <div className="flex-1 flex flex-col min-w-0">
 
         {/* Sub-header */}
-        <div className="bg-white border-b border-purple-100 px-6 py-2.5 flex items-center gap-3 flex-shrink-0">
+        <div className="bg-[#0F0F1A]/80 border-b border-white/[0.07] px-6 py-2.5 flex items-center gap-3 flex-shrink-0 backdrop-blur-xl">
           <span className="text-lg">{profile.avatar_emoji}</span>
-          <span className="font-bold text-[#1a1a2e] text-sm">Hey, {profile.display_name}! 👋</span>
+          <span className="font-display font-extrabold tracking-tight text-sm text-white">Hey, {profile.display_name}! 👋</span>
           <div className="ml-auto">
             <button onClick={handleNewChat}
-              className="p-2 rounded-xl text-slate-400 hover:bg-purple-50 hover:text-[#6C47FF] transition-all"
+              className="p-2 rounded-xl text-white/40 hover:bg-white/[0.06] hover:text-[#C8FF00] transition-all"
               title="New chat">
               <RefreshCw size={16}/>
             </button>
@@ -368,10 +370,10 @@ export default function PlaygroundPage() {
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
           {welcomeShown && messages.length === 0 && (
             <div className="flex gap-3 message-in">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0 mt-1 bg-purple-100">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0 mt-1 bg-white/[0.06] border border-white/[0.08] backdrop-blur-md">
                 🧠
               </div>
-              <div className="max-w-[78%] px-5 py-3.5 rounded-2xl text-sm leading-relaxed bg-white border border-purple-100 text-slate-800 rounded-tl-sm shadow-sm">
+              <div className="max-w-[78%] px-5 py-3.5 rounded-2xl text-sm leading-relaxed bg-white/[0.05] border border-white/[0.09] text-white rounded-tl-sm backdrop-blur-xl">
                 {getWelcomeText()}
               </div>
             </div>
@@ -397,7 +399,7 @@ export default function PlaygroundPage() {
         </div>
 
         {/* ── Input area ── */}
-        <div className="bg-white border-t border-purple-100 px-4 py-3 flex-shrink-0">
+        <div className="bg-[#0F0F1A] border-t border-white/[0.07] px-4 py-3 flex-shrink-0">
 
           {/* Chips — file attachments + injected creations */}
           {(attachments.length > 0 || injectedCreations.length > 0) && (
@@ -463,14 +465,14 @@ export default function PlaygroundPage() {
               <button
                 onClick={() => setPickerOpen(prev => !prev)}
                 className={cn(
-                  "p-2.5 rounded-xl border transition-all",
+                  "p-2.5 rounded-xl border transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] active:scale-95",
                   pickerOpen
-                    ? "bg-[#6C47FF] border-[#6C47FF] text-white"
-                    : "border-slate-200 text-slate-400 hover:border-[#6C47FF] hover:text-[#6C47FF]"
+                    ? "bg-[#C8FF00] border-[#C8FF00]/60 text-[#08080F] shadow-[0_0_24px_rgba(200,255,0,0.35)]"
+                    : "bg-white/[0.06] border-white/[0.12] text-white/50 hover:bg-white/[0.1] hover:text-white/80 hover:border-white/20"
                 )}
                 title="Add from My Creations"
               >
-                <Plus size={18}/>
+                <Plus size={18} strokeWidth={2.2}/>
               </button>
               {pickerOpen && (
                 <CreationPicker
@@ -493,7 +495,7 @@ export default function PlaygroundPage() {
               }
               disabled={isStreaming}
               rows={1}
-              className="flex-1 px-4 py-3 rounded-xl border border-slate-200 focus:border-[#6C47FF] focus:outline-none focus:ring-2 focus:ring-purple-100 text-sm resize-none min-h-[44px] max-h-32 transition-all placeholder:text-slate-300"
+              className="flex-1 px-4 py-3 rounded-xl border border-white/10 bg-[#1E1E30] text-sm text-white resize-none min-h-[44px] max-h-32 transition-all placeholder:text-white/25 focus:outline-none focus:border-[rgba(200,255,0,0.5)] focus:shadow-[0_0_0_3px_rgba(200,255,0,0.1)] disabled:opacity-50"
               onInput={e => {
                 const t = e.target as HTMLTextAreaElement;
                 t.style.height = "auto";
@@ -504,39 +506,39 @@ export default function PlaygroundPage() {
             <button
               onClick={handleSend}
               disabled={!input.trim() || isStreaming}
-              className="p-2.5 bg-[#6C47FF] hover:bg-[#5538ee] text-white rounded-xl transition-all active:scale-95 disabled:opacity-40 shadow-lg shadow-purple-200 flex-shrink-0"
+              className="p-2.5 bg-[#C8FF00] text-[#08080F] rounded-xl transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] active:scale-95 disabled:opacity-40 hover:scale-[1.02] hover:shadow-[0_0_28px_rgba(200,255,0,0.4)] disabled:hover:scale-100 disabled:hover:shadow-none flex-shrink-0"
             >
               <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                <path d="M2 9l14-7-7 14V10L2 9z" fill="white"/>
+                <path d="M2 9l14-7-7 14V10L2 9z" fill="currentColor"/>
               </svg>
             </button>
           </div>
 
           {/* Output format selector */}
           <div className="flex items-center gap-2 mt-2.5 flex-wrap">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex-shrink-0">Output:</span>
+            <span className="text-[10px] font-bold text-white/35 uppercase tracking-wider flex-shrink-0">Output:</span>
             <div className="flex gap-1.5 flex-wrap">
               {OUTPUT_FORMATS.map(fmt => (
                 <button key={fmt.value}
                   onClick={() => !fmt.soon && setOutputType(fmt.value)}
                   disabled={!!fmt.soon}
                   className={cn(
-                    "flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border transition-all",
+                    "flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs border transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] active:scale-95",
                     fmt.soon
-                      ? "border-slate-100 text-slate-300 cursor-not-allowed bg-slate-50"
+                      ? "border-white/[0.06] text-white/25 cursor-not-allowed bg-white/[0.03]"
                       : outputType === fmt.value
-                        ? "bg-[#6C47FF] text-white border-[#6C47FF]"
-                        : "border-slate-200 text-slate-500 hover:border-[#6C47FF] hover:text-[#6C47FF]"
+                        ? "bg-[#C8FF00] text-[#08080F] border-[#C8FF00]/80 font-display font-extrabold shadow-[0_0_18px_rgba(200,255,0,0.25)]"
+                        : "border-white/[0.1] bg-white/[0.04] text-white/45 hover:border-[#7C3AED]/40 hover:text-white/80"
                   )}>
                   <span className="font-mono text-[10px]">{fmt.icon}</span>
                   {fmt.label}
-                  {fmt.soon && <span className="text-[9px] text-slate-300 ml-0.5">soon</span>}
+                  {fmt.soon && <span className="text-[9px] text-white/25 ml-0.5">soon</span>}
                 </button>
               ))}
             </div>
           </div>
 
-          <p className="text-[10px] text-slate-400 text-center mt-2">
+          <p className="text-[10px] text-white/30 text-center mt-2">
             AI can make mistakes. Always check your work with a teacher!
           </p>
         </div>

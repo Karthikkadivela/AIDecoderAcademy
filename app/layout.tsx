@@ -1,18 +1,23 @@
 import type { Metadata } from "next";
-import { Nunito, Inter } from "next/font/google";
+import { Syne, DM_Sans, JetBrains_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 
-const nunito = Nunito({
+const syne = Syne({
   subsets: ["latin"],
-  variable: "--font-nunito",
+  variable: "--font-syne",
   display: "swap",
-
 });
 
-const inter = Inter({
+const dmSans = DM_Sans({
   subsets: ["latin"],
-  variable: "--font-inter",
+  variable: "--font-dm-sans",
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-jetbrains-mono",
   display: "swap",
 });
 
@@ -24,8 +29,11 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <ClerkProvider>
-      <html lang="en" className={`${nunito.variable} ${inter.variable}`}>
-        <body className="font-body bg-slate-50 text-slate-900 antialiased">
+      <html
+        lang="en"
+        className={`${syne.variable} ${dmSans.variable} ${jetbrainsMono.variable}`}
+      >
+        <body className="font-body bg-[#08080F] text-white antialiased">
           {children}
         </body>
       </html>

@@ -46,38 +46,39 @@ function buildSlides(data: SlideData) {
 
 function TitleSlide({ data }: { data: SlideData }) {
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center bg-[#F5F6FF] relative">
-      <div className="absolute top-0 left-0 right-0 h-1.5 bg-[#6C47FF]"/>
-      <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-[#6C47FF]"/>
-      <p className="text-xs font-bold text-[#6C47FF] uppercase tracking-widest mb-3">
+    <div className="w-full h-full flex flex-col items-center justify-center bg-[#08080F] relative overflow-hidden">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_35%,rgba(124,58,237,0.2),transparent_55%)]"/>
+      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#C8FF00] to-transparent opacity-90"/>
+      <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#7C3AED] to-transparent opacity-80"/>
+      <p className="text-xs font-mono font-bold text-[#C8FF00] uppercase tracking-widest mb-3 relative z-[1]">
         {data.subject}
       </p>
-      <h1 className="text-3xl font-black text-[#1a1a2e] text-center px-8 mb-4 leading-tight">
+      <h1 className="text-3xl font-display font-extrabold tracking-tight text-white text-center px-8 mb-4 leading-tight relative z-[1]">
         {data.title}
       </h1>
-      <p className="text-xs text-slate-400">Created with AI Decoder Academy</p>
+      <p className="text-xs text-white/35 relative z-[1]">Created with AI Decoder Academy</p>
     </div>
   );
 }
 
 function SectionSlide({ section }: { section: Section }) {
   return (
-    <div className="w-full h-full flex bg-white relative overflow-hidden">
-      <div className="w-2 bg-[#6C47FF] flex-shrink-0"/>
-      <div className="flex-1 bg-[#EEF0FF] flex flex-col justify-center px-10">
-        <h2 className="text-2xl font-black text-[#1a1a2e] mb-4 leading-tight">
+    <div className="w-full h-full flex bg-[#0F0F1A] relative overflow-hidden">
+      <div className="w-2 bg-gradient-to-b from-[#C8FF00] via-[#7C3AED] to-[#00D4FF] flex-shrink-0 opacity-90"/>
+      <div className="flex-1 bg-[#12121C] flex flex-col justify-center px-10">
+        <h2 className="text-2xl font-display font-extrabold tracking-tight text-white mb-4 leading-tight">
           {section.title}
         </h2>
-        <div className="w-16 h-0.5 bg-[#6C47FF] mb-4"/>
+        <div className="w-16 h-0.5 bg-[#C8FF00] mb-4 rounded-full shadow-[0_0_12px_rgba(200,255,0,0.35)]"/>
         {section.concepts.length > 0 && (
           <div>
-            <p className="text-xs font-bold text-[#6C47FF] uppercase tracking-widest mb-3">
+            <p className="text-xs font-mono font-bold text-[#9F67FF] uppercase tracking-widest mb-3">
               Key concepts
             </p>
             <ul className="space-y-2">
               {section.concepts.slice(0, 6).map((c, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#6C47FF] flex-shrink-0 mt-1.5"/>
+                <li key={i} className="flex items-start gap-2 text-sm text-white/75">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#00D4FF] flex-shrink-0 mt-1.5 shadow-[0_0_8px_rgba(0,212,255,0.5)]"/>
                   {c}
                 </li>
               ))}
@@ -93,8 +94,8 @@ function SceneSlide({ scene, sectionTitle }: { scene: Scene; sectionTitle: strin
   return (
     <div className="w-full h-full flex flex-col bg-black">
       {/* Header bar */}
-      <div className="bg-[#1a1a2e] px-5 py-3 flex-shrink-0">
-        <p className="text-white text-sm font-bold leading-snug">
+      <div className="bg-[#0F0F1A]/95 px-5 py-3 flex-shrink-0 border-b border-white/10 backdrop-blur-md">
+        <p className="text-white text-sm font-display font-extrabold tracking-tight leading-snug">
           Scene goal: {scene.scene_goal}
         </p>
       </div>
@@ -108,7 +109,7 @@ function SceneSlide({ scene, sectionTitle }: { scene: Scene; sectionTitle: strin
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <p className="text-slate-500 text-sm">Image not available</p>
+            <p className="text-white/40 text-sm">Image not available</p>
           </div>
         )}
       </div>
@@ -141,7 +142,7 @@ export function SlideCarousel({ data, onSave }: Props) {
   const slide = slides[current];
 
   return (
-    <div className="w-full rounded-2xl overflow-hidden border border-purple-100 shadow-sm bg-white">
+    <div className="w-full rounded-2xl overflow-hidden border border-white/[0.1] shadow-[0_0_36px_rgba(124,58,237,0.15)] bg-[#0F0F1A]/95 backdrop-blur-xl">
       {/* Slide viewport — 16:9 ratio */}
       <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
         <div className="absolute inset-0">
@@ -157,12 +158,12 @@ export function SlideCarousel({ data, onSave }: Props) {
       </div>
 
       {/* Controls */}
-      <div className="flex items-center justify-between px-4 py-3 border-t border-purple-100 bg-white">
+      <div className="flex items-center justify-between px-4 py-3 border-t border-white/[0.08] bg-[#0F0F1A]/98 backdrop-blur-md">
         {/* Prev / slide counter / Next */}
         <div className="flex items-center gap-3">
           <button
             onClick={prev} disabled={current === 0}
-            className="p-1.5 rounded-lg hover:bg-purple-50 text-slate-400 hover:text-[#6C47FF] disabled:opacity-30 transition-all"
+            className="p-1.5 rounded-lg hover:bg-white/[0.06] text-white/40 hover:text-[#C8FF00] disabled:opacity-25 transition-all"
           >
             <ChevronLeft size={18}/>
           </button>
@@ -175,8 +176,8 @@ export function SlideCarousel({ data, onSave }: Props) {
                 className={cn(
                   "rounded-full transition-all",
                   i === current
-                    ? "w-5 h-2 bg-[#6C47FF]"
-                    : "w-2 h-2 bg-slate-200 hover:bg-purple-300"
+                    ? "w-5 h-2 bg-[#C8FF00] shadow-[0_0_12px_rgba(200,255,0,0.35)]"
+                    : "w-2 h-2 bg-white/15 hover:bg-white/30"
                 )}
               />
             ))}
@@ -184,12 +185,12 @@ export function SlideCarousel({ data, onSave }: Props) {
 
           <button
             onClick={next} disabled={current === slides.length - 1}
-            className="p-1.5 rounded-lg hover:bg-purple-50 text-slate-400 hover:text-[#6C47FF] disabled:opacity-30 transition-all"
+            className="p-1.5 rounded-lg hover:bg-white/[0.06] text-white/40 hover:text-[#C8FF00] disabled:opacity-25 transition-all"
           >
             <ChevronRight size={18}/>
           </button>
 
-          <span className="text-xs text-slate-400 ml-1">
+          <span className="text-xs text-white/35 ml-1 font-mono">
             {current + 1} / {slides.length}
           </span>
         </div>
@@ -199,14 +200,14 @@ export function SlideCarousel({ data, onSave }: Props) {
           {onSave && (
             <button
               onClick={onSave}
-              className="flex items-center gap-1.5 text-xs font-bold text-[#6C47FF] hover:bg-[#EEF0FF] px-3 py-1.5 rounded-lg transition-all"
+              className="flex items-center gap-1.5 text-xs font-display font-extrabold tracking-tight text-[#C8FF00] hover:bg-[#C8FF00]/10 px-3 py-1.5 rounded-lg transition-all"
             >
               <BookmarkPlus size={14}/> Save to Creations
             </button>
           )}
           <button
             onClick={handleDownload}
-            className="flex items-center gap-1.5 text-xs font-bold bg-[#6C47FF] text-white px-3 py-1.5 rounded-lg hover:bg-[#5538ee] transition-all shadow-sm shadow-purple-200"
+            className="flex items-center gap-1.5 text-xs font-display font-extrabold tracking-tight bg-[#C8FF00] text-[#08080F] px-3 py-1.5 rounded-lg transition-all duration-200 hover:scale-[1.02] hover:shadow-[0_0_28px_rgba(200,255,0,0.4)] active:scale-95 shadow-[0_0_20px_rgba(200,255,0,0.25)]"
           >
             <Download size={14}/> Download PPTX
           </button>

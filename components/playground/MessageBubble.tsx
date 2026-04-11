@@ -15,10 +15,10 @@ interface Props {
 }
 
 const COLOR_MAP: Record<string, { ring: string; bg: string; bar: string; text: string }> = {
-  purple: { ring: "border-purple-200", bg: "bg-purple-50",  bar: "bg-[#6C47FF]", text: "text-purple-700" },
-  blue:   { ring: "border-blue-200",   bg: "bg-blue-50",    bar: "bg-blue-500",   text: "text-blue-700"   },
-  green:  { ring: "border-green-200",  bg: "bg-green-50",   bar: "bg-green-500",  text: "text-green-700"  },
-  amber:  { ring: "border-amber-200",  bg: "bg-amber-50",   bar: "bg-amber-500",  text: "text-amber-700"  },
+  cyan:   { ring: "border-[#00D4FF]/35", bg: "bg-white/[0.04]", bar: "bg-[#00D4FF] shadow-[0_0_14px_rgba(0,212,255,0.45)]", text: "text-[#7AEFFF]" },
+  pink:   { ring: "border-[#FF2D78]/35", bg: "bg-white/[0.04]", bar: "bg-[#FF2D78] shadow-[0_0_14px_rgba(255,45,120,0.45)]", text: "text-[#FF8FB8]" },
+  purple: { ring: "border-[#7C3AED]/40", bg: "bg-white/[0.04]", bar: "bg-[#9F67FF] shadow-[0_0_14px_rgba(159,103,255,0.45)]", text: "text-[#C4B5FD]" },
+  amber:  { ring: "border-[#FF6B2B]/35", bg: "bg-white/[0.04]", bar: "bg-[#FF6B2B] shadow-[0_0_14px_rgba(255,107,43,0.4)]", text: "text-[#FFB38A]" },
 };
 
 function LoadingBubble({ outputType }: { outputType?: string }) {
@@ -26,9 +26,9 @@ function LoadingBubble({ outputType }: { outputType?: string }) {
   const [barWidth, setBarWidth] = useState(8);
 
   const TYPE_META: Record<string, { icon: string; label: string; color: string }> = {
-    image:  { icon: "🎨", label: "Generating your image",     color: "purple" },
-    audio:  { icon: "🎙️", label: "Creating your audio scene", color: "blue"   },
-    slides: { icon: "📊", label: "Building your slides",       color: "green"  },
+    image:  { icon: "🎨", label: "Generating your image",      color: "cyan"   },
+    audio:  { icon: "🎙️", label: "Creating your audio scene",  color: "pink"   },
+    slides: { icon: "📊", label: "Building your slides",        color: "purple" },
   };
 
   const meta   = TYPE_META[outputType ?? ""] ?? { icon: "⚡", label: "Working on it", color: "amber" };
@@ -53,28 +53,28 @@ function LoadingBubble({ outputType }: { outputType?: string }) {
   const dots = ".".repeat((tick % 3) + 1).padEnd(3, "\u00a0");
 
   return (
-    <div className={cn("w-72 rounded-2xl border p-4 space-y-3", colors.ring, colors.bg)}>
+    <div className={cn("w-72 rounded-2xl border p-4 space-y-3 backdrop-blur-xl", colors.ring, colors.bg)}>
       <div className="flex items-center gap-2.5">
         <span className="text-2xl animate-bounce" style={{ animationDuration: "1.2s" }}>
           {meta.icon}
         </span>
         <div>
-          <p className={cn("text-sm font-bold leading-tight", colors.text)}>
+          <p className={cn("text-sm font-display font-extrabold leading-tight tracking-tight", colors.text)}>
             {meta.label}{dots}
           </p>
-          <p className="text-xs text-slate-400 mt-0.5">This takes 20–30 seconds</p>
+          <p className="text-xs text-white/35 mt-0.5">This takes 20–30 seconds</p>
         </div>
       </div>
-      <div className="h-1.5 w-full bg-white/70 rounded-full overflow-hidden border border-white">
+      <div className="h-1.5 w-full bg-[#1E1E30] rounded-full overflow-hidden border border-white/10">
         <div
           className={cn("h-full rounded-full transition-all", colors.bar)}
           style={{ width: `${barWidth}%`, transitionDuration: "600ms", transitionTimingFunction: "ease-out" }}
         />
       </div>
       <div className="space-y-1.5">
-        <div className="h-2.5 rounded-full bg-white/60 w-full animate-pulse" />
-        <div className="h-2.5 rounded-full bg-white/60 w-4/5 animate-pulse" style={{ animationDelay: "0.15s" }} />
-        <div className="h-2.5 rounded-full bg-white/60 w-2/3 animate-pulse" style={{ animationDelay: "0.3s" }} />
+        <div className="h-2.5 rounded-full bg-white/[0.06] w-full overflow-hidden"><div className="h-full w-full animate-shimmer"/></div>
+        <div className="h-2.5 rounded-full bg-white/[0.06] w-4/5 overflow-hidden"><div className="h-full w-full animate-shimmer" style={{ animationDelay: "0.2s" }}/></div>
+        <div className="h-2.5 rounded-full bg-white/[0.06] w-2/3 overflow-hidden"><div className="h-full w-full animate-shimmer" style={{ animationDelay: "0.4s" }}/></div>
       </div>
     </div>
   );
@@ -86,10 +86,13 @@ function SaveFooter({ onSave, content, outputType }: {
   outputType: OutputType;
 }) {
   const [saved, setSaved] = useState(false);
+  const [celebrate, setCelebrate] = useState(false);
 
   const handleSave = () => {
+    setCelebrate(true);
     onSave(content, outputType);
     setSaved(true);
+    setTimeout(() => setCelebrate(false), 650);
     setTimeout(() => setSaved(false), 2000);
   };
 
@@ -98,10 +101,11 @@ function SaveFooter({ onSave, content, outputType }: {
       <button
         onClick={handleSave}
         className={cn(
-          "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all",
+          "relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-display font-extrabold tracking-tight border transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] active:scale-95",
+          celebrate && "save-celebrate",
           saved
-            ? "bg-green-50 border-green-200 text-green-600"
-            : "bg-[#EEF0FF] border-purple-200 text-[#6C47FF] hover:bg-[#6C47FF] hover:text-white hover:border-[#6C47FF]"
+            ? "bg-[#00FF94]/15 border-[#00FF94]/40 text-[#7BFFC4]"
+            : "bg-white/[0.06] border-white/[0.12] text-[#C8FF00] hover:bg-[#C8FF00] hover:text-[#08080F] hover:border-[#C8FF00]/50"
         )}
       >
         {saved ? (
@@ -111,7 +115,7 @@ function SaveFooter({ onSave, content, outputType }: {
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <path d="M9 1H3a1 1 0 00-1 1v9l4-2 4 2V2a1 1 0 00-1-1z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/>
             </svg>
-            Save to My Creations
+            Save
           </>
         )}
       </button>
@@ -155,8 +159,10 @@ export function MessageBubble({ message, avatarEmoji, isStreaming, onSave }: Pro
     <div className={cn("flex gap-3 message-in", isUser && "flex-row-reverse")}>
       {/* Avatar */}
       <div className={cn(
-        "w-9 h-9 rounded-2xl flex items-center justify-center text-lg flex-shrink-0 mt-1",
-        isUser ? "bg-brand-100" : "bg-purple-100"
+        "w-9 h-9 rounded-2xl flex items-center justify-center text-lg flex-shrink-0 mt-1 border backdrop-blur-md",
+        isUser
+          ? "border-[#7C3AED]/40 bg-gradient-to-br from-[#7C3AED]/30 to-[#5B21B6]/20"
+          : "border-white/[0.08] bg-white/[0.06]"
       )}>
         {isUser ? avatarEmoji : "🧠"}
       </div>
@@ -168,17 +174,17 @@ export function MessageBubble({ message, avatarEmoji, isStreaming, onSave }: Pro
         <div className={cn(
           !audioData && !slideData && !isImage && !isLoading && (
             isUser
-              ? "px-5 py-3.5 rounded-3xl rounded-tr-md bg-brand-500 text-white text-sm leading-relaxed"
-              : "px-5 py-3.5 rounded-3xl rounded-tl-md bg-white border border-slate-100 text-slate-800 text-sm leading-relaxed shadow-card"
+              ? "px-5 py-3.5 rounded-[20px] rounded-br-[4px] bg-gradient-to-br from-[#7C3AED] to-[#5B21B6] text-white text-sm leading-relaxed shadow-[0_12px_40px_-12px_rgba(124,58,237,0.45)]"
+              : "px-5 py-3.5 rounded-[20px] rounded-bl-[4px] bg-white/[0.05] border border-white/[0.09] text-white text-sm leading-relaxed backdrop-blur-xl"
           )
         )}>
 
           {/* Typing dots */}
           {isEmpty && (
-            <div className="px-5 py-3.5 rounded-3xl rounded-tl-md bg-white border border-slate-100 shadow-card">
+            <div className="px-5 py-3.5 rounded-[20px] rounded-bl-[4px] bg-white/[0.05] border border-white/[0.09] backdrop-blur-xl">
               <div className="flex gap-1.5 py-1">
                 {[0,1,2].map(i => (
-                  <span key={i} className="dot w-2 h-2 rounded-full bg-slate-400"
+                  <span key={i} className="dot w-2 h-2 rounded-full bg-white/35"
                     style={{ animationDelay: `${i * 0.15}s` }} />
                 ))}
               </div>
@@ -190,7 +196,7 @@ export function MessageBubble({ message, avatarEmoji, isStreaming, onSave }: Pro
 
           {/* Image */}
           {!isEmpty && isImage && (
-            <div className="rounded-2xl overflow-hidden border border-slate-100 shadow-card">
+            <div className="rounded-2xl overflow-hidden border border-white/[0.09] shadow-[0_0_32px_rgba(0,212,255,0.12)]">
               <img
                 src={message.content.trim()}
                 alt="Generated image"
@@ -243,20 +249,20 @@ export function MessageBubble({ message, avatarEmoji, isStreaming, onSave }: Pro
             </div>
             ) : (
               <ReactMarkdown components={{
-                p:      ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                p:      ({ children }) => <p className="mb-2 last:mb-0 text-white/90">{children}</p>,
                 code:   ({ children }) => (
-                  <code className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded-md text-xs font-mono">
+                  <code className="bg-[#1E1E30] text-[#C8FF00]/90 px-1.5 py-0.5 rounded-md text-xs font-mono">
                     {children}
                   </code>
                 ),
                 pre:    ({ children }) => (
-                  <pre className="bg-slate-900 text-slate-100 p-4 rounded-2xl text-xs font-mono overflow-x-auto my-2">
+                  <pre className="bg-[#0F0F1A] text-white/90 p-4 rounded-2xl text-xs font-mono overflow-x-auto my-2 border border-white/[0.08]">
                     {children}
                   </pre>
                 ),
-                ul:     ({ children }) => <ul className="list-disc list-inside space-y-1 mb-2">{children}</ul>,
-                ol:     ({ children }) => <ol className="list-decimal list-inside space-y-1 mb-2">{children}</ol>,
-                strong: ({ children }) => <strong className="font-bold">{children}</strong>,
+                ul:     ({ children }) => <ul className="list-disc list-inside space-y-1 mb-2 text-white/85">{children}</ul>,
+                ol:     ({ children }) => <ol className="list-decimal list-inside space-y-1 mb-2 text-white/85">{children}</ol>,
+                strong: ({ children }) => <strong className="font-bold text-white">{children}</strong>,
               }}>
                 {message.content}
               </ReactMarkdown>

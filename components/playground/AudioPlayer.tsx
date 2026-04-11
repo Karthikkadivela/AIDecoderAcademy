@@ -19,11 +19,11 @@ export interface AudioData {
 }
 
 const CHARACTER_COLORS: Record<string, string> = {
-  narrator: "bg-slate-100 text-slate-700 border-slate-200",
-  maya:     "bg-purple-50 text-purple-700 border-purple-200",
-  leo:      "bg-blue-50 text-blue-700 border-blue-200",
-  mr_chen:  "bg-amber-50 text-amber-700 border-amber-200",
-  joey:     "bg-green-50 text-green-700 border-green-200",
+  narrator: "border-white/[0.1] bg-white/[0.06] text-white/85 backdrop-blur-sm",
+  maya:     "border-[#7C3AED]/35 bg-[#7C3AED]/15 text-[#C4B5FD] backdrop-blur-sm",
+  leo:      "border-[#00D4FF]/30 bg-[#00D4FF]/10 text-[#7AEFFF] backdrop-blur-sm",
+  mr_chen:  "border-[#FF6B2B]/35 bg-[#FF6B2B]/12 text-[#FFB38A] backdrop-blur-sm",
+  joey:     "border-[#00FF94]/25 bg-[#00FF94]/10 text-[#7BFFC4] backdrop-blur-sm",
 };
 
 const CHARACTER_EMOJI: Record<string, string> = {
@@ -84,16 +84,16 @@ export function AudioPlayer({ data }: { data: AudioData }) {
   const elapsed = audioRef.current ? audioRef.current.currentTime : 0;
 
   return (
-    <div className="w-full rounded-2xl overflow-hidden border border-purple-100 bg-white shadow-sm">
+    <div className="w-full rounded-2xl overflow-hidden border border-[#FF2D78]/25 bg-[#0F0F1A]/90 shadow-[0_0_32px_rgba(255,45,120,0.12)] backdrop-blur-xl">
       {/* Player header */}
-      <div className="bg-[#1a1a2e] px-5 py-4 flex items-center gap-4">
+      <div className="bg-gradient-to-r from-[#1a1020] to-[#0F0F1A] px-5 py-4 flex items-center gap-4">
         <button
           onClick={togglePlay}
-          className="w-11 h-11 rounded-full bg-[#6C47FF] hover:bg-[#5538ee] flex items-center justify-center flex-shrink-0 transition-all shadow-lg shadow-purple-900/40 active:scale-95"
+          className="w-11 h-11 rounded-full bg-[#FF2D78] text-[#08080F] flex items-center justify-center flex-shrink-0 transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] shadow-[0_0_24px_rgba(255,45,120,0.45)] hover:scale-[1.04] active:scale-95"
         >
           {playing
-            ? <Pause size={18} className="text-white" fill="white"/>
-            : <Play  size={18} className="text-white ml-0.5" fill="white"/>
+            ? <Pause size={18} className="text-[#08080F]" fill="currentColor"/>
+            : <Play  size={18} className="text-[#08080F] ml-0.5" fill="currentColor"/>
           }
         </button>
 
@@ -103,7 +103,7 @@ export function AudioPlayer({ data }: { data: AudioData }) {
             onClick={seek}
           >
             <div
-              className="h-full bg-[#6C47FF] rounded-full transition-all"
+              className="h-full bg-[#FF2D78] rounded-full transition-all shadow-[0_0_12px_rgba(255,45,120,0.5)]"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -113,34 +113,34 @@ export function AudioPlayer({ data }: { data: AudioData }) {
           </div>
         </div>
 
-        <Volume2 size={16} className="text-white/40 flex-shrink-0"/>
+        <Volume2 size={16} className="text-[#FF2D78]/60 flex-shrink-0"/>
       </div>
 
       {/* Waveform decoration */}
-      <div className="bg-[#1a1a2e] px-5 pb-3 flex items-end gap-0.5 h-8">
+      <div className="bg-[#0a0a12] px-5 pb-3 flex items-end gap-0.5 h-8">
         {Array.from({ length: 40 }).map((_, i) => (
           <div
             key={i}
             className="flex-1 rounded-full transition-all"
             style={{
               height: `${Math.max(15, Math.sin(i * 0.8) * 50 + 50) * (playing ? (Math.random() * 0.4 + 0.6) : 1)}%`,
-              background: progress > (i / 40) * 100 ? "#6C47FF" : "rgba(255,255,255,0.1)",
+              background: progress > (i / 40) * 100 ? "#FF2D78" : "rgba(255,255,255,0.08)",
             }}
           />
         ))}
       </div>
 
       {/* Script toggle */}
-      <div className="px-5 py-3 border-t border-purple-50 flex items-center justify-between">
-        <div className="flex items-center gap-1.5 text-xs text-slate-500">
+      <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-between">
+        <div className="flex items-center gap-1.5 text-xs text-white/50">
           <span className="text-base">🎭</span>
-          <span className="font-semibold">Multi-character scene</span>
-          <span className="text-slate-300">·</span>
+          <span className="font-semibold text-white/75">Multi-character scene</span>
+          <span className="text-white/20">·</span>
           <span>{data.script.dialogues.length} dialogues</span>
         </div>
         <button
           onClick={() => setShowScript(s => !s)}
-          className="text-xs font-bold text-[#6C47FF] hover:bg-[#EEF0FF] px-3 py-1 rounded-lg transition-all"
+          className="text-xs font-display font-extrabold tracking-tight text-[#C8FF00] hover:bg-[#C8FF00]/10 px-3 py-1 rounded-lg transition-all duration-200"
         >
           {showScript ? "Hide" : "Show"} script
         </button>
@@ -148,7 +148,7 @@ export function AudioPlayer({ data }: { data: AudioData }) {
 
       {/* Transcript */}
       {showScript && (
-        <div className="px-5 pb-5 space-y-3 border-t border-purple-50 pt-3 max-h-72 overflow-y-auto">
+        <div className="px-5 pb-5 space-y-3 border-t border-white/[0.08] pt-3 max-h-72 overflow-y-auto">
           {/* Narrator */}
           {data.script.narrator_text && (
             <div className={`flex gap-2.5 p-3 rounded-xl border ${CHARACTER_COLORS.narrator}`}>
@@ -162,7 +162,7 @@ export function AudioPlayer({ data }: { data: AudioData }) {
 
           {/* Dialogues */}
           {data.script.dialogues.map((d, i) => {
-            const color = CHARACTER_COLORS[d.character] ?? "bg-pink-50 text-pink-700 border-pink-200";
+            const color = CHARACTER_COLORS[d.character] ?? "border-[#FF2D78]/30 bg-[#FF2D78]/10 text-[#FF8FB8] backdrop-blur-sm";
             const emoji = CHARACTER_EMOJI[d.character] ?? "🧒";
             return (
               <div key={i} className={`flex gap-2.5 p-3 rounded-xl border ${color}`}>
