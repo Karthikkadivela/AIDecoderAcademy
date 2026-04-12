@@ -7,6 +7,11 @@ import { MessageBubble } from "@/components/playground/MessageBubble";
 import { SaveCreationModal } from "@/components/playground/SaveCreationModal";
 import { CreationPicker } from "@/components/playground/CreationPicker";
 import { PlaygroundWorld } from "@/components/playground/PlaygroundWorld";
+import { CinemaWorld }       from "@/components/playground/CinemaWorld";
+import { PromptLabWorld }    from "@/components/playground/PromptLabWorld";
+import { VisualStudioWorld } from "@/components/playground/VisualStudioWorld";
+import { SoundBoothWorld }   from "@/components/playground/SoundBoothWorld";
+import { ArenaCanvas } from "@/components/playground/ArenaCanvas";
 import { PlaygroundFlyers } from "@/components/playground/PlaygroundFlyers";
 import { LevelUpModal } from "@/components/gamification/LevelUpModal";
 import { ArenaSelector } from "@/components/gamification/ArenaSelector";
@@ -137,6 +142,7 @@ export default function PlaygroundPage() {
   const [arenaSelectorOpen, setArenaSelectorOpen]  = useState(false);
   const [xpFlash,           setXpFlash]            = useState<{ amount: number; streak: boolean } | null>(null);
   const [activeArenaId,     setActiveArenaId]      = useState(1);
+  const [reducedMotion,     setReducedMotion]      = useState(false);
   const [badgeToast,        setBadgeToast]         = useState<(Badge & { earned_at: string }) | null>(null);
   const badgeQueueRef      = useRef<(Badge & { earned_at: string })[]>([]);
 
@@ -468,8 +474,26 @@ export default function PlaygroundPage() {
         </div>
 
         <div className="relative min-h-0 flex-1">
-          <PlaygroundWorld arenaId={activeArenaId} />
-          <PlaygroundFlyers arenaId={activeArenaId} />
+          {activeArenaId === 6 ? (
+            <CinemaWorld reducedMotion={reducedMotion} />
+          ) : activeArenaId === 2 ? (
+            <PromptLabWorld reducedMotion={reducedMotion} />
+          ) : activeArenaId === 4 ? (
+            <VisualStudioWorld reducedMotion={reducedMotion} />
+          ) : activeArenaId === 5 ? (
+            <SoundBoothWorld reducedMotion={reducedMotion} />
+          ) : (
+            <>
+              <PlaygroundWorld arenaId={activeArenaId} />
+              <ArenaCanvas
+                arenaId={activeArenaId}
+                accent={arena.accent}
+                accentGlow={arena.accentGlow}
+                reducedMotion={reducedMotion}
+              />
+              <PlaygroundFlyers arenaId={activeArenaId} />
+            </>
+          )}
           {/* Messages — above parallax world; bubbles stay readable with glass panels */}
           <div className="relative z-10 h-full min-h-0 overflow-y-auto px-6 py-5 space-y-4">
           {welcomeShown && messages.length === 0 && (
@@ -497,6 +521,9 @@ export default function PlaygroundPage() {
               avatarEmoji={profile.avatar_emoji}
               isStreaming={isStreaming && msg === messages[messages.length - 1]}
               onSave={msg.role === "assistant" ? openSave : undefined}
+              arenaAccent={arena.accent}
+              arenaAccentGlow={arena.accentGlow}
+              arenaId={activeArenaId}
             />
           ))}
           <div ref={bottomRef}/>

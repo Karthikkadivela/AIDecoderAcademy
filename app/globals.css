@@ -1218,39 +1218,193 @@
 }
 
 /* ── Arena 6 — Director’s Suite / lens + dust ── */
+/* ── Arena 6 — Director's Suite / Cinema ── */
+
+/* Rich dark red-black cinema base */
 .pg-world--a6 .pg-layer-base {
   opacity: 1;
-  background: radial-gradient(ellipse 90% 70% at 50% 0%, rgba(35, 40, 15, 0.35) 0%, #040402 55%, #020202 100%);
+  background:
+    /* dark rich burgundy-black — cinema walls */
+    radial-gradient(ellipse 100% 60% at 50% 100%, rgba(60,10,15,0.85) 0%, transparent 60%),
+    radial-gradient(ellipse 70% 35% at 20% 50%, rgba(40,8,12,0.5) 0%, transparent 60%),
+    radial-gradient(ellipse 70% 35% at 80% 50%, rgba(40,8,12,0.5) 0%, transparent 60%),
+    linear-gradient(180deg, #080408 0%, #0d0608 40%, #100508 75%, #0a0305 100%);
 }
 
+/* Letterbox bars — cinema aspect ratio feel */
 .pg-world--a6 .pg-layer-letterbox {
   opacity: 1;
-  box-shadow:
-    inset 0 0 0 1px rgba(200, 255, 0, 0.08),
-    inset 0 90px 120px rgba(0, 0, 0, 0.45),
-    inset 0 -70px 100px rgba(0, 0, 0, 0.5);
-  background: transparent;
+  background:
+    linear-gradient(180deg,
+      rgba(0,0,0,0.82) 0%,
+      rgba(0,0,0,0.82) 7%,
+      transparent 14%,
+      transparent 86%,
+      rgba(0,0,0,0.88) 93%,
+      rgba(0,0,0,0.88) 100%
+    );
 }
 
+/* Screen glow — bright screen at top */
 .pg-world--a6 .pg-layer-dust {
   opacity: 1;
-  background-image: radial-gradient(circle at 30% 40%, rgba(200, 255, 100, 0.12) 0, transparent 1.5px),
-    radial-gradient(circle at 70% 55%, rgba(255, 255, 255, 0.08) 0, transparent 1px);
-  background-size: 120% 120%;
-  animation: pg-dust-float 28s ease-in-out infinite;
+  background:
+    /* wide screen wash */
+    radial-gradient(ellipse 80% 30% at 50% 2%,  rgba(200,255,0,0.35) 0%, rgba(200,255,0,0.12) 50%, transparent 100%),
+    /* bright screen core */
+    radial-gradient(ellipse 45% 12% at 50% 0%,  rgba(240,255,160,0.55) 0%, transparent 100%),
+    /* screen light spill onto ceiling */
+    radial-gradient(ellipse 90% 20% at 50% 0%,  rgba(180,230,0,0.12) 0%, transparent 100%);
+  animation: pg-screen-glow 6s ease-in-out infinite;
+}
+
+@keyframes pg-screen-glow {
+  0%, 100% { opacity: 0.8; }
+  50%       { opacity: 1.0; }
+}
+
+/* Seat rows silhouette */
+.pg-world--a6 .pg-layer-forge-parchment {
+  opacity: 1;
+  inset: auto;
+  bottom: 0; left: 0; right: 0;
+  height: 28%;
+  max-width: none;
+  background:
+    /* Front row heads — silhouette against screen glow */
+    radial-gradient(ellipse 3.2% 6%  at  4%  96%, rgba(0,0,0,1) 55%, transparent 100%),
+    radial-gradient(ellipse 3.2% 6%  at 10%  96%, rgba(0,0,0,1) 55%, transparent 100%),
+    radial-gradient(ellipse 3.2% 6%  at 16%  96%, rgba(0,0,0,1) 55%, transparent 100%),
+    radial-gradient(ellipse 3.2% 6%  at 22%  96%, rgba(0,0,0,1) 55%, transparent 100%),
+    radial-gradient(ellipse 3.2% 6%  at 28%  96%, rgba(0,0,0,1) 55%, transparent 100%),
+    radial-gradient(ellipse 3.2% 6%  at 34%  96%, rgba(0,0,0,1) 55%, transparent 100%),
+    radial-gradient(ellipse 3.2% 6%  at 40%  96%, rgba(0,0,0,1) 55%, transparent 100%),
+    radial-gradient(ellipse 3.2% 6%  at 46%  96%, rgba(0,0,0,1) 55%, transparent 100%),
+    radial-gradient(ellipse 3.2% 6%  at 52%  96%, rgba(0,0,0,1) 55%, transparent 100%),
+    radial-gradient(ellipse 3.2% 6%  at 58%  96%, rgba(0,0,0,1) 55%, transparent 100%),
+    radial-gradient(ellipse 3.2% 6%  at 64%  96%, rgba(0,0,0,1) 55%, transparent 100%),
+    radial-gradient(ellipse 3.2% 6%  at 70%  96%, rgba(0,0,0,1) 55%, transparent 100%),
+    radial-gradient(ellipse 3.2% 6%  at 76%  96%, rgba(0,0,0,1) 55%, transparent 100%),
+    radial-gradient(ellipse 3.2% 6%  at 82%  96%, rgba(0,0,0,1) 55%, transparent 100%),
+    radial-gradient(ellipse 3.2% 6%  at 88%  96%, rgba(0,0,0,1) 55%, transparent 100%),
+    radial-gradient(ellipse 3.2% 6%  at 94%  96%, rgba(0,0,0,1) 55%, transparent 100%),
+    /* Back row heads — smaller, slightly higher */
+    radial-gradient(ellipse 2.2% 4%  at  7%  82%, rgba(0,0,0,0.92) 55%, transparent 100%),
+    radial-gradient(ellipse 2.2% 4%  at 13%  82%, rgba(0,0,0,0.92) 55%, transparent 100%),
+    radial-gradient(ellipse 2.2% 4%  at 19%  82%, rgba(0,0,0,0.92) 55%, transparent 100%),
+    radial-gradient(ellipse 2.2% 4%  at 25%  82%, rgba(0,0,0,0.92) 55%, transparent 100%),
+    radial-gradient(ellipse 2.2% 4%  at 31%  82%, rgba(0,0,0,0.92) 55%, transparent 100%),
+    radial-gradient(ellipse 2.2% 4%  at 37%  82%, rgba(0,0,0,0.92) 55%, transparent 100%),
+    radial-gradient(ellipse 2.2% 4%  at 43%  82%, rgba(0,0,0,0.92) 55%, transparent 100%),
+    radial-gradient(ellipse 2.2% 4%  at 49%  82%, rgba(0,0,0,0.92) 55%, transparent 100%),
+    radial-gradient(ellipse 2.2% 4%  at 55%  82%, rgba(0,0,0,0.92) 55%, transparent 100%),
+    radial-gradient(ellipse 2.2% 4%  at 61%  82%, rgba(0,0,0,0.92) 55%, transparent 100%),
+    radial-gradient(ellipse 2.2% 4%  at 67%  82%, rgba(0,0,0,0.92) 55%, transparent 100%),
+    radial-gradient(ellipse 2.2% 4%  at 73%  82%, rgba(0,0,0,0.92) 55%, transparent 100%),
+    radial-gradient(ellipse 2.2% 4%  at 79%  82%, rgba(0,0,0,0.92) 55%, transparent 100%),
+    radial-gradient(ellipse 2.2% 4%  at 85%  82%, rgba(0,0,0,0.92) 55%, transparent 100%),
+    radial-gradient(ellipse 2.2% 4%  at 91%  82%, rgba(0,0,0,0.92) 55%, transparent 100%),
+    /* Solid black floor */
+    linear-gradient(0deg, rgba(0,0,0,1) 0%, rgba(0,0,0,0.85) 40%, transparent 100%);
+}
+
+/* Red velvet aisle glow — cinema exit lights */
+.pg-world--a6 .pg-layer-ember {
+  opacity: 1;
+  background:
+    /* Left aisle light */
+    radial-gradient(ellipse 8% 25% at 0% 85%, rgba(180,20,30,0.7) 0%, rgba(120,12,20,0.3) 50%, transparent 100%),
+    /* Right aisle light */
+    radial-gradient(ellipse 8% 25% at 100% 85%, rgba(180,20,30,0.7) 0%, rgba(120,12,20,0.3) 50%, transparent 100%),
+    /* Floor strip lighting */
+    linear-gradient(90deg,
+      rgba(140,18,28,0.5) 0%,
+      rgba(100,12,20,0.25) 8%,
+      transparent 20%,
+      transparent 80%,
+      rgba(100,12,20,0.25) 92%,
+      rgba(140,18,28,0.5) 100%
+    );
+  inset: auto;
+  bottom: 0; left: 0; right: 0;
+  height: 40%;
+  animation: pg-aisle-breathe 8s ease-in-out infinite;
+}
+
+@keyframes pg-aisle-breathe {
+  0%, 100% { opacity: 0.7; }
+  50%       { opacity: 1.0; }
+}
+
+/* Projector beam — visible cone from top */
+.pg-world--a6 .pg-layer-sun {
+  opacity: 1;
+  background:
+    /* main wide beam */
+    conic-gradient(
+      from 270deg at 50% -2%,
+      transparent 0deg,
+      transparent 55deg,
+      rgba(200,255,0,0.06)  65deg,
+      rgba(200,255,0,0.18)  90deg,
+      rgba(200,255,0,0.06) 115deg,
+      transparent 125deg,
+      transparent 360deg
+    ),
+    /* inner bright beam */
+    conic-gradient(
+      from 270deg at 50% -2%,
+      transparent 0deg,
+      transparent 76deg,
+      rgba(230,255,100,0.22) 90deg,
+      transparent 104deg,
+      transparent 360deg
+    );
+  animation: pg-projector-pan 16s ease-in-out infinite;
   mix-blend-mode: screen;
 }
 
-@keyframes pg-dust-float {
-  0%,
-  100% {
-    background-position: 0 0;
-    opacity: 0.5;
-  }
-  50% {
-    background-position: 40px 30px;
-    opacity: 0.75;
-  }
+@keyframes pg-projector-pan {
+  0%   { transform: rotate(-3deg) scaleX(0.95); }
+  50%  { transform: rotate( 3deg) scaleX(1.05); }
+  100% { transform: rotate(-3deg) scaleX(0.95); }
+}
+
+/* Ambient haze inside beam */
+.pg-world--a6 .pg-layer-nebula {
+  opacity: 1;
+  background:
+    radial-gradient(ellipse 28% 55% at 50% 30%, rgba(200,255,0,0.04) 0%, transparent 70%);
+  animation: pg-haze-drift 10s ease-in-out infinite;
+  mix-blend-mode: screen;
+}
+
+@keyframes pg-haze-drift {
+  0%, 100% { opacity: 0.6; transform: scaleX(0.92); }
+  50%       { opacity: 1.0; transform: scaleX(1.08); }
+}
+
+/* Film-strip edge — subtle on sides */
+.pg-world--a6 .pg-layer-horizon {
+  opacity: 1;
+  background:
+    repeating-linear-gradient(180deg,
+      transparent, transparent 18px,
+      rgba(200,255,0,0.04) 18px, rgba(200,255,0,0.04) 20px
+    );
+  mask-image: linear-gradient(90deg,
+    black 0%, black 2%,
+    transparent 5%,
+    transparent 95%,
+    black 98%, black 100%
+  );
+}
+
+/* Vignette — strong cinema frame */
+.pg-world--a6 .pg-layer-vignette {
+  background:
+    radial-gradient(ellipse 75% 60% at 50% 42%, transparent 0%, rgba(0,0,0,0.5) 75%, rgba(0,0,0,0.88) 100%),
+    linear-gradient(180deg, rgba(0,0,0,0.45) 0%, transparent 12%, transparent 80%, rgba(0,0,0,0.6) 100%);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1658,4 +1812,3 @@
     transform: rotate(-145deg) scale(0.9);
   }
 }
-
