@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-[#EEF0FF] relative overflow-hidden flex flex-col">
+    <div className="min-h-screen bg-[#EEF0FF] relative overflow-hidden flex flex-col text-[#1a1a2e]">
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-16 left-12 opacity-20">
           <svg width="80" height="80" viewBox="0 0 80 80" fill="none">

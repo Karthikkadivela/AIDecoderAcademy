@@ -102,7 +102,7 @@ export default function SignInPage() {
                 placeholder="name@academy.com"
                 required
                 autoComplete="email"
-                className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-[#6C47FF] focus:ring-2 focus:ring-purple-100 transition-all placeholder:text-slate-300"
+                className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 text-sm text-[#1a1a2e] bg-white focus:outline-none focus:border-[#6C47FF] focus:ring-2 focus:ring-purple-100 transition-all placeholder:text-slate-300"
               />
             </div>
           </div>
@@ -130,7 +130,7 @@ export default function SignInPage() {
                 placeholder="••••••••"
                 required
                 autoComplete="current-password"
-                className="w-full pl-10 pr-10 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-[#6C47FF] focus:ring-2 focus:ring-purple-100 transition-all placeholder:text-slate-300"
+                className="w-full pl-10 pr-10 py-3 rounded-xl border border-slate-200 text-sm text-[#1a1a2e] bg-white focus:outline-none focus:border-[#6C47FF] focus:ring-2 focus:ring-purple-100 transition-all placeholder:text-slate-300"
               />
               <button
                 type="button"

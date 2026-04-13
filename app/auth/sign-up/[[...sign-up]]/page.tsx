@@ -188,7 +188,7 @@ export default function SignUpPage() {
                   </label>
                   <input value={fullName} onChange={e => setFullName(e.target.value)}
                     placeholder="e.g. Rahul Sharma"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-[#6C47FF] focus:ring-2 focus:ring-purple-100 transition-all placeholder:text-slate-300" />
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm text-[#1a1a2e] bg-white focus:outline-none focus:border-[#6C47FF] focus:ring-2 focus:ring-purple-100 transition-all placeholder:text-slate-300" />
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">
@@ -196,7 +196,7 @@ export default function SignUpPage() {
                   </label>
                   <input type="email" value={email} onChange={e => setEmail(e.target.value)}
                     placeholder="you@school.com"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-[#6C47FF] focus:ring-2 focus:ring-purple-100 transition-all placeholder:text-slate-300" />
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm text-[#1a1a2e] bg-white focus:outline-none focus:border-[#6C47FF] focus:ring-2 focus:ring-purple-100 transition-all placeholder:text-slate-300" />
                 </div>
               </div>
 
@@ -214,7 +214,7 @@ export default function SignUpPage() {
                   <input type={showPassword ? "text" : "password"} value={password}
                     onChange={e => setPassword(e.target.value)}
                     placeholder="Min. 8 characters"
-                    className="w-full pl-9 pr-10 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-[#6C47FF] focus:ring-2 focus:ring-purple-100 transition-all placeholder:text-slate-300" />
+                    className="w-full pl-9 pr-10 py-2.5 rounded-xl border border-slate-200 text-sm text-[#1a1a2e] bg-white focus:outline-none focus:border-[#6C47FF] focus:ring-2 focus:ring-purple-100 transition-all placeholder:text-slate-300" />
                   <button type="button" onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -249,7 +249,7 @@ export default function SignUpPage() {
               </div>
 
               <button type="button" onClick={handleGoogle}
-                className="w-full flex items-center justify-center gap-2.5 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold py-3 rounded-xl text-sm transition-all">
+                className="w-full flex items-center justify-center gap-2.5 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold py-3 rounded-xl text-sm text-[#1a1a2e] bg-white transition-all">
                 <svg width="18" height="18" viewBox="0 0 18 18">
                   <path d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 002.38-5.88c0-.57-.05-.66-.15-1.18z" fill="#4285F4"/>
                   <path d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2.01c-.72.48-1.63.76-2.7.76-2.08 0-3.84-1.4-4.47-3.29H1.87v2.07A8 8 0 008.98 17z" fill="#34A853"/>

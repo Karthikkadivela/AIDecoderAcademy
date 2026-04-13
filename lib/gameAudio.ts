@@ -6,8 +6,14 @@ import type { ArenaEnvironmentPreset } from "@/lib/arenas";
  */
 export const GAME_SFX_STORAGE_KEY = "ada-arena-sfx";
 
+function isBrowser(): boolean {
+  return typeof window !== "undefined"
+    && typeof window.localStorage !== "undefined"
+    && typeof window.localStorage.getItem === "function";
+}
+
 export function isGameSfxEnabled(): boolean {
-  if (typeof window === "undefined") return false;
+  if (!isBrowser()) return false;
   try {
     return window.localStorage.getItem(GAME_SFX_STORAGE_KEY) === "1";
   } catch {
@@ -16,7 +22,7 @@ export function isGameSfxEnabled(): boolean {
 }
 
 export function setGameSfxEnabled(on: boolean): void {
-  if (typeof window === "undefined") return;
+  if (!isBrowser()) return;
   try {
     window.localStorage.setItem(GAME_SFX_STORAGE_KEY, on ? "1" : "0");
   } catch {
