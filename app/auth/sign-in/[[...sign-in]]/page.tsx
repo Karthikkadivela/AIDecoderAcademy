@@ -17,9 +17,7 @@ export default function SignInPage() {
 
   // If already signed in, redirect immediately — don't even show the form
   useEffect(() => {
-    if (isSignedIn) {
-      router.replace("/dashboard/playground");
-    }
+    if (isSignedIn) router.replace("/dashboard/playground");
   }, [isSignedIn, router]);
 
   // Show loading spinner while checking auth state
@@ -47,7 +45,7 @@ export default function SignInPage() {
       });
       if (result.status === "complete") {
         await setActive({ session: result.createdSessionId });
-        router.push("/dashboard/playground");
+        router.replace("/dashboard/playground");
       }
     } catch (err: unknown) {
       const clerkError = (err as { errors?: { message: string }[] })?.errors?.[0];

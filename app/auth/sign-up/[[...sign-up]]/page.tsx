@@ -14,7 +14,7 @@ function gradeToAgeGroup(grade: string) {
 }
 
 export default function SignUpPage() {
-  const { signUp, isLoaded } = useSignUp();
+  const { signUp, isLoaded, setActive } = useSignUp();
   const { isSignedIn }       = useAuth();
   const router               = useRouter();
 
@@ -31,10 +31,10 @@ export default function SignUpPage() {
   const [board,         setBoard]         = useState("CBSE");
   const [grade,         setGrade]         = useState("8");
 
-  // Redirect if already signed in
+  // Redirect if already signed in (but not while we're in the middle of verifying)
   useEffect(() => {
-    if (isSignedIn) router.replace("/dashboard/profile");
-  }, [isSignedIn, router]);
+    if (isSignedIn && !verifying) router.replace("/dashboard/profile");
+  }, [isSignedIn, router, verifying]);
 
   const passwordStrength =
     password.length === 0 ? 0
@@ -83,7 +83,10 @@ export default function SignUpPage() {
     try {
       const result = await signUp.attemptEmailAddressVerification({ code });
       if (result.status === "complete") {
-        await fetch("/api/profile", {
+        // Activate the session FIRST before any redirect
+        await setActive({ session: result.createdSessionId });
+        // Create profile in background (non-blocking)
+        fetch("/api/profile", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -92,7 +95,7 @@ export default function SignUpPage() {
             age_group:    gradeToAgeGroup(grade),
             interests:    [],
           }),
-        });
+        }).catch(() => {/* profile created later via onboarding */});
         router.push("/dashboard/profile");
       }
     } catch (err: unknown) {
