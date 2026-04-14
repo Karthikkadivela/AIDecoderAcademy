@@ -83,9 +83,7 @@ export default function SignUpPage() {
     try {
       const result = await signUp.attemptEmailAddressVerification({ code });
       if (result.status === "complete") {
-        // Activate the session FIRST before any redirect
-        await setActive({ session: result.createdSessionId });
-        // Create profile in background (non-blocking)
+        // Fire profile creation in background
         fetch("/api/profile", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -96,7 +94,11 @@ export default function SignUpPage() {
             interests:    [],
           }),
         }).catch(() => {/* profile created later via onboarding */});
-        router.push("/dashboard/profile");
+        // Use beforeEmit so Clerk completes cross-domain session handoff first
+        await setActive({
+          session: result.createdSessionId,
+          beforeEmit: () => router.replace("/dashboard/profile"),
+        });
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Invalid code.");

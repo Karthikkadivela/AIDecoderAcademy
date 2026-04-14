@@ -44,8 +44,12 @@ export default function SignInPage() {
         password,
       });
       if (result.status === "complete") {
-        await setActive({ session: result.createdSessionId });
-        router.replace("/dashboard/playground");
+        // Use setActive with a beforeEmit callback — Clerk handles the
+        // cross-domain session handoff THEN calls our redirect
+        await setActive({
+          session: result.createdSessionId,
+          beforeEmit: () => router.replace("/dashboard/playground"),
+        });
       }
     } catch (err: unknown) {
       const clerkError = (err as { errors?: { message: string }[] })?.errors?.[0];
