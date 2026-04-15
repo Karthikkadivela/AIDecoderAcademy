@@ -99,7 +99,7 @@ export function SaveCreationModal({ open, onClose, onSave, defaultOutputType, su
                   onKeyDown={(e) => e.key === "Enter" && handleSave()}
                   placeholder="Give your creation a name…"
                   autoFocus
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-[#6C47FF] focus:ring-2 focus:ring-purple-100 transition-all placeholder:text-slate-300"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm text-[#1a1a2e] bg-white focus:outline-none focus:border-[#6C47FF] focus:ring-2 focus:ring-purple-100 transition-all placeholder:text-slate-300"
                 />
               </div>
 
@@ -144,7 +144,7 @@ export function SaveCreationModal({ open, onClose, onSave, defaultOutputType, su
                       onKeyDown={(e) => { if (e.key === "Enter") createProject(); if (e.key === "Escape") setAddingProj(false); }}
                       onBlur={createProject}
                       placeholder="Project name…"
-                      className="px-3 py-1 rounded-xl text-xs border border-[#6C47FF] text-[#6C47FF] focus:outline-none w-28"
+                      className="px-3 py-1 rounded-xl text-xs border border-[#6C47FF] text-[#6C47FF] bg-white focus:outline-none w-28"
                     />
                   ) : (
                     <button onClick={() => setAddingProj(true)}
