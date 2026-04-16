@@ -138,12 +138,36 @@ export function AudioPlayer({ data }: { data: AudioData }) {
           <span className="text-white/20">·</span>
           <span>{data.script.dialogues.length} dialogues</span>
         </div>
-        <button
-          onClick={() => setShowScript(s => !s)}
-          className="text-xs font-display font-extrabold tracking-tight text-[#C8FF00] hover:bg-[#C8FF00]/10 px-3 py-1 rounded-lg transition-all duration-200"
-        >
-          {showScript ? "Hide" : "Show"} script
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={async () => {
+              try {
+                const res  = await fetch(data.url);
+                const blob = await res.blob();
+                const url  = URL.createObjectURL(blob);
+                const a    = document.createElement("a");
+                a.href     = url;
+                a.download = "ai-audio.mp3";
+                a.click();
+                URL.revokeObjectURL(url);
+              } catch {
+                window.open(data.url, "_blank");
+              }
+            }}
+            className="text-xs font-display font-extrabold tracking-tight text-white/40 hover:text-white/80 hover:bg-white/[0.06] px-3 py-1 rounded-lg transition-all duration-200 flex items-center gap-1.5"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M6 1v7M3 6l3 3 3-3M1 10h10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            MP3
+          </button>
+          <button
+            onClick={() => setShowScript(s => !s)}
+            className="text-xs font-display font-extrabold tracking-tight text-[#C8FF00] hover:bg-[#C8FF00]/10 px-3 py-1 rounded-lg transition-all duration-200"
+          >
+            {showScript ? "Hide" : "Show"} script
+          </button>
+        </div>
       </div>
 
       {/* Transcript */}
