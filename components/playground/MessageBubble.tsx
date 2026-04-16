@@ -189,11 +189,11 @@ export function MessageBubble({
   const userTextColor  = darkTextArenas.has(arenaId) ? "#08080F" : "#ffffff";
 
   return (
-    <div className={cn("flex gap-3 message-in", isUser && "flex-row-reverse")}>
+    <div className={cn("flex gap-2 sm:gap-3 message-in items-end w-full", isUser ? "justify-end" : "justify-start")}>
 
       {/* Avatar */}
       <div
-        className="w-9 h-9 rounded-2xl flex items-center justify-center text-lg flex-shrink-0 mt-1 border backdrop-blur-md flex-shrink-0"
+        className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl sm:rounded-2xl flex items-center justify-center text-base sm:text-lg flex-shrink-0 mt-1 border backdrop-blur-md"
         style={isUser ? {
           background:  `${arenaAccent}28`,
           borderColor: `${arenaAccent}55`,
@@ -206,14 +206,17 @@ export function MessageBubble({
       </div>
 
       {/* Content column */}
-      <div className="max-w-[80%] flex flex-col">
+      <div className={cn(
+        "flex flex-col",
+        isUser ? "max-w-[75%] sm:max-w-[65%]" : "max-w-[80%] sm:max-w-[75%]"
+      )}>
 
         {/* Bubble */}
         <div className={cn(
           !audioData && !slideData && !isImage && !isLoading && (
             isUser
-              ? "px-5 py-3.5 rounded-[20px] rounded-br-[4px] text-sm leading-relaxed"
-              : "px-5 py-3.5 rounded-[20px] rounded-bl-[4px] bg-white/[0.05] border border-white/[0.09] text-white text-sm leading-relaxed backdrop-blur-xl"
+              ? "px-4 py-3 sm:px-5 sm:py-3.5 rounded-[20px] rounded-br-[4px] text-sm leading-relaxed"
+              : "px-4 py-3 sm:px-5 sm:py-3.5 rounded-[20px] rounded-bl-[4px] bg-white/[0.05] border border-white/[0.09] text-white text-sm leading-relaxed backdrop-blur-xl"
           )
         )}
           style={!audioData && !slideData && !isImage && !isLoading && isUser ? {

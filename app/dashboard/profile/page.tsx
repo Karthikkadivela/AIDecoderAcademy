@@ -1,7 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn, INTEREST_OPTIONS } from "@/lib/utils";
 import {
@@ -39,7 +38,6 @@ function isProfileComplete(p: Record<string, unknown>): boolean {
 // ─── Onboarding flow ──────────────────────────────────────────────────────────
 function OnboardingFlow() {
   const router   = useRouter();
-  const { user } = useUser();
   const [saving,       setSaving]       = useState(false);
   const [step,         setStep]         = useState(0);
   const [board,        setBoard]        = useState("CBSE");
@@ -48,10 +46,18 @@ function OnboardingFlow() {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoFile,    setPhotoFile]    = useState<File | null>(null);
 
-  const displayName  = user?.firstName ?? user?.username ?? "Explorer";
+  const [authName, setAuthName] = useState("Explorer");
+  useEffect(() => {
+    fetch("/api/profile")
+      .then(r => r.ok ? r.json() : { profile: null })
+      .then(({ profile }) => {
+        if (profile?.display_name) setAuthName(profile.display_name);
+      })
+      .catch(() => {});
+  }, []);
+  const displayName = authName;
   const defaultAvatar = getDefaultAvatar(displayName);
-  const clerkPhoto   = user?.imageUrl && !user.imageUrl.includes("gravatar") ? user.imageUrl : null;
-  const displayPhoto = photoPreview ?? clerkPhoto;
+  const displayPhoto = photoPreview ?? null;
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -74,16 +80,20 @@ function OnboardingFlow() {
       const r = await fetch("/api/profile/photo", { method: "POST", body: fd });
       if (r.ok) ({ url: avatarUrl } = await r.json());
     }
-    await fetch("/api/profile", {
+    const res = await fetch("/api/profile", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         display_name: displayName, avatar_emoji: defaultAvatar,
-        avatar_url: avatarUrl ?? clerkPhoto ?? null,
+        avatar_url: avatarUrl ?? null,
         age_group: gradeToAgeGroup(grade), interests,
       }),
     });
-    router.push("/dashboard/playground");
+    if (res.ok) {
+      router.replace("/dashboard/playground");
+    } else {
+      setSaving(false);
+    }
   };
 
   return (
@@ -329,7 +339,7 @@ function TrophyRoom({ profile }: { profile: Profile }) {
         </motion.div>
 
         {/* ── Stats row ── */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {[
             { label: "Total XP",      value: xp,     icon: "⚡", color: arena.accent },
             { label: "Level",         value: level,  icon: arena.emoji, color: arena.accent },

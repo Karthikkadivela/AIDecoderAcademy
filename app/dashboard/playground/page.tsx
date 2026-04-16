@@ -143,6 +143,7 @@ export default function PlaygroundPage() {
   const [xpFlash,           setXpFlash]            = useState<{ amount: number; streak: boolean } | null>(null);
   const [activeArenaId,     setActiveArenaId]      = useState(1);
   const [reducedMotion,     setReducedMotion]      = useState(false);
+  const [sidebarOpen,       setSidebarOpen]        = useState(false);
   const [badgeToast,        setBadgeToast]         = useState<(Badge & { earned_at: string }) | null>(null);
   const badgeQueueRef      = useRef<(Badge & { earned_at: string })[]>([]);
 
@@ -372,11 +373,32 @@ export default function PlaygroundPage() {
       className="relative flex min-h-0 flex-1 overflow-hidden bg-transparent text-white"
       style={{ height: "calc(100vh - 57px)" }}
     >
-      {/* ── Left sidebar ── */}
-      <aside className="relative z-10 w-56 border-r border-white/[0.07] flex flex-col py-4 flex-shrink-0"
+      {/* ── Mobile sidebar backdrop ── */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/60 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* ── Left sidebar — drawer on mobile, static on md+ ── */}
+      <aside className={cn(
+        "fixed md:relative inset-y-0 left-0 z-40 md:z-10 w-72 md:w-56 flex flex-col py-4 flex-shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
+        "border-r border-white/[0.07]",
+        sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+      )}
         style={{ background: "#0F0F1A" }}>
+        {/* Mobile close button */}
+        <button
+          onClick={() => setSidebarOpen(false)}
+          className="absolute top-3 right-3 md:hidden p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/[0.06] transition-all"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M3 3l10 10M13 3L3 13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+          </svg>
+        </button>
         <div className="px-3 mb-4">
-          <button onClick={handleNewChat}
+          <button onClick={() => { handleNewChat(); setSidebarOpen(false); }}
             className="w-full flex items-center justify-center gap-2 font-display font-extrabold text-sm px-4 py-2.5 rounded-xl transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:scale-[1.02] active:scale-[0.97]"
             style={{
               background: arena.accent,
@@ -395,7 +417,7 @@ export default function PlaygroundPage() {
                   {group}
                 </p>
                 {items.map(s => (
-                  <button key={s.id} onClick={() => handleLoadSession(s)}
+                  <button key={s.id} onClick={() => { handleLoadSession(s); setSidebarOpen(false); }}
                     className={cn(
                       "w-full text-left px-3 py-2 rounded-xl text-xs transition-all mb-1 border-l-[3px]",
                       s.id === sessionId
@@ -438,8 +460,19 @@ export default function PlaygroundPage() {
       <div className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
 
         {/* Sub-header — arena switcher + XP bar */}
-        <div className="flex flex-shrink-0 items-center gap-3 border-b px-4 py-2.5 backdrop-blur-xl"
+        <div className="flex flex-shrink-0 items-center gap-2 sm:gap-3 border-b px-3 sm:px-4 py-2.5 backdrop-blur-xl"
           style={{ background: "rgba(15,15,26,0.9)", borderColor: "rgba(255,255,255,0.07)" }}>
+
+          {/* Hamburger — mobile only */}
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="md:hidden p-2 rounded-xl text-white/50 hover:text-white hover:bg-white/[0.06] transition-all flex-shrink-0"
+            title="Chat history"
+          >
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <path d="M2 4h14M2 9h14M2 14h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+            </svg>
+          </button>
 
           {/* Arena switcher */}
           <button
@@ -495,13 +528,13 @@ export default function PlaygroundPage() {
             </>
           )}
           {/* Messages — above parallax world; bubbles stay readable with glass panels */}
-          <div className="relative z-10 h-full min-h-0 overflow-y-auto px-6 py-5 space-y-4">
+          <div className="relative z-10 h-full min-h-0 overflow-y-auto px-3 sm:px-6 py-4 sm:py-5 space-y-3 sm:space-y-4">
           {welcomeShown && messages.length === 0 && (
             <div className="flex gap-3 message-in">
               <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0 mt-1 bg-white/[0.06] border border-white/[0.08] backdrop-blur-md">
                 🧠
               </div>
-              <div className="max-w-[78%] px-5 py-3.5 rounded-2xl text-sm leading-relaxed bg-white/[0.05] border border-white/[0.09] text-white rounded-tl-sm backdrop-blur-xl">
+              <div className="px-4 sm:px-5 py-3 sm:py-3.5 rounded-2xl text-sm leading-relaxed bg-white/[0.05] border border-white/[0.09] text-white rounded-tl-sm backdrop-blur-xl">
                 {getWelcomeText()}
               </div>
             </div>
@@ -531,7 +564,7 @@ export default function PlaygroundPage() {
         </div>
 
         {/* ── Input area ── */}
-        <div className="bg-[#0F0F1A] border-t border-white/[0.07] px-4 py-3 flex-shrink-0">
+        <div className="bg-[#0F0F1A] border-t border-white/[0.07] px-3 sm:px-4 py-3 flex-shrink-0">
 
           {/* Chips — file attachments + injected creations */}
           {(attachments.length > 0 || injectedCreations.length > 0) && (

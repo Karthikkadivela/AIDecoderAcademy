@@ -129,7 +129,7 @@ export default function ProgressPage() {
   return (
     <div className="relative flex min-h-0 flex-1 bg-transparent text-white" style={{ height: "calc(100vh - 57px)", minHeight: 0 }}>
       {/* ── Left sidebar ── */}
-      <aside className="relative z-10 w-56 border-r border-white/[0.07] flex flex-col py-5 flex-shrink-0"
+      <aside className="relative z-10 hidden md:flex w-56 border-r border-white/[0.07] flex-col py-5 flex-shrink-0"
         style={{ background: "#0F0F1A" }}>
         <div className="px-4 mb-5">
           <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-2">Library</p>
@@ -267,7 +267,7 @@ export default function ProgressPage() {
         {/* Grid */}
         <div className="flex-1 overflow-y-auto px-6 pb-8">
           {loading ? (
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {[1,2,3,4,5,6].map(i => (
                 <div key={i} className="rounded-2xl border border-white/[0.06] h-52 animate-pulse"
                   style={{ background: "rgba(255,255,255,0.03)" }}/>
@@ -284,7 +284,7 @@ export default function ProgressPage() {
               </Link>
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {creations.map((creation, i) => (
                 <CreationCard key={creation.id} creation={creation} index={i}
                   projects={projects}
