@@ -109,14 +109,73 @@ function SaveFooter({ onSave, content, outputType, accent, accentGlow }: {
     setTimeout(() => setSaved(false), 2000);
   };
 
+  // Download is shown for text, json, and image — audio has its own button, slides has its own
+  const canDownload = outputType === "text" || outputType === "json" || outputType === "image";
+
+  const handleDownload = async () => {
+    if (outputType === "text") {
+      const blob = new Blob([content], { type: "text/plain" });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = "ai-creation.txt";
+      a.click();
+      URL.revokeObjectURL(url);
+    } else if (outputType === "json") {
+      const blob = new Blob([content], { type: "application/json" });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = "ai-creation.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    } else if (outputType === "image") {
+      try {
+        const res  = await fetch(content.trim());
+        const blob = await res.blob();
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement("a");
+        a.href     = url;
+        a.download = "ai-image.png";
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch {
+        window.open(content.trim(), "_blank");
+      }
+    }
+  };
+
+  const btnBase = "relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-display font-extrabold tracking-tight border transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] active:scale-95";
+
   return (
-    <div className="flex justify-end mt-2">
+    <div className="flex justify-end gap-2 mt-2">
+      {canDownload && (
+        <button
+          onClick={handleDownload}
+          className={btnBase}
+          style={{
+            background: "rgba(255,255,255,0.06)",
+            borderColor: "rgba(255,255,255,0.12)",
+            color: "rgba(255,255,255,0.5)",
+          }}
+          onMouseEnter={e => {
+            (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.1)";
+            (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.85)";
+          }}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)";
+            (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.5)";
+          }}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M6 1v7M3 6l3 3 3-3M1 10h10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          Download
+        </button>
+      )}
       <button
         onClick={handleSave}
-        className={cn(
-          "relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-display font-extrabold tracking-tight border transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] active:scale-95",
-          celebrate && "save-celebrate",
-        )}
+        className={cn(btnBase, celebrate && "save-celebrate")}
         style={saved ? {
           background: "rgba(0,255,148,0.12)",
           borderColor: "rgba(0,255,148,0.35)",
