@@ -20,10 +20,11 @@ export interface Section {
 }
 
 export interface PPTInput {
-  title:       string;
-  subject?:    string;
+  title:        string;
+  subject?:     string;
   class_level?: string;
-  sections:    Section[];
+  sections:     Section[];
+  summary?:     string[];  // 3-4 key takeaways shown on the closing slide
 }
 
 // ─── Colors (matches colleague's defaults) ─────────────────────────────────
@@ -56,6 +57,11 @@ export async function generatePPT(input: PPTInput): Promise<Buffer> {
     for (let i = 0; i < sorted.length; i++) {
       addSceneSlide(pptx, sorted[i], i);
     }
+  }
+
+  // 3. Summary slide (if provided)
+  if (input.summary && input.summary.length > 0) {
+    addSummarySlide(pptx, input.title, input.summary);
   }
 
   // Return as Buffer
@@ -211,6 +217,66 @@ function addSceneSlide(pptx: PptxGenJS, scene: Scene, index: number) {
       fontFace: "Arial",
     });
   }
+}
+
+function addSummarySlide(pptx: PptxGenJS, title: string, points: string[]) {
+  const slide = pptx.addSlide();
+  slide.background = { color: SLIDE_BG };
+
+  // Top accent bar
+  slide.addShape(pptx.ShapeType.rect, {
+    x: 0, y: 0, w: "100%", h: 0.08,
+    fill: { color: TITLE_COLOR },
+    line: { color: TITLE_COLOR },
+  });
+
+  // Bottom accent bar
+  slide.addShape(pptx.ShapeType.rect, {
+    x: 0, y: 5.545, w: "100%", h: 0.08,
+    fill: { color: TITLE_COLOR },
+    line: { color: TITLE_COLOR },
+  });
+
+  // "What we learned" heading
+  slide.addText("What we learned", {
+    x: 0.6, y: 0.3, w: 8.8, h: 0.6,
+    fontSize: 28,
+    bold: true,
+    color: TITLE_COLOR,
+    fontFace: "Arial",
+  });
+
+  // Topic name as sub-heading
+  slide.addText(title, {
+    x: 0.6, y: 0.9, w: 8.8, h: 0.45,
+    fontSize: 16,
+    color: BODY_TEXT,
+    fontFace: "Arial",
+  });
+
+  // Divider
+  slide.addShape(pptx.ShapeType.line, {
+    x: 0.6, y: 1.45, w: 8.0, h: 0,
+    line: { color: TITLE_COLOR, width: 2 },
+  });
+
+  // Key takeaway bullets
+  const bullets = points.slice(0, 4).map(p => ({
+    text: p,
+    options: { bullet: { type: "bullet" as const }, fontSize: 20, color: BODY_TEXT, fontFace: "Arial", paraSpaceAfter: 6 },
+  }));
+  slide.addText(bullets, {
+    x: 0.6, y: 1.65, w: 8.8, h: 3.2,
+  });
+
+  // Footer
+  slide.addText("Created with AI Decoder Academy", {
+    x: 0.6, y: 5.1, w: 8.8, h: 0.35,
+    fontSize: 11,
+    color: "94A3B8",
+    align: "center",
+    fontFace: "Arial",
+  });
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────

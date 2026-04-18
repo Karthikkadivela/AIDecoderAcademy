@@ -92,6 +92,12 @@ function buildPreviousOutputContext(
       return `[Slides titled "previous output": ${sections}]\n\n`;
     } catch { return ""; }
   }
+  if (outputType === "json") {
+    try {
+      const parsed = JSON.parse(last.content);
+      return `[JSON titled "previous output": ${JSON.stringify(parsed)}]\n\n`;
+    } catch { return ""; }
+  }
   return "";
 }
 
@@ -155,7 +161,7 @@ export default function PlaygroundPage() {
   const {
     messages, isStreaming, sessionId,
     startSession, loadSession,
-    sendMessage, sendImage, sendAudio, sendSlides,
+    sendMessage, sendImage, sendAudio, sendSlides, sendJSON,
     reset,
   } = useChat(profile, mode);
 
@@ -262,8 +268,19 @@ export default function PlaygroundPage() {
     setInjectedCreations([]);
 
     let context = buildCreationContext(creations);
-    if (!context && (outputType === "image" || outputType === "audio" || outputType === "slides")) {
+    if (!context && (outputType === "audio" || outputType === "slides" || outputType === "json")) {
       context = buildPreviousOutputContext(messages, outputType);
+    }
+    // For images, only auto-inject the previous image when the prompt is a modification request.
+    // Otherwise every new image prompt would be forced into img2img mode.
+    const IMAGE_MOD_KEYWORDS = [
+      "make it", "make the", "change it", "change the", "same but", "similar but",
+      "like that but", "keep the", "edit it", "edit the", "modify", "adjust",
+      "darker", "lighter", "brighter", "different color", "different style",
+      "add a", "add the", "remove the", "without the",
+    ];
+    if (!context && outputType === "image" && IMAGE_MOD_KEYWORDS.some(kw => text.toLowerCase().includes(kw))) {
+      context = buildPreviousOutputContext(messages, "image");
     }
 
     const enrichedText = context ? context + text : text;
@@ -286,6 +303,9 @@ export default function PlaygroundPage() {
     } else if (outputType === "slides") {
       await sendSlides(enrichedText, profile?.age_group ?? "11-13", hasContext ? text : undefined, bubbleMeta);
       awardXP("generate_slides").then(handleXpResult);
+    } else if (outputType === "json") {
+      await sendJSON(enrichedText, profile?.age_group ?? "11-13", hasContext ? text : undefined, bubbleMeta);
+      awardXP("generate_text").then(handleXpResult);
     } else {
       await sendMessage(enrichedText, outputType, atts, undefined, bubbleMeta);
       awardXP("generate_text").then(handleXpResult);

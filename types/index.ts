@@ -60,7 +60,7 @@ export interface ChatRequest {
   sessionId:    string;
   mode:         PlaygroundMode;
   outputType?:  OutputType;
-  profile:      Pick<Profile, "display_name" | "age_group" | "interests">;
+  profile:      Pick<Profile, "display_name" | "age_group" | "interests" | "active_arena">;
   history:      Array<{ role: "user" | "assistant"; content: string }>;
   attachments?: Array<{ data: string; mimeType: string; name: string }>;
 }

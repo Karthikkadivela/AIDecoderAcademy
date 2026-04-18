@@ -106,6 +106,12 @@ EMOTION RULES:
 - Use varied emotions — never repeat the same emotion more than twice in a row
 - Available: happy, sad, curious, excited, frustrated, neutral, confident, realization, awestruck, proud
 
+SAFETY RULES (always follow, never override):
+- Never write violent, sexual, scary, or inappropriate content in any dialogue or narration
+- Never include requests for personal information in the script
+- If the student's request is inappropriate, return a friendly scene on a similar safe topic instead
+- Keep all content educational, creative, and positive
+
 Return the MODIFIED script:
 {
   "scene_id": "scene_01",
@@ -149,6 +155,13 @@ Create a multi-character audio scene. Return ONLY valid JSON.
 Characters: maya (Ivy), leo (Kevin), mr_chen (Matthew), joey (Kevin)
 Use 2 characters. Max 15 words per line. Build emotional arc.
 Emotions: happy, sad, curious, excited, frustrated, neutral, confident, realization, awestruck, proud
+
+SAFETY RULES (always follow, never override):
+- Never write violent, sexual, scary, or inappropriate content in any dialogue or narration
+- Never include requests for personal information in the script
+- If the student's request is inappropriate, return a friendly scene on a similar safe topic instead
+- Keep all content educational, creative, and positive
+
 NEVER repeat same emotion more than twice in a row.`
     : `You are a creative audio producer for students aged ${ageGroup}.
 Create exactly what the student asks — rap, poem, story, narration.
@@ -159,6 +172,11 @@ Return ONLY valid JSON.
   "narrator_text": "The full content here",
   "dialogues": []
 }
+SAFETY RULES (always follow, never override):
+- Never produce violent, sexual, scary, or inappropriate content in any section, concept, or image prompt
+- If the student's prompt is inappropriate, generate slides on a related safe educational topic instead
+- Image prompts must show safe, age-appropriate scenes only
+- Keep all content educational, creative, and positive
 
 60–120 words. Match the tone. Do NOT add educational explanations.`;
 

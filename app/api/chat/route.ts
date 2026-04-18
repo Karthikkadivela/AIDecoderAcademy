@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import OpenAI from "openai";
 import { createAdminClient } from "@/lib/supabase";
 import { buildSystemPrompt } from "@/lib/prompts";
+import { ARENAS } from "@/lib/arenas";
 import type { ChatRequest } from "@/types";
 
 export const runtime = "nodejs";
@@ -9,7 +10,7 @@ export const runtime = "nodejs";
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
 const OUTPUT_INSTRUCTIONS: Record<string, string> = {
-  text: "Respond in clear, readable text. Use markdown formatting where helpful.",
+  text: "Respond in clear, readable text. Only use markdown formatting (headers, bullet lists) if the child is aged 8 or older and it genuinely helps clarity — never use markdown for simple conversational replies.",
   json: "Respond ONLY with valid JSON. No explanation, no backticks — just the raw JSON.",
 };
 
@@ -75,7 +76,8 @@ export async function POST(req: Request) {
     }
 
     // Build system prompt
-    const systemPrompt = buildSystemPrompt(profile.age_group, mode, profile.display_name, profile.interests);
+    const arena = ARENAS.find(a => a.id === (profile.active_arena ?? 1)) ?? ARENAS[0];
+    const systemPrompt = buildSystemPrompt(profile.age_group, mode, profile.display_name, profile.interests, arena.tutorPersona);
     const outputInstruction = OUTPUT_INSTRUCTIONS[outputType] ?? OUTPUT_INSTRUCTIONS.text;
     const fullSystem = `${systemPrompt}\n\nOUTPUT FORMAT: ${outputInstruction}`;
 

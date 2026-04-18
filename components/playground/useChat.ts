@@ -160,6 +160,7 @@ export function useChat(profile: Profile | null, mode: PlaygroundMode) {
               display_name: profile.display_name,
               age_group:    profile.age_group,
               interests:    profile.interests,
+              active_arena: profile.active_arena ?? 1,
             },
             history:     historySnapshot,
             attachments: attachments.map(a => ({ data: a.data, mimeType: a.mimeType, name: a.name })),
@@ -384,6 +385,67 @@ export function useChat(profile: Profile | null, mode: PlaygroundMode) {
     }
   }, [profile, isStreaming, sessionId, mode, createSession]);
 
+  // ─── JSON generation ─────────────────────────────────────────────────────
+
+  const sendJSON = useCallback(async (prompt: string, ageGroup: string, displayPrompt?: string, bubbleMeta?: string[]) => {
+    if (!profile || isStreaming) return;
+    const cleanUserText = displayPrompt ?? prompt;
+
+    setMessages(prev => [...prev, {
+      id: crypto.randomUUID(), role: "user", content: cleanUserText,
+      outputType: "json",
+      attachmentMeta: bubbleMeta && bubbleMeta.length > 0 ? bubbleMeta : undefined,
+      createdAt: new Date(),
+    }]);
+
+    const asstId = crypto.randomUUID();
+    setMessages(prev => [...prev, {
+      id: asstId, role: "assistant",
+      content: "Generating JSON structure...",
+      outputType: "json", isLoading: true, createdAt: new Date(),
+    }]);
+    setIsStreaming(true);
+
+    let activeSid = sessionId;
+    if (!activeSid) activeSid = await createSession(mode);
+
+    try {
+      const res  = await fetch("/api/generate-json", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, ageGroup }),
+      });
+      const data = await res.json();
+
+      if (data.result) {
+        const jsonPayload = JSON.stringify(data.result, null, 2);
+        setMessages(prev => prev.map(m =>
+          m.id === asstId ? { ...m, content: jsonPayload, isLoading: false } : m
+        ));
+        fetch("/api/sessions/messages-save", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            session_id: activeSid, user_content: cleanUserText,
+            assistant_content: jsonPayload, output_type: "json",
+          }),
+        }).catch(() => {});
+      } else {
+        setMessages(prev => prev.map(m =>
+          m.id === asstId
+            ? { ...m, content: `Oops! ${data?.error ?? "Could not generate JSON"} — try again? 🙈`, isLoading: false }
+            : m
+        ));
+      }
+    } catch {
+      setMessages(prev => prev.map(m =>
+        m.id === asstId
+          ? { ...m, content: "Oops! Could not generate JSON. Try again? 🙈", isLoading: false }
+          : m
+      ));
+    } finally {
+      setIsStreaming(false);
+    }
+  }, [profile, isStreaming, sessionId, mode, createSession]);
+
   // ─── Static message ───────────────────────────────────────────────────────
 
   const sendStaticMessage = useCallback((
@@ -415,7 +477,7 @@ export function useChat(profile: Profile | null, mode: PlaygroundMode) {
   return {
     messages, isStreaming, sessionId,
     startSession, loadSession,
-    sendMessage, sendImage, sendAudio, sendSlides, sendStaticMessage,
+    sendMessage, sendImage, sendAudio, sendSlides, sendJSON, sendStaticMessage,
     reset,
     // Expose for use in playground page
     encodeForDB, getAttachTypes,

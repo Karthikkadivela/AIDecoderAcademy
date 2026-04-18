@@ -1,11 +1,11 @@
 const STYLE_SUFFIX = `
 
 GLOBAL STYLE LOCK:
-- Art style: vibrant 2D animation — Pixar and Studio Ghibli inspired, expressive cartoon characters, clean bold ink outlines, warm saturated colors
+- Art style: vibrant 2D animation — Pixar and Studio Ghibli inspired by default; adapt the style naturally if the prompt clearly calls for something different (e.g. sci-fi, gothic, abstract)
 - Lighting: warm golden-hour light, soft shadows, bright and inviting atmosphere
-- Color palette: warm amber and soft teal, rich but cheerful
-- Backgrounds: detailed painted backgrounds in Ghibli style
-- DO NOT use photorealism or 3D rendering — strictly 2D illustration style`;
+- Color palette: warm saturated colors that match the mood of the scene
+- Backgrounds: detailed illustrated backgrounds suited to the scene
+- Avoid photorealism and low-quality 3D renders unless the prompt specifically asks for realism`;
 
 const NEGATIVE_PROMPT = "photorealistic, 3D render, blurry, low quality, distorted faces, extra limbs, watermark, text overlay, wide-angle shot where characters appear tiny";
 

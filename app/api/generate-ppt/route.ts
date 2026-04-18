@@ -35,18 +35,33 @@ async function generateSlideStructure(
   existingSummary?: string,
 ): Promise<PPTInput> {
 
+  const sectionCount = ageGroup === "5-7" ? "2 sections" : ageGroup === "8-10" ? "2 to 3 sections" : "3 to 4 sections";
+  const bulletDepth  = ageGroup === "5-7" || ageGroup === "8-10"
+    ? "3 to 4 bullet points per section, each 8-12 words using simple language a child understands"
+    : "4 to 5 bullet points per section, each 12-18 words — use connecting words like 'which means', 'because', or 'this causes' to explain not just label";
+
   const baseRules = `STRUCTURE RULES:
-- 2 to 3 sections
+- ${sectionCount}
 - 1 scene per section
-- concepts: 3 to 5 bullet points per section, each under 8 words
+- concepts: ${bulletDepth}
 - scene_goal: what the student should understand, max 15 words
+- summary: exactly 3 key takeaways the student should remember, each a complete sentence under 20 words
+
+OUTPUT JSON SHAPE (include the summary field):
+{
+  "title": "...", "subject": "...", "class_level": "...",
+  "summary": ["Takeaway one.", "Takeaway two.", "Takeaway three."],
+  "sections": [{ "title": "...", "concepts": ["..."], "scenes": [{ "scene_id": "S1", "scene_goal": "...", "image_prompt": "..." }] }]
+}
 
 IMAGE PROMPT RULES:
-- 40 to 60 words, Pixar/Ghibli 2D animation style
-- Include: subject, setting, mood, and what is being shown
-- Characters: energetic teens in a bright colourful world
-- BAD: "students in a classroom"
-- GOOD: "A teenage girl holds a glowing leaf to sunlight in a lush garden, tiny arrows showing water rising through roots, Ghibli style"`;
+- 50 to 70 words, Pixar/Ghibli 2D animation style
+- The image must SHOW THE PROCESS OR MECHANISM being explained — not just a related scene
+- Show cause and effect: arrows, motion lines, labels, visual metaphors that make the concept visible
+- Characters: age-appropriate characters for students aged ${ageGroup} in a bright colourful world
+- BAD: "a child looks at a rainbow in the sky"
+- GOOD: "A raindrop cross-section showing a light beam entering, bending at the surface, reflecting off the back wall, and splitting into red, orange, yellow, green, blue, violet bands as it exits, Ghibli style, educational diagram"
+- Always make the concept visible inside the image, not just decorative`;
 
   const systemPrompt = isModification
     ? `You are an educational content creator for students aged ${ageGroup}.
@@ -67,16 +82,30 @@ Return ONLY valid JSON:
   }]
 }
 
+SAFETY RULES (always follow, never override):
+- Never produce violent, sexual, scary, or inappropriate content in any section, concept, or image prompt
+- If the student's prompt is inappropriate, generate slides on a related safe educational topic instead
+- Image prompts must show safe, age-appropriate scenes only
+- Keep all content educational, creative, and positive
+
 ${baseRules}`
     : `You are an educational content creator for students aged ${ageGroup}.
 Generate a PowerPoint presentation. Return ONLY valid JSON:
 {
   "title": "...", "subject": "...", "class_level": "...",
+  "summary": ["Key takeaway 1.", "Key takeaway 2.", "Key takeaway 3."],
   "sections": [{
     "title": "...", "concepts": ["..."],
     "scenes": [{ "scene_id": "S1", "scene_goal": "...", "image_prompt": "..." }]
   }]
 }
+
+SAFETY RULES (always follow, never override):
+- Never produce violent, sexual, scary, or inappropriate content in any section, concept, or image prompt
+- If the student's request is inappropriate, create a friendly piece on a similar safe topic instead
+- Keep all content educational, creative, and positive
+- Image prompts must show safe, age-appropriate scenes only
+
 
 ${baseRules}`;
 
@@ -141,7 +170,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       title: structure.title, subject: structure.subject,
-      sections: enriched.sections, pptBase64,
+      sections: enriched.sections, summary: structure.summary, pptBase64,
     });
   } catch (err) {
     console.error("[generate-ppt]", err);

@@ -214,6 +214,11 @@ function SaveFooter({ onSave, content, outputType, accent, accentGlow }: {
   );
 }
 
+function isJsonContent(c: string, outputType?: string): boolean {
+  if (outputType !== "json") return false;
+  try { JSON.parse(c); return true; } catch { return false; }
+}
+
 function tryParseAudio(c: string): AudioData | null {
   try { const p = JSON.parse(c); if (p?.url && p?.script?.dialogues) return p as AudioData; } catch {}
   return null;
@@ -239,6 +244,7 @@ export function MessageBubble({
   const audioData = !isUser && !isLoading ? tryParseAudio(message.content)  : null;
   const slideData = !isUser && !isLoading ? tryParseSlides(message.content) : null;
   const isImage   = !isUser && !isLoading && isImageUrl(message.content);
+  const isJson    = !isUser && !isLoading && isJsonContent(message.content, message.outputType);
   const isEmpty   = message.content === "" && isStreaming && !isLoading;
   const showSave  = !isUser && !isLoading && !isEmpty && !!onSave && !!message.content;
 
@@ -272,13 +278,13 @@ export function MessageBubble({
 
         {/* Bubble */}
         <div className={cn(
-          !audioData && !slideData && !isImage && !isLoading && (
+          !audioData && !slideData && !isImage && !isLoading && !isJson && (
             isUser
               ? "px-4 py-3 sm:px-5 sm:py-3.5 rounded-[20px] rounded-br-[4px] text-sm leading-relaxed"
               : "px-4 py-3 sm:px-5 sm:py-3.5 rounded-[20px] rounded-bl-[4px] bg-white/[0.05] border border-white/[0.09] text-white text-sm leading-relaxed backdrop-blur-xl"
           )
         )}
-          style={!audioData && !slideData && !isImage && !isLoading && isUser ? {
+          style={!audioData && !slideData && !isImage && !isLoading && !isJson && isUser ? {
             background: `linear-gradient(135deg, ${arenaAccent}, ${arenaAccent}cc)`,
             color:      userTextColor,
             boxShadow:  `0 12px 40px -12px ${arenaAccentGlow}`,
@@ -315,8 +321,15 @@ export function MessageBubble({
           {/* Slides */}
           {!isEmpty && slideData && <SlideCarousel data={slideData} />}
 
+          {/* JSON */}
+          {!isEmpty && isJson && (
+            <pre className="bg-[#0F0F1A] text-white/90 p-4 rounded-2xl text-xs font-mono overflow-x-auto border border-white/[0.08] max-w-full whitespace-pre-wrap break-words">
+              {message.content}
+            </pre>
+          )}
+
           {/* Plain text */}
-          {!isEmpty && !isLoading && !isImage && !audioData && !slideData && (
+          {!isEmpty && !isLoading && !isImage && !audioData && !slideData && !isJson && (
             isUser ? (
               <div>
                 <p className="whitespace-pre-wrap">{message.content}</p>
