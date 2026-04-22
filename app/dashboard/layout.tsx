@@ -10,6 +10,7 @@ import { playArenaEnterSound } from "@/lib/gameAudio";
 import type { Profile } from "@/types";
 
 const NAV = [
+  { href: "/dashboard",            label: "Hub",           icon: "🌐" },
   { href: "/dashboard/playground", label: "Playground",    icon: "🎮" },
   { href: "/dashboard/progress",   label: "My Creations",  icon: "⭐" },
   { href: "/dashboard/profile",    label: "Profile",       icon: "🧒" },
@@ -96,7 +97,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {/* Nav links */}
           <nav className="flex items-center gap-0.5 sm:gap-1">
             {NAV.map((item) => {
-              const active = pathname.startsWith(item.href);
+              // Exact match for hub (/dashboard), prefix match for others
+          const active = item.href === "/dashboard"
+            ? pathname === "/dashboard"
+            : pathname.startsWith(item.href);
               return (
                 <Link key={item.href} href={item.href}
                   className={cn(
