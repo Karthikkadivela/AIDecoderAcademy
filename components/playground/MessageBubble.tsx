@@ -91,61 +91,138 @@ function LoadingBubble({ outputType, arenaId }: { outputType?: string; arenaId?:
   );
 }
 
-function SaveFooter({ onSave, content, outputType, accent, accentGlow }: {
+function ActionFooter({ onSave, content, outputType, accent, accentGlow }: {
   onSave:      (content: string, type: OutputType) => void;
   content:     string;
   outputType:  OutputType;
   accent:      string;
   accentGlow:  string;
 }) {
-  const [saved,     setSaved]     = useState(false);
-  const [celebrate, setCelebrate] = useState(false);
+  const [saved,   setSaved]   = useState(false);
+  const [copied,  setCopied]  = useState(false);
 
   const handleSave = () => {
-    setCelebrate(true);
     onSave(content, outputType);
     setSaved(true);
-    setTimeout(() => setCelebrate(false), 650);
     setTimeout(() => setSaved(false), 2000);
   };
 
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* clipboard blocked */ }
+  };
+
+  const handleDownload = async () => {
+    if (outputType === "text") {
+      const blob = new Blob([content], { type: "text/plain" });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href = url; a.download = "ai-response.txt"; a.click();
+      URL.revokeObjectURL(url);
+    } else if (outputType === "json") {
+      const blob = new Blob([content], { type: "application/json" });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href = url; a.download = "ai-response.json"; a.click();
+      URL.revokeObjectURL(url);
+    } else if (outputType === "image") {
+      try {
+        const res  = await fetch(content.trim());
+        const blob = await res.blob();
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement("a");
+        a.href = url; a.download = "ai-image.png"; a.click();
+        URL.revokeObjectURL(url);
+      } catch { window.open(content.trim(), "_blank"); }
+    }
+  };
+
+  const canCopy     = outputType === "text" || outputType === "json";
+  const canDownload = outputType === "text" || outputType === "json" || outputType === "image";
+
+  // Shared ghost button style
+  const ghostBtn = (active: boolean) => ({
+    background:   active ? "rgba(0,255,148,0.12)" : "rgba(255,255,255,0.06)",
+    borderColor:  active ? "rgba(0,255,148,0.35)" : "rgba(255,255,255,0.12)",
+    color:        active ? "#7BFFC4" : "rgba(255,255,255,0.45)",
+  });
+
   return (
-    <div className="flex justify-end mt-2">
+    <div className="flex items-center justify-end gap-1.5 mt-2">
+      {/* Copy — text & json only */}
+      {canCopy && (
+        <button
+          onClick={handleCopy}
+          title="Copy to clipboard"
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-display font-semibold border transition-all duration-200 active:scale-95 hover:border-white/25 hover:text-white/70"
+          style={ghostBtn(copied)}
+        >
+          {copied ? (
+            <><span className="text-[10px]">✓</span> Copied!</>
+          ) : (
+            <>
+              <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                <rect x="4" y="4" width="7" height="7" rx="1.2" stroke="currentColor" strokeWidth="1.3"/>
+                <path d="M8 4V2.5A1.5 1.5 0 006.5 1h-4A1.5 1.5 0 001 2.5v4A1.5 1.5 0 002.5 8H4" stroke="currentColor" strokeWidth="1.3"/>
+              </svg>
+              Copy
+            </>
+          )}
+        </button>
+      )}
+
+      {/* Download */}
+      {canDownload && (
+        <button
+          onClick={handleDownload}
+          title={outputType === "image" ? "Download image" : `Download .${outputType}`}
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-display font-semibold border transition-all duration-200 active:scale-95 hover:border-white/25 hover:text-white/70"
+          style={ghostBtn(false)}
+        >
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+            <path d="M6 1v7M3.5 5.5L6 8l2.5-2.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M1 9.5v1A1.5 1.5 0 002.5 12h7a1.5 1.5 0 001.5-1.5v-1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+          </svg>
+          {outputType === "image" ? "Download" : `Download .${outputType}`}
+        </button>
+      )}
+
+      {/* Save to Creations */}
       <button
         onClick={handleSave}
-        className={cn(
-          "relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-display font-extrabold tracking-tight border transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] active:scale-95",
-          celebrate && "save-celebrate",
-        )}
-        style={saved ? {
-          background: "rgba(0,255,148,0.12)",
-          borderColor: "rgba(0,255,148,0.35)",
-          color: "#7BFFC4",
-        } : {
+        title="Save to My Creations"
+        className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-display font-extrabold tracking-tight border transition-all duration-200 active:scale-95"
+        style={saved ? ghostBtn(true) : {
           background: "rgba(255,255,255,0.06)",
           borderColor: "rgba(255,255,255,0.12)",
           color: accent,
         }}
         onMouseEnter={e => {
           if (!saved) {
-            (e.currentTarget as HTMLElement).style.background = accent;
-            (e.currentTarget as HTMLElement).style.color = "#08080F";
-            (e.currentTarget as HTMLElement).style.boxShadow = `0 0 16px ${accentGlow}`;
+            (e.currentTarget as HTMLElement).style.background   = accent;
+            (e.currentTarget as HTMLElement).style.color        = "#08080F";
+            (e.currentTarget as HTMLElement).style.borderColor  = accent;
+            (e.currentTarget as HTMLElement).style.boxShadow    = `0 0 14px ${accentGlow}`;
           }
         }}
         onMouseLeave={e => {
           if (!saved) {
-            (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)";
-            (e.currentTarget as HTMLElement).style.color = accent;
-            (e.currentTarget as HTMLElement).style.boxShadow = "none";
+            (e.currentTarget as HTMLElement).style.background   = "rgba(255,255,255,0.06)";
+            (e.currentTarget as HTMLElement).style.color        = accent;
+            (e.currentTarget as HTMLElement).style.borderColor  = "rgba(255,255,255,0.12)";
+            (e.currentTarget as HTMLElement).style.boxShadow    = "none";
           }
         }}
       >
-        {saved ? <>✓ Saved!</> : (
+        {saved ? (
+          <><span className="text-[10px]">✓</span> Saved!</>
+        ) : (
           <>
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path d="M9 1H3a1 1 0 00-1 1v9l4-2 4 2V2a1 1 0 00-1-1z"
-                stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/>
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+              <path d="M9 1H3a1 1 0 00-1 1v9l4-2 4 2V2a1 1 0 00-1-1z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/>
             </svg>
             Save
           </>
@@ -181,7 +258,9 @@ export function MessageBubble({
   const slideData = !isUser && !isLoading ? tryParseSlides(message.content) : null;
   const isImage   = !isUser && !isLoading && isImageUrl(message.content);
   const isEmpty   = message.content === "" && isStreaming && !isLoading;
-  const showSave  = !isUser && !isLoading && !isEmpty && !!onSave && !!message.content;
+  // Show action footer for text/json/image; audio and slides handle their own actions internally
+  const showActions = !isUser && !isLoading && !isEmpty && !!onSave && !!message.content
+    && !audioData && !slideData;
 
   // Derive a readable text colour for the user bubble
   // Volt yellow and cyan are dark-text; others are white-text
@@ -189,7 +268,7 @@ export function MessageBubble({
   const userTextColor  = darkTextArenas.has(arenaId) ? "#08080F" : "#ffffff";
 
   return (
-    <div className={cn("flex gap-2 sm:gap-3 message-in items-end w-full", isUser ? "justify-end" : "justify-start")}>
+    <div className={cn("flex gap-2 sm:gap-3 message-in items-end w-full", isUser ? "flex-row-reverse" : "justify-start")}>
 
       {/* Avatar */}
       <div
@@ -208,7 +287,7 @@ export function MessageBubble({
       {/* Content column */}
       <div className={cn(
         "flex flex-col",
-        isUser ? "max-w-[75%] sm:max-w-[65%]" : "max-w-[80%] sm:max-w-[75%]"
+        isUser ? "max-w-[55%] sm:max-w-[50%]" : "max-w-[72%] sm:max-w-[60%]"
       )}>
 
         {/* Bubble */}
@@ -216,14 +295,18 @@ export function MessageBubble({
           !audioData && !slideData && !isImage && !isLoading && (
             isUser
               ? "px-4 py-3 sm:px-5 sm:py-3.5 rounded-[20px] rounded-br-[4px] text-sm leading-relaxed"
-              : "px-4 py-3 sm:px-5 sm:py-3.5 rounded-[20px] rounded-bl-[4px] bg-white/[0.05] border border-white/[0.09] text-white text-sm leading-relaxed backdrop-blur-xl"
+              : "px-4 py-3 sm:px-5 sm:py-3.5 rounded-[20px] rounded-bl-[4px] text-white text-sm leading-relaxed backdrop-blur-xl"
           )
         )}
-          style={!audioData && !slideData && !isImage && !isLoading && isUser ? {
+          style={!audioData && !slideData && !isImage && !isLoading ? (isUser ? {
             background: `linear-gradient(135deg, ${arenaAccent}, ${arenaAccent}cc)`,
             color:      userTextColor,
             boxShadow:  `0 12px 40px -12px ${arenaAccentGlow}`,
-          } : {}}
+          } : {
+            background:  `linear-gradient(135deg, ${arenaAccent}0d 0%, rgba(255,255,255,0.03) 100%)`,
+            border:      `1px solid ${arenaAccent}28`,
+            boxShadow:   `0 0 24px ${arenaAccent}0a`,
+          }) : {}}
         >
 
           {/* Typing dots */}
@@ -251,10 +334,20 @@ export function MessageBubble({
           )}
 
           {/* Audio */}
-          {!isEmpty && audioData && <AudioPlayer data={audioData} />}
+          {!isEmpty && audioData && (
+            <AudioPlayer
+              data={audioData}
+              onSave={onSave ? () => onSave(message.content, "audio") : undefined}
+            />
+          )}
 
           {/* Slides */}
-          {!isEmpty && slideData && <SlideCarousel data={slideData} />}
+          {!isEmpty && slideData && (
+            <SlideCarousel
+              data={slideData}
+              onSave={onSave ? () => onSave(message.content, "slides") : undefined}
+            />
+          )}
 
           {/* Plain text */}
           {!isEmpty && !isLoading && !isImage && !audioData && !slideData && (
@@ -294,6 +387,7 @@ export function MessageBubble({
                 )}
               </div>
             ) : (
+              <div className="select-text cursor-text">
               <ReactMarkdown components={{
                 p:      ({ children }) => <p className="mb-2 last:mb-0 text-white/90">{children}</p>,
                 code:   ({ children }) => (
@@ -317,14 +411,15 @@ export function MessageBubble({
               }}>
                 {message.content}
               </ReactMarkdown>
+              </div>
             )
           )}
         </div>
 
-        {/* Save footer */}
-        {showSave && (
-          <SaveFooter
-            onSave={onSave}
+        {/* Action footer — copy / download / save */}
+        {showActions && (
+          <ActionFooter
+            onSave={onSave!}
             content={message.content}
             outputType={message.outputType ?? "text"}
             accent={arenaAccent}

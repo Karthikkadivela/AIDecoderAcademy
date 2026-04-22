@@ -34,12 +34,30 @@ const CHARACTER_EMOJI: Record<string, string> = {
   joey:     "🧒",
 };
 
-export function AudioPlayer({ data }: { data: AudioData }) {
+export function AudioPlayer({ data, onSave }: { data: AudioData; onSave?: () => void }) {
   const audioRef              = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [showScript, setShowScript] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const handleDownload = async () => {
+    try {
+      const res  = await fetch(data.url);
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href = url; a.download = "ai-audio.mp3"; a.click();
+      URL.revokeObjectURL(url);
+    } catch { window.open(data.url, "_blank"); }
+  };
+
+  const handleSave = () => {
+    onSave?.();
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -130,20 +148,57 @@ export function AudioPlayer({ data }: { data: AudioData }) {
         ))}
       </div>
 
-      {/* Script toggle */}
-      <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-between">
+      {/* Footer: info + actions */}
+      <div className="px-4 py-3 border-t border-white/[0.08] flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-1.5 text-xs text-white/50">
           <span className="text-base">🎭</span>
           <span className="font-semibold text-white/75">Multi-character scene</span>
           <span className="text-white/20">·</span>
           <span>{data.script.dialogues.length} dialogues</span>
         </div>
-        <button
-          onClick={() => setShowScript(s => !s)}
-          className="text-xs font-display font-extrabold tracking-tight text-[#C8FF00] hover:bg-[#C8FF00]/10 px-3 py-1 rounded-lg transition-all duration-200"
-        >
-          {showScript ? "Hide" : "Show"} script
-        </button>
+        <div className="flex items-center gap-1.5">
+          {/* Script toggle */}
+          <button
+            onClick={() => setShowScript(s => !s)}
+            className="text-xs font-display font-extrabold tracking-tight text-[#C8FF00] hover:bg-[#C8FF00]/10 px-3 py-1.5 rounded-lg transition-all duration-200"
+          >
+            {showScript ? "Hide" : "Show"} script
+          </button>
+
+          {/* Download MP3 */}
+          <button
+            onClick={handleDownload}
+            title="Download MP3"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-display font-semibold text-white/45 border border-white/10 hover:border-white/25 hover:text-white/70 transition-all duration-200 active:scale-95"
+          >
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+              <path d="M6 1v7M3.5 5.5L6 8l2.5-2.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M1 9.5v1A1.5 1.5 0 002.5 12h7a1.5 1.5 0 001.5-1.5v-1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+            </svg>
+            MP3
+          </button>
+
+          {/* Save to Creations */}
+          {onSave && (
+            <button
+              onClick={handleSave}
+              title="Save to My Creations"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-display font-extrabold text-[#FF2D78] border border-[#FF2D78]/25 hover:bg-[#FF2D78]/15 hover:border-[#FF2D78]/45 transition-all duration-200 active:scale-95"
+              style={saved ? { background: "rgba(0,255,148,0.12)", borderColor: "rgba(0,255,148,0.35)", color: "#7BFFC4" } : {}}
+            >
+              {saved ? (
+                <><span className="text-[10px]">✓</span> Saved!</>
+              ) : (
+                <>
+                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                    <path d="M9 1H3a1 1 0 00-1 1v9l4-2 4 2V2a1 1 0 00-1-1z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/>
+                  </svg>
+                  Save
+                </>
+              )}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Transcript */}
