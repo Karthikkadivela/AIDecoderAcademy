@@ -127,7 +127,7 @@ export default function ProgressPage() {
   ];
 
   return (
-    <div className="relative flex min-h-0 flex-1 bg-transparent text-white" style={{ height: "calc(100vh - 57px)", minHeight: 0 }}>
+    <div className="relative flex min-h-0 flex-1 bg-transparent text-white" style={{ height: "100vh", minHeight: 0 }}>
       {/* ── Left sidebar ── */}
       <aside className="relative z-10 hidden md:flex w-56 border-r border-white/[0.07] flex-col py-5 flex-shrink-0"
         style={{ background: "#0F0F1A" }}>

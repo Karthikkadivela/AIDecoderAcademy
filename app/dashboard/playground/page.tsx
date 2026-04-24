@@ -188,7 +188,7 @@ export default function PlaygroundPage() {
 
   // Loading state
   if (!profile) return (
-    <div className="flex items-center justify-center" style={{ height: "calc(100vh - 57px)", background: "#080814" }}>
+    <div className="flex items-center justify-center" style={{ height: "100vh", background: "#080814" }}>
       <div className="flex gap-2">
         {[0,1,2].map(i => (
           <div key={i} className="dot w-3 h-3 rounded-full" style={{ background: ARENA_ACCENT, boxShadow: `0 0 12px ${ARENA_ACCENT_GLOW}` }}/>
@@ -198,7 +198,7 @@ export default function PlaygroundPage() {
   );
 
   return (
-    <div className="relative w-full overflow-hidden" style={{ height: "calc(100vh - 57px)" }}>
+    <div className="relative w-full overflow-hidden" style={{ height: "100vh" }}>
 
       {/* Creation Room — full screen */}
       <CreationsRoom

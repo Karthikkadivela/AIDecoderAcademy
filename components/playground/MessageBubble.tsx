@@ -303,9 +303,10 @@ export function MessageBubble({
             color:      userTextColor,
             boxShadow:  `0 12px 40px -12px ${arenaAccentGlow}`,
           } : {
-            background:  `linear-gradient(135deg, ${arenaAccent}0d 0%, rgba(255,255,255,0.03) 100%)`,
-            border:      `1px solid ${arenaAccent}28`,
-            boxShadow:   `0 0 24px ${arenaAccent}0a`,
+            background:  "linear-gradient(135deg, rgba(10,5,30,0.82) 0%, rgba(18,10,45,0.78) 100%)",
+            border:      `1px solid ${arenaAccent}35`,
+            boxShadow:   `0 8px 32px rgba(0,0,0,0.35), 0 0 20px ${arenaAccent}12`,
+            backdropFilter: "blur(16px)",
           }) : {}}
         >
 
@@ -389,7 +390,7 @@ export function MessageBubble({
             ) : (
               <div className="select-text cursor-text">
               <ReactMarkdown components={{
-                p:      ({ children }) => <p className="mb-2 last:mb-0 text-white/90">{children}</p>,
+                p:      ({ children }) => <p className="mb-2 last:mb-0 text-white/95">{children}</p>,
                 code:   ({ children }) => (
                   <code className="bg-[#1E1E30] px-1.5 py-0.5 rounded-md text-xs font-mono"
                     style={{ color: arenaAccent }}>

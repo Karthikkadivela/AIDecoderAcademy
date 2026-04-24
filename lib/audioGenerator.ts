@@ -137,7 +137,8 @@ async function synthesize(
 
 // ─── Resolve character → voice ────────────────────────────────────────────────
 
-function resolveVoice(character: string, overrideVoice?: string): { voice: VoiceId; engine: Engine } {
+function resolveVoice(character: string | undefined | null, overrideVoice?: string): { voice: VoiceId; engine: Engine } {
+  if (!character) return { voice: DEFAULT_MALE_VOICE, engine: "neural" };
   const key = character.toLowerCase().replace(/\s+/g, "_");
   if (CHARACTER_VOICE_MAP[key]) return CHARACTER_VOICE_MAP[key];
   if (overrideVoice && NEURAL_VOICES.has(overrideVoice)) {
@@ -169,7 +170,7 @@ export async function generateScene(input: SceneInput): Promise<SceneResult> {
 
   // 2. Dialogues
   for (const dlg of input.dialogues) {
-    if (!dlg.text.trim()) continue;
+    if (!dlg.character || !dlg.text?.trim()) continue;
     const { voice, engine } = resolveVoice(dlg.character, dlg.voice);
     const buf = await synthesize(dlg.text, voice, engine, dlg.emotion);
     if (buf) {

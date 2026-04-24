@@ -260,7 +260,7 @@ function TrophyRoom({ profile }: { profile: Profile }) {
   return (
     <div
       className="relative overflow-y-auto bg-transparent text-white"
-      style={{ minHeight: "calc(100vh - 57px)" }}
+      style={{ minHeight: "100vh" }}
     >
       <div className="relative z-10 mx-auto max-w-4xl space-y-6 px-6 py-8">
 
@@ -623,7 +623,7 @@ export default function ProfilePage() {
   }, []);
 
   if (loading) return (
-    <div className="studio-bg flex items-center justify-center" style={{ height: "calc(100vh - 57px)" }}>
+    <div className="studio-bg flex items-center justify-center" style={{ height: "100vh" }}>
       <div className="flex gap-2">
         {[0,1,2].map(i => (
           <div key={i} className="dot w-3 h-3 rounded-full bg-[#C8FF00] shadow-[0_0_12px_rgba(200,255,0,0.45)]"/>

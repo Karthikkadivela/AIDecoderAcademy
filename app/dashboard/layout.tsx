@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -20,7 +20,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [arenaOverride, setArenaOverride] = useState<number | null>(null);
+  const [navVisible, setNavVisible] = useState(false);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevArenaRef = useRef<number | null>(null);
+
+  const showNav = useCallback(() => {
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    setNavVisible(true);
+  }, []);
+
+  const scheduleHide = useCallback(() => {
+    hideTimerRef.current = setTimeout(() => setNavVisible(false), 300);
+  }, []);
 
   useEffect(() => {
     fetch("/api/profile")
@@ -71,14 +82,31 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div
-      className="relative flex flex-col overflow-hidden bg-[#08080F]"
-      style={{ height: "100vh" }}
+      className="relative overflow-hidden bg-[#08080F]"
+      style={{ height: "100vh", position: "fixed", inset: 0 }}
     >
       <ArenaEnvironment preset={arena.environmentPreset} gradient={arena.gradient} />
 
-      {/* Top nav */}
-      <header className="relative z-20 flex-shrink-0 border-b"
-        style={{ background: "rgba(15,15,26,0.95)", borderColor: "rgba(255,255,255,0.07)", backdropFilter: "blur(20px)" }}>
+      {/* ── Hover trigger strip — always visible, sits at top ── */}
+      <div
+        className="fixed top-0 left-0 right-0 z-50"
+        style={{ height: 10 }}
+        onMouseEnter={showNav}
+      />
+
+      {/* ── Top nav — slides in from top on hover ── */}
+      <header
+        className="fixed top-0 left-0 right-0 z-40 border-b"
+        style={{
+          background:       "rgba(15,15,26,0.97)",
+          borderColor:      "rgba(255,255,255,0.07)",
+          backdropFilter:   "blur(20px)",
+          transform:        navVisible ? "translateY(0)" : "translateY(-100%)",
+          transition:       "transform 0.3s cubic-bezier(0.16,1,0.3,1)",
+        }}
+        onMouseEnter={showNav}
+        onMouseLeave={scheduleHide}
+      >
         <div className="flex items-center justify-between px-5 py-2.5 w-full gap-4">
 
           {/* Logo */}
@@ -97,10 +125,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {/* Nav links */}
           <nav className="flex items-center gap-0.5 sm:gap-1">
             {NAV.map((item) => {
-              // Exact match for hub (/dashboard), prefix match for others
-          const active = item.href === "/dashboard"
-            ? pathname === "/dashboard"
-            : pathname.startsWith(item.href);
+              const active = item.href === "/dashboard"
+                ? pathname === "/dashboard"
+                : pathname.startsWith(item.href);
               return (
                 <Link key={item.href} href={item.href}
                   className={cn(
@@ -108,8 +135,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     active ? "text-[#08080F]" : "text-white/50 hover:text-white hover:bg-white/[0.06]"
                   )}
                   style={active ? {
-                    background:  arena.accent,
-                    boxShadow:   `0 0 20px ${arena.accentGlow}`,
+                    background: arena.accent,
+                    boxShadow:  `0 0 20px ${arena.accentGlow}`,
                   } : {}}>
                   <span className="text-base">{item.icon}</span>
                   <span className="hidden sm:block">{item.label}</span>
@@ -164,7 +191,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </header>
 
-      <main className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden" style={{ height: "calc(100vh - 57px)" }}>
+      {/* ── Main content — always full-height since nav is overlaid ── */}
+      <main className="relative z-10 w-full overflow-hidden" style={{ height: "100vh" }}>
         {children}
       </main>
     </div>

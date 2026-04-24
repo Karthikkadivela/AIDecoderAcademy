@@ -173,10 +173,15 @@ Return ONLY valid JSON.
   });
 
   const parsed = JSON.parse(res.choices[0]?.message?.content ?? "{}") as SceneInput;
-  parsed.dialogues = parsed.dialogues.map((d, i) => ({
-    ...d,
-    emotion: d.emotion && VALID_EMOTIONS.has(d.emotion) ? d.emotion : FALLBACK_ARC[i % FALLBACK_ARC.length],
-  }));
+  // Ensure narrator_text is always a string
+  parsed.narrator_text = parsed.narrator_text ?? "";
+  // Drop any dialogue entries missing a character name, then normalise emotion
+  parsed.dialogues = (parsed.dialogues ?? [])
+    .filter(d => d.character && typeof d.character === "string" && d.text?.trim())
+    .map((d, i) => ({
+      ...d,
+      emotion: d.emotion && VALID_EMOTIONS.has(d.emotion) ? d.emotion : FALLBACK_ARC[i % FALLBACK_ARC.length],
+    }));
   return parsed;
 }
 

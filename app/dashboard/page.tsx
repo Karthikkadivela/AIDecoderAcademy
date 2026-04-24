@@ -13,7 +13,7 @@ import type { Profile } from "@/types";
 // perspective3d gives the outward lean seen in the reference art.
 const PANELS: {
   arenaId:      number;
-  src:          string | null;   // null = custom glass card (Arena 1)
+  src:          string | null;   // null = custom glass card fallback
   left:         string;
   top:          string;
   width:        string;
@@ -24,16 +24,25 @@ const PANELS: {
   floatRange:   number;          // px amplitude for idle float
   zIndex:       number;
 }[] = [
+  // ── CENTER ────────────────────────────────────────────────────────────────
   // Arena 6 — Director's Suite → Video Vision (top center, largest — faces straight)
-  { arenaId: 6, src: "/panels/video_vision.png",  left: "38%", top: "2%",  width: "27%", rotateZ:  0,  rotateY:   0, rotateX:  8, floatDelay: 0.0, floatRange: 10, zIndex: 12 },
-  // Arena 5 — Sound Booth → Audio Fusion (top left — swings right toward center)
-  { arenaId: 5, src: "/panels/audio_fusion.png",  left:  "13%", top: "10%",  width: "22%", rotateZ: -3,  rotateY:  28, rotateX:  8, floatDelay: 0.6, floatRange: 12, zIndex: 11 },
-  // Arena 2 — Prompt Lab → Slide Skate (top right — swings left toward center)
-  { arenaId: 2, src: "/panels/slide_skate.png",   left: "70%", top: "10%",  width: "21%", rotateZ:  3,  rotateY: -28, rotateX:  8, floatDelay: 1.1, floatRange: 12, zIndex: 11 },
-  // Arena 3 — Story Forge → Script (bottom left — swings right + tilts top back)
-  { arenaId: 3, src: "/panels/script.png",        left:  "16%", top: "50%", width: "21%", rotateZ: -5,  rotateY:  32, rotateX: -5, floatDelay: 1.7, floatRange:  9, zIndex: 32 },
-  // Arena 4 — Visual Studio → Pic Drop (bottom right — swings left + tilts top back)
-  { arenaId: 4, src: "/panels/pic_drop.png",      left: "68%", top: "51%", width: "20%", rotateZ:  5,  rotateY: -32, rotateX: -5, floatDelay: 2.2, floatRange:  9, zIndex: 32 },
+  { arenaId: 6, src: "/panels/video_vision.png",  left: "35%",  top: "2%",  width: "29%", rotateZ:  0,  rotateY:   0, rotateX:  7, floatDelay: 0.0, floatRange: 10, zIndex: 12 },
+
+  // ── LEFT COLUMN (top → middle → bottom) ───────────────────────────────────
+  // Arena 5 — Sound Booth → Audio Fusion (top left — leans right toward center)
+  { arenaId: 5, src: "/panels/audio_fusion.png",  left:  "1%",  top: "3%",  width: "24%", rotateZ: -2,  rotateY:  24, rotateX:  7, floatDelay: 0.6, floatRange: 12, zIndex: 11 },
+  // Arena 1 — AI Explorer → AI Explorer (middle left — behind avatar)
+  { arenaId: 1, src: "/panels/ai_explorer.png",   left:  "1%",  top: "37%", width: "24%", rotateZ: -2,  rotateY:  20, rotateX:  0, floatDelay: 0.4, floatRange:  9, zIndex: 14 },
+  // Arena 3 — Story Forge → Script (bottom left — in front of table)
+  { arenaId: 3, src: "/panels/script.png",        left:  "1%",  top: "57%", width: "23%", rotateZ: -3,  rotateY:  16, rotateX: -5, floatDelay: 1.7, floatRange:  8, zIndex: 32 },
+
+  // ── RIGHT COLUMN (top → middle → bottom) ──────────────────────────────────
+  // Arena 2 — Prompt Lab → Slide Skate (top right — leans left toward center)
+  { arenaId: 2, src: "/panels/slide_skate.png",   left: "75%",  top: "3%",  width: "24%", rotateZ:  2,  rotateY: -24, rotateX:  7, floatDelay: 1.1, floatRange: 12, zIndex: 11 },
+  // Arena 2 — Prompt Lab → Prompt Lab panel (middle right — behind avatar)
+  { arenaId: 2, src: "/panels/prompt_lab.png",    left: "75%",  top: "37%", width: "23%", rotateZ:  2,  rotateY: -20, rotateX:  0, floatDelay: 0.9, floatRange:  9, zIndex: 14 },
+  // Arena 4 — Visual Studio → Pic Drop (bottom right — in front of table)
+  { arenaId: 4, src: "/panels/pic_drop.png",      left: "75%",  top: "57%", width: "22%", rotateZ:  3,  rotateY: -16, rotateX: -5, floatDelay: 2.2, floatRange:  8, zIndex: 32 },
 ];
 
 export default function HubPage() {
@@ -76,7 +85,7 @@ export default function HubPage() {
   return (
     <div
       className="relative w-full overflow-hidden select-none"
-      style={{ height: "calc(100vh - 57px)", background: "#06060f" }}
+      style={{ height: "100vh", background: "#06060f" }}
     >
 
       {/* ── Room background ── */}
@@ -101,7 +110,7 @@ export default function HubPage() {
       {/* ── Top-row panels (rendered BEFORE avatar — sit behind it) ── */}
       {PANELS.filter(p => p.zIndex < 20).map(panel => (
         <PanelCard
-          key={panel.arenaId}
+          key={panel.src ?? panel.arenaId}
           panel={panel}
           arena={ARENAS.find(a => a.id === panel.arenaId)!}
           level={level}
@@ -149,7 +158,7 @@ export default function HubPage() {
       {/* ── Front panels (rendered AFTER desk — float in front of it) ── */}
       {PANELS.filter(p => p.zIndex >= 20).map(panel => (
         <PanelCard
-          key={panel.arenaId}
+          key={panel.src ?? panel.arenaId}
           panel={panel}
           arena={ARENAS.find(a => a.id === panel.arenaId)!}
           level={level}

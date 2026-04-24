@@ -56,7 +56,7 @@ export default function WorldPage() {
   const allDone         = completedCount === objectives.length;
 
   return (
-    <div className="relative w-full overflow-hidden" style={{ height: "calc(100vh - 57px)" }}>
+    <div className="relative w-full overflow-hidden" style={{ height: "100vh" }}>
 
       {/* ── World background ── */}
       <div className="absolute inset-0">
@@ -66,7 +66,6 @@ export default function WorldPage() {
           className="w-full h-full object-cover"
           onError={(e) => {
             const el = e.currentTarget as HTMLImageElement;
-            // Try .jpg fallback, then arena background
             if (el.src.endsWith(".png")) {
               el.src = `/worlds/arena-${arenaId}.jpg`;
             } else {
@@ -74,7 +73,6 @@ export default function WorldPage() {
             }
           }}
         />
-        {/* Layered overlay for readability */}
         <div className="absolute inset-0"
           style={{ background: "linear-gradient(180deg, rgba(6,6,15,0.55) 0%, rgba(6,6,15,0.3) 40%, rgba(6,6,15,0.7) 100%)" }}/>
         <div className="absolute inset-0"
@@ -138,10 +136,10 @@ export default function WorldPage() {
         style={{ paddingTop: "100px", paddingBottom: "20px" }}>
         <div className="w-full max-w-4xl grid grid-cols-1 sm:grid-cols-3 gap-4">
           {objectives.map((obj, i) => {
-            const done       = completed.has(obj.id);
-            const isLocked   = !unlocked;
+            const done        = completed.has(obj.id);
+            const isLocked    = !unlocked;
             const isLaunching = launching === obj.id;
-            const outMeta    = OUTPUT_LABELS[obj.outputType] ?? OUTPUT_LABELS.text;
+            const outMeta     = OUTPUT_LABELS[obj.outputType] ?? OUTPUT_LABELS.text;
 
             return (
               <motion.div
@@ -157,12 +155,12 @@ export default function WorldPage() {
                   whileTap={!isLocked   ? { scale: 0.97 }         : {}}
                   className="w-full text-left rounded-2xl overflow-hidden transition-all duration-200"
                   style={{
-                    background:   done ? `${arena.accent}18` : "rgba(15,15,26,0.82)",
-                    border:       `1px solid ${done ? arena.accent + "60" : "rgba(255,255,255,0.1)"}`,
+                    background:     done ? `${arena.accent}18` : "rgba(15,15,26,0.82)",
+                    border:         `1px solid ${done ? arena.accent + "60" : "rgba(255,255,255,0.1)"}`,
                     backdropFilter: "blur(20px)",
-                    boxShadow:    done ? `0 0 24px ${arena.accentGlow}` : "0 8px 32px rgba(0,0,0,0.4)",
-                    cursor:       isLocked ? "not-allowed" : "pointer",
-                    opacity:      isLocked ? 0.5 : 1,
+                    boxShadow:      done ? `0 0 24px ${arena.accentGlow}` : "0 8px 32px rgba(0,0,0,0.4)",
+                    cursor:         isLocked ? "not-allowed" : "pointer",
+                    opacity:        isLocked ? 0.5 : 1,
                   }}
                 >
                   {/* Card top accent stripe */}
