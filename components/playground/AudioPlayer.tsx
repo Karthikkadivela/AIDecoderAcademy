@@ -34,12 +34,30 @@ const CHARACTER_EMOJI: Record<string, string> = {
   joey:     "🧒",
 };
 
-export function AudioPlayer({ data }: { data: AudioData }) {
+export function AudioPlayer({ data, onSave }: { data: AudioData; onSave?: () => void }) {
   const audioRef              = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [showScript, setShowScript] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const handleDownload = async () => {
+    try {
+      const res  = await fetch(data.url);
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href = url; a.download = "ai-audio.mp3"; a.click();
+      URL.revokeObjectURL(url);
+    } catch { window.open(data.url, "_blank"); }
+  };
+
+  const handleSave = () => {
+    onSave?.();
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -130,8 +148,8 @@ export function AudioPlayer({ data }: { data: AudioData }) {
         ))}
       </div>
 
-      {/* Script toggle */}
-      <div className="px-5 py-3 border-t border-white/[0.08] flex items-center justify-between">
+      {/* Footer: info + actions */}
+      <div className="px-4 py-3 border-t border-white/[0.08] flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-1.5 text-xs text-white/50">
           <span className="text-base">🎭</span>
           <span className="font-semibold text-white/75">Multi-character scene</span>
