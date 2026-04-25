@@ -56,6 +56,11 @@ export default function WorldPage() {
   const completedCount  = objectives.filter(o => completed.has(o.id)).length;
   const allDone         = completedCount === objectives.length;
 
+  // Arena 1 gets its own immersive 3D room page
+  if (arenaId === 1) {
+    return <Arena1RoomPage />;
+  }
+
   return (
     <div className="relative w-full overflow-hidden" style={{ height: "100vh" }}>
 
