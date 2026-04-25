@@ -13,10 +13,11 @@ import type { Profile } from "@/types";
 // perspective3d gives the outward lean seen in the reference art.
 const PANELS: {
   arenaId:      number;
-  src:          string | null;   // null = custom glass card fallback
+  src:          string | null;
   left:         string;
   top:          string;
   width:        string;
+  aspect:       string;          // CSS aspect-ratio for the image box
   rotateZ:      number;
   rotateY:      number;          // positive = face right (left panels), negative = face left (right panels)
   rotateX:      number;          // positive = tilt top away (bottom panels)
@@ -24,25 +25,19 @@ const PANELS: {
   floatRange:   number;          // px amplitude for idle float
   zIndex:       number;
 }[] = [
-  // ── CENTER ────────────────────────────────────────────────────────────────
-  // Arena 6 — Director's Suite → Video Vision (top center, largest — faces straight)
-  { arenaId: 6, src: "/panels/video_vision.png",  left: "35%",  top: "2%",  width: "29%", rotateZ:  0,  rotateY:   0, rotateX:  7, floatDelay: 0.0, floatRange: 10, zIndex: 12 },
+  // ── CENTER ───────────────────────────────────────────────────────────────
+  // Video Vision — hero panel, wide cinematic ratio, top center
+  { arenaId: 6, src: "/panels/video_vision.png",  left: "33%", top: "5%",  width: "35%", aspect: "16/10",  rotateZ:  0, rotateY:   0, rotateX:  6, floatDelay: 0.0, floatRange: 10, zIndex: 14 },
 
-  // ── LEFT COLUMN (top → middle → bottom) ───────────────────────────────────
-  // Arena 5 — Sound Booth → Audio Fusion (top left — leans right toward center)
-  { arenaId: 5, src: "/panels/audio_fusion.png",  left:  "1%",  top: "3%",  width: "24%", rotateZ: -2,  rotateY:  24, rotateX:  7, floatDelay: 0.6, floatRange: 12, zIndex: 11 },
-  // Arena 1 — AI Explorer → AI Explorer (middle left — behind avatar)
-  { arenaId: 1, src: "/panels/ai_explorer.png",   left:  "1%",  top: "37%", width: "24%", rotateZ: -2,  rotateY:  20, rotateX:  0, floatDelay: 0.4, floatRange:  9, zIndex: 14 },
-  // Arena 3 — Story Forge → Script (bottom left — in front of table)
-  { arenaId: 3, src: "/panels/script.png",        left:  "1%",  top: "57%", width: "23%", rotateZ: -3,  rotateY:  16, rotateX: -5, floatDelay: 1.7, floatRange:  8, zIndex: 32 },
+  // ── LEFT COLUMN: audio · slide skate · script ────────────────────────────
+  { arenaId: 5, src: "/panels/audio_fusion.png",  left:  "3%", top: "3%",  width: "42%", aspect: "16/10", rotateZ: -2, rotateY:  28, rotateX:  7, floatDelay: 0.6, floatRange: 12, zIndex: 11 },
+  { arenaId: 2, src: "/panels/slide_skate.png",   left:  "12%", top: "35%", width: "23%", aspect: "16/10", rotateZ: -2, rotateY:  22, rotateX:  0, floatDelay: 1.1, floatRange:  9, zIndex: 14 },
+  { arenaId: 3, src: "/panels/script.png",         left:  "12%", top: "58%", width: "30%", aspect: "16/10", rotateZ: -8, rotateY:  28, rotateX: 0, floatDelay: 1.7, floatRange:  8, zIndex: 32 },
 
-  // ── RIGHT COLUMN (top → middle → bottom) ──────────────────────────────────
-  // Arena 2 — Prompt Lab → Slide Skate (top right — leans left toward center)
-  { arenaId: 2, src: "/panels/slide_skate.png",   left: "75%",  top: "3%",  width: "24%", rotateZ:  2,  rotateY: -24, rotateX:  7, floatDelay: 1.1, floatRange: 12, zIndex: 11 },
-  // Arena 2 — Prompt Lab → Prompt Lab panel (middle right — behind avatar)
-  { arenaId: 2, src: "/panels/prompt_lab.png",    left: "75%",  top: "37%", width: "23%", rotateZ:  2,  rotateY: -20, rotateX:  0, floatDelay: 0.9, floatRange:  9, zIndex: 14 },
-  // Arena 4 — Visual Studio → Pic Drop (bottom right — in front of table)
-  { arenaId: 4, src: "/panels/pic_drop.png",      left: "75%",  top: "57%", width: "22%", rotateZ:  3,  rotateY: -16, rotateX: -5, floatDelay: 2.2, floatRange:  8, zIndex: 32 },
+  // ── RIGHT COLUMN: ai explorer · prompt lab · pic drop ────────────────────
+  { arenaId: 1, src: "/panels/ai_explorer.png",   left: "63%", top: "7%",  width: "30%", aspect: "16/10", rotateZ:  2, rotateY: -28, rotateX:  7, floatDelay: 0.4, floatRange: 12, zIndex: 11 },
+  { arenaId: 2, src: "/panels/prompt_lab.png",    left: "64%", top: "35%", width: "27%", aspect: "16/10", rotateZ:  2, rotateY: -22, rotateX:  0, floatDelay: 0.9, floatRange:  9, zIndex: 14 },
+  { arenaId: 4, src: "/panels/pic_drop.png",      left: "63%", top: "60%", width: "27%", aspect: "16/10", rotateZ:  8, rotateY: -28, rotateX: 0, floatDelay: 2.2, floatRange:  8, zIndex: 32 },
 ];
 
 export default function HubPage() {
@@ -85,7 +80,7 @@ export default function HubPage() {
   return (
     <div
       className="relative w-full overflow-hidden select-none"
-      style={{ height: "100vh", background: "#06060f" }}
+      style={{ height: "100dvh", background: "#06060f" }}
     >
 
       {/* ── Room background ── */}
@@ -127,10 +122,10 @@ export default function HubPage() {
         draggable={false}
         className="absolute pointer-events-none"
         style={{
-          bottom: 170,
+          bottom: "clamp(60px, 17vh, 200px)",
           left: "50%",
           transform: "translateX(-50%)",
-          height: "clamp(260px, 68%, 620px)",
+          height: "clamp(180px, 80vh, 600px)",
           width: "auto",
           objectFit: "contain",
           zIndex: 22,
@@ -148,7 +143,7 @@ export default function HubPage() {
           bottom: 0,
           left: "50%",
           transform: "translateX(-50%)",
-          width: "clamp(420px, 72%, 1100px)",
+          width: "clamp(300px, 72%, 1100px)",
           height: "auto",
           objectFit: "contain",
           zIndex: 28,
@@ -173,23 +168,70 @@ export default function HubPage() {
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-        className="absolute bottom-12 left-0 right-0 flex flex-col items-center text-center pointer-events-none px-4"
-        style={{ zIndex: 60 }}
+        className="absolute left-0 right-0 flex flex-col items-center text-center pointer-events-none px-4"
+        style={{
+          zIndex: 60,
+          // respects iPhone home-indicator / Android nav bar
+          bottom: "max(2.5rem, calc(env(safe-area-inset-bottom, 0px) + 1rem))",
+        }}
       >
         <p className="text-xs font-mono text-white/30 uppercase tracking-widest mb-1">
           Welcome back
         </p>
         <h1
-          className="font-display font-black text-white text-2xl sm:text-3xl tracking-tight whitespace-nowrap"
+          className="font-display font-black text-white text-xl sm:text-2xl md:text-3xl tracking-tight whitespace-nowrap"
           style={{ textShadow: "0 0 40px rgba(0,180,255,0.5)" }}
         >
           {profile?.display_name ?? "Explorer"}
           <span style={{ color: "#00D4FF" }}>.</span>
         </h1>
-        <p className="text-xs text-white/35 mt-1">
+        {/* "tap" on touch devices, "click" on pointer devices */}
+        <p className="text-xs text-white/35 mt-1 hidden sm:block">
           Choose your world — click a panel to enter
         </p>
+        <p className="text-xs text-white/35 mt-1 sm:hidden">
+          Tap a panel to enter
+        </p>
       </motion.div>
+
+      {/* ── Mobile notice (screens narrower than 480 px) ── */}
+      <div
+        className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center xs:hidden"
+        style={{
+          zIndex: 70,
+          background: "rgba(6,4,18,0.88)",
+          backdropFilter: "blur(12px)",
+          display: "none",   // hidden by default; overridden below via media query
+        }}
+      >
+        <style>{`
+          @media (max-width: 479px) {
+            .hub-mobile-notice { display: flex !important; }
+          }
+        `}</style>
+      </div>
+      <div
+        className="hub-mobile-notice absolute inset-0 flex-col items-center justify-center px-6 text-center"
+        style={{
+          zIndex: 70,
+          background: "rgba(6,4,18,0.92)",
+          backdropFilter: "blur(12px)",
+          display: "none",
+        }}
+      >
+        <div className="text-5xl mb-4">🚀</div>
+        <h2 className="font-display font-black text-white text-xl mb-2">Open on a bigger screen</h2>
+        <p className="text-sm text-white/50 leading-relaxed mb-6">
+          The AI Decoder Academy Hub looks best on a tablet or laptop.
+        </p>
+        <button
+          onClick={() => router.push("/dashboard/playground")}
+          className="px-6 py-3 rounded-xl font-display font-extrabold text-sm"
+          style={{ background: "#7C3AED", color: "#fff", boxShadow: "0 0 20px rgba(124,58,237,0.5)" }}
+        >
+          Go to Playground →
+        </button>
+      </div>
 
       {/* ── Hover tooltip ── */}
       <AnimatePresence>
@@ -292,6 +334,7 @@ interface PanelDef {
   left:       string;
   top:        string;
   width:      string;
+  aspect:     string;
   rotateZ:    number;
   rotateY:    number;
   rotateX:    number;
@@ -333,7 +376,8 @@ function PanelCard({
         rotateY:           panel.rotateY,
         rotateZ:           panel.rotateZ,
         rotateX:           panel.rotateX,
-        transformPerspective: 900,
+        // perspective scales with viewport so the 3D lean looks natural on all screen sizes
+        transformPerspective: "clamp(500px, 70vw, 1100px)" as unknown as number,
         willChange:        "transform",
       }}
       onMouseEnter={() => onHover(arena.id)}
@@ -346,94 +390,65 @@ function PanelCard({
         style={{ cursor: unlocked ? "pointer" : "not-allowed" }}
         transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
       >
-        {/* Glow halo — only on hover, no border ring */}
+        {/*
+          Uniform panel box — all images rendered at the same aspect ratio so they
+          line up perfectly regardless of their natural pixel dimensions.
+          object-fit: cover fills the box; object-position: top keeps the header
+          visible if vertical content is trimmed.
+        */}
         <div
-          className="absolute inset-0 rounded-xl transition-all duration-300 pointer-events-none"
-          style={{
-            boxShadow: hovered && unlocked
-              ? `0 0 40px ${arena.accentGlow}, 0 0 80px ${arena.accentGlow}`
-              : "none",
-            borderRadius: 12,
-            zIndex: 1,
-          }}
-        />
+          className="relative w-full overflow-hidden rounded-xl"
+          style={{ aspectRatio: panel.aspect }}
+        >
+          {/* Panel image */}
+          {panel.src && (
+            <img
+              src={panel.src}
+              alt={arena.name}
+              draggable={false}
+              className="absolute inset-0 w-full h-full rounded-xl"
+              style={{
+                objectFit:     "cover",
+                objectPosition: "top center",
+                filter: unlocked
+                  ? hovered
+                    ? `brightness(1.25) drop-shadow(0 0 16px ${arena.accent})`
+                    : `brightness(1.05) drop-shadow(0 0 8px ${arena.accentGlow})`
+                  : "grayscale(1) brightness(0.35)",
+                transition: "filter 0.3s ease",
+              }}
+            />
+          )}
 
-        {/* Panel image or custom glass card for Arena 1 */}
-        {panel.src ? (
-          <img
-            src={panel.src}
-            alt={arena.name}
-            draggable={false}
-            className="w-full h-auto block rounded-xl"
+          {/* Glow halo — sits on top of the image, pointer-events off */}
+          <div
+            className="absolute inset-0 rounded-xl pointer-events-none transition-all duration-300"
             style={{
-              filter: unlocked
-                ? hovered
-                  ? `brightness(1.25) drop-shadow(0 0 16px ${arena.accent})`
-                  : `brightness(1.05) drop-shadow(0 0 8px ${arena.accentGlow})`
-                : "grayscale(1) brightness(0.35)",
-              transition: "filter 0.3s ease",
+              boxShadow: hovered && unlocked
+                ? `0 0 40px ${arena.accentGlow}, 0 0 80px ${arena.accentGlow}`
+                : "none",
             }}
           />
-        ) : (
-          // Arena 1 — custom glass card since no panel image yet
-          <div
-            className="w-full rounded-xl flex flex-col items-center justify-center gap-3 py-6 px-4"
-            style={{
-              aspectRatio: "4/3",
-              background: `linear-gradient(135deg, ${arena.accent}22, ${arena.accentGlow} 80%, rgba(8,6,22,0.9))`,
-              border: `1.5px solid ${arena.accent}55`,
-              backdropFilter: "blur(12px)",
-              boxShadow: `inset 0 0 30px ${arena.accentGlow}`,
-              filter: unlocked ? "none" : "grayscale(1) brightness(0.35)",
-            }}
-          >
-            {/* Scan-line decoration */}
-            <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none opacity-20"
-              style={{ background: "repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(255,255,255,0.03) 3px, rgba(255,255,255,0.03) 4px)" }}/>
-            <span className="text-4xl sm:text-5xl drop-shadow-lg">{arena.emoji}</span>
-            <p className="font-display font-black text-sm sm:text-base tracking-tight text-center leading-tight"
-              style={{ color: arena.accent, textShadow: `0 0 20px ${arena.accentGlow}` }}>
-              {arena.name}
-            </p>
-            <p className="text-[10px] sm:text-xs text-white/50 text-center leading-relaxed">
-              {arena.tagline}
-            </p>
-          </div>
-        )}
 
-        {/* Lock overlay */}
-        {!unlocked && (
-          <div
-            className="absolute inset-0 rounded-xl flex flex-col items-center justify-center gap-2"
-            style={{ background: "rgba(4,2,14,0.72)", backdropFilter: "blur(3px)" }}
-          >
-            <span className="text-2xl">🔒</span>
-            <p className="text-[10px] font-mono text-white/50">Level {arena.unlockLevel}</p>
-          </div>
-        )}
-
-        {/* Completed badge */}
-        {completed && unlocked && (
-          <div
-            className="absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
-            style={{ background: "#00FF94", color: "#08080F", boxShadow: "0 0 12px rgba(0,255,148,0.7)", zIndex: 10 }}
-          >
-            ✓
-          </div>
-        )}
-
-        {/* Arena name label below panel */}
-        <div className="mt-2 text-center">
-          <p
-            className="text-[10px] sm:text-xs font-display font-extrabold tracking-tight leading-tight transition-colors duration-200"
-            style={{ color: hovered && unlocked ? arena.accent : unlocked ? "rgba(255,255,255,0.75)" : "rgba(255,255,255,0.25)" }}
-          >
-            {arena.name.replace(" Arena", "").replace(" Suite", "").replace(" Studio", "")}
-          </p>
+          {/* Lock overlay */}
           {!unlocked && (
-            <p className="text-[9px] font-mono mt-0.5" style={{ color: "rgba(255,255,255,0.28)" }}>
-              {arena.unlockXP} XP needed
-            </p>
+            <div
+              className="absolute inset-0 rounded-xl flex flex-col items-center justify-center gap-2"
+              style={{ background: "rgba(4,2,14,0.72)", backdropFilter: "blur(3px)" }}
+            >
+              <span className="text-2xl">🔒</span>
+              <p className="text-[10px] font-mono text-white/50">Level {arena.unlockLevel}</p>
+            </div>
+          )}
+
+          {/* Completed badge */}
+          {completed && unlocked && (
+            <div
+              className="absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
+              style={{ background: "#00FF94", color: "#08080F", boxShadow: "0 0 12px rgba(0,255,148,0.7)", zIndex: 10 }}
+            >
+              ✓
+            </div>
           )}
         </div>
       </motion.div>

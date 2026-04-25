@@ -7,6 +7,7 @@ import { ArrowLeft, Zap, Lock } from "lucide-react";
 import { getArena } from "@/lib/arenas";
 import { getArenaObjectives, getCompletedObjectives, type Objective } from "@/lib/objectives";
 import type { Profile } from "@/types";
+import Arena1RoomPage from "@/components/worlds/Arena1RoomPage";
 
 const OUTPUT_LABELS: Record<string, { label: string; color: string }> = {
   text:   { label: "Text",   color: "#C4B5FD" },
