@@ -27,7 +27,7 @@ const PANELS: {
 }[] = [
   // ── CENTER ───────────────────────────────────────────────────────────────
   // Video Vision — hero panel, wide cinematic ratio, top center
-  { arenaId: 6, src: "/panels/video_vision.png",  left: "33%", top: "5%",  width: "35%", aspect: "16/10",  rotateZ:  0, rotateY:   0, rotateX:  6, floatDelay: 0.0, floatRange: 10, zIndex: 14 },
+  { arenaId: 6, src: "/panels/video_vision.png",  left: "33%", top: "5%",  width: "35%", aspect: "16/10",  rotateZ:  0, rotateY:   0, rotateX:  6, floatDelay: 0.0, floatRange: 10, zIndex: 10 },
 
   // ── LEFT COLUMN: audio · slide skate · script ────────────────────────────
   { arenaId: 5, src: "/panels/audio_fusion.png",  left:  "3%", top: "3%",  width: "42%", aspect: "16/10", rotateZ: -2, rotateY:  28, rotateX:  7, floatDelay: 0.6, floatRange: 12, zIndex: 11 },
@@ -128,7 +128,7 @@ export default function HubPage() {
           height: "clamp(180px, 80vh, 600px)",
           width: "auto",
           objectFit: "contain",
-          zIndex: 22,
+          zIndex: 11,
         }}
       />
 
@@ -146,7 +146,7 @@ export default function HubPage() {
           width: "clamp(300px, 72%, 1100px)",
           height: "auto",
           objectFit: "contain",
-          zIndex: 28,
+          zIndex: 12,
         }}
       />
 
