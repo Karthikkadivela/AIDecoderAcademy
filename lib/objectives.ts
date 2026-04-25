@@ -13,7 +13,7 @@ export interface Objective {
 }
 
 export const OBJECTIVES: Objective[] = [
-  // ── Arena 1 — AI Explorer (14 missions) ────────────────────────────────────
+  // ── Arena 1 — AI Explorer (18 missions) ────────────────────────────────────
   // LEFT WALL (01–04)
   {
     id: "a1-1", arenaId: 1, order: 1,
@@ -142,6 +142,43 @@ export const OBJECTIVES: Objective[] = [
     outputType: "text",
     starterPrompt: "Write my personal AI manifesto — 3 powerful paragraphs about what I've learned, what I want to create with AI, and how I'll use it to make a difference in the world",
     xpReward: 50,
+  },
+
+  {
+    id: "a1-15", arenaId: 1, order: 15,
+    emoji: "🎭",
+    title: "AI for Creativity",
+    description: "Use AI as your creative partner — art, music, writing, whatever inspires you.",
+    outputType: "image",
+    starterPrompt: "Generate a surreal artwork representing human creativity merging with AI — vibrant colours, dreamlike, mixed media style",
+    xpReward: 30,
+  },
+  {
+    id: "a1-16", arenaId: 1, order: 16,
+    emoji: "🌍",
+    title: "AI in Real World",
+    description: "Discover how AI is already changing healthcare, climate, transport and more.",
+    outputType: "text",
+    starterPrompt: "Give me 5 real-world examples where AI is solving major global problems today — healthcare, climate, education, transport, and one of your choice. Explain each for a 14-year-old",
+    xpReward: 25,
+  },
+  {
+    id: "a1-17", arenaId: 1, order: 17,
+    emoji: "⚙️",
+    title: "AI Automation",
+    description: "Build a JSON workflow that shows how AI could automate a task in your life.",
+    outputType: "json",
+    starterPrompt: "Design a JSON automation workflow for an AI-powered homework helper — include steps for understanding the question, researching, drafting, checking, and giving feedback",
+    xpReward: 30,
+  },
+  {
+    id: "a1-18", arenaId: 1, order: 18,
+    emoji: "🧠",
+    title: "AI Personalisation",
+    description: "Explore how AI learns about YOU — then design your own personalised AI.",
+    outputType: "text",
+    starterPrompt: "Describe how a personalised AI study buddy would work for me specifically — what would it learn about me, how would it adapt, what would make it unique to me?",
+    xpReward: 35,
   },
 
   // ── Arena 2 — Prompt Lab ────────────────────────────────
