@@ -115,7 +115,7 @@ export default function HubPage() {
         />
       ))}
 
-      {/* ── Avatar ── */}
+      ── Avatar ──
       <img
         src="/panels/avatar.png"
         alt="Hub character"

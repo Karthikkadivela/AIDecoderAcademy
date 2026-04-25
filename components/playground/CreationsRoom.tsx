@@ -5,43 +5,68 @@ import { MessageBubble } from "@/components/playground/MessageBubble";
 import type { Message } from "@/components/playground/useChat";
 import type { OutputType, Creation } from "@/types";
 
-// ── Floor output-type objects ────────────────────────────────────────────────
-const OBJECTS: {
-  id:        OutputType;
-  label:     string;
-  src:       string;
-  blend:     "screen" | "normal";
-  glowColor: string;
-  glowRgb:   string;
+// ── Output-type colour registry ──────────────────────────────────────────────
+const OUTPUT_META: Record<string, { glowColor: string; glowRgb: string }> = {
+  slides: { glowColor: "#ffb400", glowRgb: "255,180,0"   },
+  audio:  { glowColor: "#00aaff", glowRgb: "0,170,255"   },
+  image:  { glowColor: "#ff4488", glowRgb: "255,68,136"  },
+  video:  { glowColor: "#ff7800", glowRgb: "255,120,0"   },
+  text:   { glowColor: "#c8a0ff", glowRgb: "200,160,255" },
+  json:   { glowColor: "#00ff64", glowRgb: "0,255,100"   },
+};
+
+// ── Left-shelf hotspot zones — transparent click areas over the type labels ──
+// Positioned to match the AUDIO/IMAGE/VIDEO/SCRIPT/TEXT/SLIDE lit zones
+// in empty_room.png (left bookcase, 2 cols × 3 rows)
+const SHELF_HOTSPOTS: {
+  id: OutputType; label: string;
+  glowColor: string; glowRgb: string;
+  top: string; height: string; left: string; width: string;
 }[] = [
-  { id:"slides", label:"Slides",  src:"/arena1/slide.png",        blend:"screen", glowColor:"#ffb400", glowRgb:"255,180,0"   },
-  { id:"audio",  label:"Audio",   src:"/arena1/headphones.png",   blend:"screen", glowColor:"#00aaff", glowRgb:"0,170,255"   },
-  { id:"image",  label:"Image",   src:"/arena1/camera.png",       blend:"screen", glowColor:"#ff4488", glowRgb:"255,68,136"  },
-  { id:"video",  label:"Video",   src:"/arena1/clapperboard.png", blend:"screen", glowColor:"#ff7800", glowRgb:"255,120,0"   },
-  { id:"text",   label:"Text",    src:"/arena1/book.png",         blend:"normal", glowColor:"#c8a0ff", glowRgb:"200,160,255" },
-  { id:"json",   label:"JSON",    src:"/arena1/jscube.png",       blend:"screen", glowColor:"#00ff64", glowRgb:"0,255,100"   },
+  { id:"audio",  label:"AUDIO",  glowColor:"#00aaff", glowRgb:"0,170,255",   top:"7%",  height:"18%", left:"0.5%", width:"9.5%" },
+  { id:"image",  label:"IMAGE",  glowColor:"#ff4488", glowRgb:"255,68,136",  top:"7%",  height:"18%", left:"11%",  width:"9.5%" },
+  { id:"video",  label:"VIDEO",  glowColor:"#ff7800", glowRgb:"255,120,0",   top:"28%", height:"17%", left:"0.5%", width:"9.5%" },
+  { id:"json",   label:"SCRIPT", glowColor:"#00ff64", glowRgb:"0,255,100",   top:"28%", height:"17%", left:"11%",  width:"9.5%" },
+  { id:"text",   label:"TEXT",   glowColor:"#c8a0ff", glowRgb:"200,160,255", top:"48%", height:"17%", left:"0.5%", width:"9.5%" },
+  { id:"slides", label:"SLIDE",  glowColor:"#ffb400", glowRgb:"255,180,0",   top:"48%", height:"17%", left:"11%",  width:"9.5%" },
 ];
 
-// ── Shelf definitions — top % matches the 4 shelf rows in the background ────
-const SHELVES: {
-  types:    OutputType[];
-  emoji:    string;
-  label:    string;
-  color:    string;
-  rgb:      string;
-  top:      string;   // % from top of container
-}[] = [
-  { types: ["image"],        emoji: "🖼️",  label: "Images",  color: "#ff4488", rgb: "255,68,136",  top: "17%" },
-  { types: ["audio"],        emoji: "🎙️", label: "Audio",   color: "#00aaff", rgb: "0,170,255",   top: "35%" },
-  { types: ["slides"],       emoji: "📊",  label: "Slides",  color: "#ffb400", rgb: "255,180,0",   top: "53%" },
-  { types: ["text","json"],  emoji: "📝",  label: "Notes",   color: "#c8a0ff", rgb: "200,160,255", top: "69%" },
+// ── Center shelf rows — empty shelves in the right column of the bookcase ────
+// Creations from the selected hotspot type are displayed here (2 per row)
+const CENTER_SHELF_ROWS: { top: string; height: string }[] = [
+  { top: "8%",  height: "17%" },
+  { top: "29%", height: "16%" },
+  { top: "49%", height: "16%" },
 ];
 
-// ── Context formatter — mirrors buildPreviousOutputContext in playground/page ─
+// ── Floor objects (left → right across the floor) ────────────────────────────
+const FLOOR_OBJECTS: {
+  key: string; id: OutputType; label: string; src: string;
+  blend: "screen" | "normal"; glowColor: string; glowRgb: string;
+}[] = [
+  { key:"spill",  id:"image",  label:"Image",  src:"/shelf/spilled_paint.png", blend:"normal", glowColor:"#ff4488", glowRgb:"255,68,136"  },
+  { key:"phones", id:"audio",  label:"Audio",  src:"/arena1/headphones.png",   blend:"screen", glowColor:"#00aaff", glowRgb:"0,170,255"   },
+  { key:"slide",  id:"slides", label:"Slides", src:"/arena1/slide.png",         blend:"screen", glowColor:"#ffb400", glowRgb:"255,180,0"   },
+  { key:"book",   id:"text",   label:"Text",   src:"/arena1/book.png",          blend:"normal", glowColor:"#c8a0ff", glowRgb:"200,160,255" },
+  { key:"camera", id:"image",  label:"Image",  src:"/arena1/camera.png",        blend:"screen", glowColor:"#ff4488", glowRgb:"255,68,136"  },
+  { key:"clap",   id:"video",  label:"Video",  src:"/arena1/clapperboard.png",  blend:"screen", glowColor:"#ff7800", glowRgb:"255,120,0"   },
+  { key:"js",     id:"json",   label:"JSON",   src:"/arena1/jscube.png",        blend:"screen", glowColor:"#00ff64", glowRgb:"0,255,100"   },
+];
+
+// Simple list used for the output-type dot row and mobile pill selectors
+const OUTPUT_TYPES: { id: OutputType; label: string }[] = [
+  { id: "image",  label: "Image"  },
+  { id: "audio",  label: "Audio"  },
+  { id: "slides", label: "Slides" },
+  { id: "text",   label: "Text"   },
+  { id: "video",  label: "Video"  },
+  { id: "json",   label: "JSON"   },
+];
+
+// ── Context formatter ────────────────────────────────────────────────────────
 function buildCreationContext(c: Creation): string {
   if (c.output_type === "image") {
-    const url = c.file_url ?? c.content.trim();
-    return `[Image titled "${c.title}": ${url}]\n\n`;
+    return `[Image titled "${c.title}": ${c.file_url ?? c.content.trim()}]\n\n`;
   }
   if (c.output_type === "audio") {
     try {
@@ -82,21 +107,22 @@ interface Props {
 export function CreationsRoom({
   profile, messages, isStreaming, onSend, onSave,
   arenaId = 1, arenaAccent = "#7C3AED", arenaAccentGlow = "rgba(124,58,237,0.35)",
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  sessionId: _sessionId, onNewChat: _onNewChat,
 }: Props) {
-  const [selected,   setSelected]   = useState<OutputType>("text");
-  const [input,      setInput]      = useState("");
-  const [creations,  setCreations]  = useState<Creation[]>([]);
-  const [injected,   setInjected]   = useState<Creation | null>(null);
-  const [plusOpen,   setPlusOpen]   = useState(false);
-  const [plusTab,    setPlusTab]    = useState<"creations" | "upload">("creations");
-  const [typeFilter, setTypeFilter] = useState<OutputType | "all">("all");
+  const [selected,         setSelected]         = useState<OutputType>("text");
+  const [selectedShelfType, setSelectedShelfType] = useState<OutputType | null>(null);
+  const [input,            setInput]            = useState("");
+  const [creations,        setCreations]        = useState<Creation[]>([]);
+  const [injected,         setInjected]         = useState<Creation | null>(null);
+  const [plusOpen,         setPlusOpen]         = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const taRef     = useRef<HTMLTextAreaElement>(null);
   const fileRef   = useRef<HTMLInputElement>(null);
-  const active    = OBJECTS.find(o => o.id === selected)!;
 
-  // Fetch saved creations once
+  const activeMeta = OUTPUT_META[selected] ?? OUTPUT_META.text;
+
   useEffect(() => {
     fetch("/api/creations")
       .then(r => r.ok ? r.json() : { creations: [] })
@@ -104,7 +130,6 @@ export function CreationsRoom({
       .catch(() => {});
   }, []);
 
-  // Re-fetch after a save so shelves stay fresh
   useEffect(() => {
     if (messages.length > 0) {
       fetch("/api/creations")
@@ -146,36 +171,27 @@ export function CreationsRoom({
     taRef.current?.focus({ preventScroll: true });
   };
 
-  // Handle local file upload — image files become data-URL context
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.type.startsWith("image/")) {
       const reader = new FileReader();
       reader.onload = ev => {
-        const dataUrl = ev.target?.result as string;
-        // Synthesise a fake Creation object so injection works
         const fake: Creation = {
-          id: "local-upload",
-          profile_id: "",
+          id: "local-upload", profile_id: "",
           title: file.name.replace(/\.[^.]+$/, ""),
-          type: "chat",
-          output_type: "image",
-          content: dataUrl,
-          tags: [],
-          is_favourite: false,
-          created_at: "",
-          updated_at: "",
+          type: "chat", output_type: "image",
+          content: ev.target?.result as string,
+          tags: [], is_favourite: false, created_at: "", updated_at: "",
         };
         injectCreation(fake);
       };
       reader.readAsDataURL(file);
     }
-    // Reset input so same file can be re-selected
     e.target.value = "";
   };
 
-  // ── Shared: message list ──────────────────────────────────────────────────
+  // ── Message list ─────────────────────────────────────────────────────────
   const renderMessageList = () => (
     <div className="select-text" style={{
       flex: 1, overflowY: "auto", padding: "12px 14px 8px",
@@ -186,7 +202,7 @@ export function CreationsRoom({
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 10, opacity: 0.5, pointerEvents: "none" }}>
           <span style={{ fontSize: 28 }}>✏️</span>
           <p style={{ fontSize: 11, color: arenaAccent, fontWeight: 600, textAlign: "center", margin: 0, lineHeight: 1.6 }}>
-            Click a shelf item or floor object<br/>to pick a creation, then write below
+            Click a shelf type or floor object,<br/>then write below
           </p>
         </div>
       )}
@@ -209,26 +225,21 @@ export function CreationsRoom({
     </div>
   );
 
-  // ── Shared: input row ────────────────────────────────────────────────────
+  // ── Input row ─────────────────────────────────────────────────────────────
   const renderInputRow = (mobile = false) => (
     <div style={{ flexShrink: 0 }}>
-
-      {/* Injected creation chip */}
       {injected && (
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, padding: "0 4px" }}>
           <div style={{
             display: "flex", alignItems: "center", gap: 6,
             padding: "4px 10px 4px 8px", borderRadius: 20,
-            background: `rgba(${SHELVES.find(s => s.types.includes(injected.output_type))?.rgb ?? "200,160,255"},0.2)`,
-            border: `1px solid rgba(${SHELVES.find(s => s.types.includes(injected.output_type))?.rgb ?? "200,160,255"},0.5)`,
+            background: `rgba(${OUTPUT_META[injected.output_type]?.glowRgb ?? "200,160,255"},0.2)`,
+            border: `1px solid rgba(${OUTPUT_META[injected.output_type]?.glowRgb ?? "200,160,255"},0.5)`,
             fontSize: 11, fontWeight: 600,
-            color: SHELVES.find(s => s.types.includes(injected.output_type))?.color ?? "#c8a0ff",
+            color: OUTPUT_META[injected.output_type]?.glowColor ?? "#c8a0ff",
             maxWidth: "70%",
           }}>
-            <span>{SHELVES.find(s => s.types.includes(injected.output_type))?.emoji}</span>
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {injected.title}
-            </span>
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{injected.title}</span>
           </div>
           <button onClick={() => setInjected(null)}
             style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.4)", fontSize: 14, lineHeight: 1, padding: "0 2px" }}>
@@ -238,7 +249,6 @@ export function CreationsRoom({
       )}
 
       <div style={{ position: "relative" }}>
-        {/* Plus panel popup */}
         {plusOpen && (
           <div style={{
             position: "absolute", bottom: "calc(100% + 8px)", left: 0, right: 0,
@@ -246,116 +256,31 @@ export function CreationsRoom({
             borderRadius: 16, padding: 14,
             boxShadow: `0 -8px 40px rgba(0,0,0,0.5), 0 0 30px ${arenaAccent}18`,
             backdropFilter: "blur(20px)", zIndex: 50,
-            maxHeight: 320, display: "flex", flexDirection: "column", gap: 10,
+            display: "flex", flexDirection: "column", gap: 10,
           }}>
-            {/* Tabs */}
-            <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-              {(["creations","upload"] as const).map(tab => (
-                <button key={tab} onClick={() => setPlusTab(tab)}
-                  style={{
-                    padding: "5px 14px", borderRadius: 20, fontSize: 11, fontWeight: 700,
-                    border: `1.5px solid ${plusTab === tab ? arenaAccent : "rgba(255,255,255,0.12)"}`,
-                    background: plusTab === tab ? `${arenaAccent}25` : "transparent",
-                    color: plusTab === tab ? arenaAccent : "rgba(255,255,255,0.4)",
-                    cursor: "pointer", textTransform: "uppercase", transition: "all 0.15s",
-                  }}>
-                  {tab === "creations" ? "📚 My Creations" : "⬆️ Upload"}
-                </button>
-              ))}
+            <div style={{ display: "flex", alignItems: "center" }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Upload Image</span>
               <button onClick={() => setPlusOpen(false)}
                 style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.3)", fontSize: 18, lineHeight: 1 }}>
                 ×
               </button>
             </div>
-
-            {plusTab === "creations" && (
-              <>
-                {/* Type filter pills */}
-                <div style={{ display: "flex", gap: 5, flexWrap: "wrap", flexShrink: 0 }}>
-                  {(["all","image","audio","slides","text","json"] as const).map(f => (
-                    <button key={f} onClick={() => setTypeFilter(f as OutputType | "all")}
-                      style={{
-                        padding: "3px 10px", borderRadius: 20, fontSize: 10, fontWeight: 700, cursor: "pointer",
-                        border: `1px solid ${typeFilter === f ? arenaAccent : "rgba(255,255,255,0.12)"}`,
-                        background: typeFilter === f ? `${arenaAccent}25` : "transparent",
-                        color: typeFilter === f ? arenaAccent : "rgba(255,255,255,0.35)",
-                        textTransform: "uppercase", transition: "all 0.15s",
-                      }}>
-                      {f}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Creations grid */}
-                <div style={{ flex: 1, overflowY: "auto", scrollbarWidth: "none" }}>
-                  {creations.filter(c => typeFilter === "all" || c.output_type === typeFilter).length === 0 ? (
-                    <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", textAlign: "center", margin: "16px 0" }}>
-                      No saved creations yet
-                    </p>
-                  ) : (
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                      {creations
-                        .filter(c => typeFilter === "all" || c.output_type === typeFilter)
-                        .slice(0, 20)
-                        .map(c => {
-                          const shelf = SHELVES.find(s => s.types.includes(c.output_type));
-                          return (
-                            <button key={c.id} onClick={() => injectCreation(c)}
-                              style={{
-                                display: "flex", alignItems: "center", gap: 8,
-                                padding: "8px 10px", borderRadius: 10, cursor: "pointer", textAlign: "left",
-                                background: `rgba(${shelf?.rgb ?? "200,160,255"},0.08)`,
-                                border: `1px solid rgba(${shelf?.rgb ?? "200,160,255"},0.2)`,
-                                transition: "all 0.15s",
-                              }}
-                              onMouseEnter={e => (e.currentTarget.style.background = `rgba(${shelf?.rgb ?? "200,160,255"},0.2)`)}
-                              onMouseLeave={e => (e.currentTarget.style.background = `rgba(${shelf?.rgb ?? "200,160,255"},0.08)`)}
-                            >
-                              {/* Thumbnail / icon */}
-                              <div style={{ width: 32, height: 32, borderRadius: 6, flexShrink: 0, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", background: `rgba(${shelf?.rgb ?? "200,160,255"},0.15)` }}>
-                                {c.output_type === "image" && (c.file_url || /^https?:/.test(c.content)) ? (
-                                  <img src={c.file_url ?? c.content.trim()} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }}/>
-                                ) : (
-                                  <span style={{ fontSize: 16 }}>{shelf?.emoji}</span>
-                                )}
-                              </div>
-                              <div style={{ minWidth: 0 }}>
-                                <p style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.85)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                  {c.title}
-                                </p>
-                                <p style={{ fontSize: 9, color: shelf?.color ?? "#c8a0ff", margin: 0, textTransform: "uppercase", fontWeight: 700, marginTop: 1 }}>
-                                  {c.output_type}
-                                </p>
-                              </div>
-                            </button>
-                          );
-                        })}
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-
-            {plusTab === "upload" && (
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
-                <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFileUpload}/>
-                <button onClick={() => fileRef.current?.click()}
-                  style={{
-                    width: "100%", padding: "20px 0", borderRadius: 12, cursor: "pointer",
-                    border: `2px dashed ${arenaAccent}60`,
-                    background: `${arenaAccent}0a`, color: "rgba(255,255,255,0.6)",
-                    fontSize: 13, fontWeight: 600, transition: "all 0.2s",
-                    display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
-                  }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = `${arenaAccent}18`; (e.currentTarget as HTMLElement).style.borderColor = arenaAccent; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = `${arenaAccent}0a`; (e.currentTarget as HTMLElement).style.borderColor = `${arenaAccent}60`; }}
-                >
-                  <span style={{ fontSize: 28 }}>📁</span>
-                  <span>Click to upload an image</span>
-                  <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>PNG, JPG, WEBP supported</span>
-                </button>
-              </div>
-            )}
+            <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFileUpload}/>
+            <button onClick={() => fileRef.current?.click()}
+              style={{
+                width: "100%", padding: "20px 0", borderRadius: 12, cursor: "pointer",
+                border: `2px dashed ${arenaAccent}60`,
+                background: `${arenaAccent}0a`, color: "rgba(255,255,255,0.6)",
+                fontSize: 13, fontWeight: 600, transition: "all 0.2s",
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = `${arenaAccent}18`; (e.currentTarget as HTMLElement).style.borderColor = arenaAccent; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = `${arenaAccent}0a`; (e.currentTarget as HTMLElement).style.borderColor = `${arenaAccent}60`; }}
+            >
+              <span style={{ fontSize: 28 }}>📁</span>
+              <span>Click to upload an image</span>
+              <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>PNG, JPG, WEBP supported</span>
+            </button>
           </div>
         )}
 
@@ -363,16 +288,13 @@ export function CreationsRoom({
         <div style={{
           display: "flex", alignItems: "center", gap: 6,
           background: "rgba(10,5,50,0.65)",
-          border: `2px solid rgba(${active.glowRgb},0.8)`,
+          border: `2px solid rgba(${activeMeta.glowRgb},0.8)`,
           borderRadius: 40,
           padding: mobile ? "6px 8px 6px 10px" : "7px 8px 7px 12px",
-          boxShadow: `0 0 24px rgba(${active.glowRgb},0.45)`,
+          boxShadow: `0 0 24px rgba(${activeMeta.glowRgb},0.45)`,
           backdropFilter: "blur(16px)",
         }}>
-          {/* + button */}
-          <button
-            onClick={() => setPlusOpen(v => !v)}
-            title="Add context or upload"
+          <button onClick={() => setPlusOpen(v => !v)} title="Add context or upload"
             style={{
               width: 30, height: 30, borderRadius: "50%", flexShrink: 0,
               background: plusOpen ? `${arenaAccent}40` : "rgba(255,255,255,0.08)",
@@ -380,14 +302,11 @@ export function CreationsRoom({
               color: plusOpen ? arenaAccent : "rgba(255,255,255,0.5)",
               cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 18, lineHeight: 1, transition: "all 0.2s",
-            }}
-          >
+            }}>
             {plusOpen ? "×" : "+"}
           </button>
 
-          <textarea
-            ref={taRef}
-            value={input}
+          <textarea ref={taRef} value={input}
             onChange={e => {
               setInput(e.target.value);
               const t = e.target;
@@ -399,28 +318,22 @@ export function CreationsRoom({
             rows={1}
             style={{
               flex: 1, resize: "none", border: "none", outline: "none",
-              background: "transparent",
-              fontSize: mobile ? 14 : 13,
-              fontWeight: 500,
-              color: "rgba(255,255,255,0.92)",
-              fontFamily: "inherit",
-              lineHeight: 1.5,
-              overflowY: "hidden",
-              caretColor: active.glowColor,
-              userSelect: "text",
+              background: "transparent", fontSize: mobile ? 14 : 13, fontWeight: 500,
+              color: "rgba(255,255,255,0.92)", fontFamily: "inherit",
+              lineHeight: 1.5, overflowY: "hidden",
+              caretColor: activeMeta.glowColor, userSelect: "text",
             }}
           />
 
-          {/* Send button */}
           <button onClick={send} disabled={!canSend}
             style={{
               width: mobile ? 38 : 36, height: mobile ? 38 : 36,
               borderRadius: "50%", flexShrink: 0,
-              background: canSend ? `rgba(${active.glowRgb},0.9)` : "rgba(255,255,255,0.1)",
+              background: canSend ? `rgba(${activeMeta.glowRgb},0.9)` : "rgba(255,255,255,0.1)",
               border: "none", cursor: canSend ? "pointer" : "not-allowed",
               display: "flex", alignItems: "center", justifyContent: "center",
               transition: "all 0.2s",
-              boxShadow: canSend ? `0 0 18px rgba(${active.glowRgb},0.7)` : "none",
+              boxShadow: canSend ? `0 0 18px rgba(${activeMeta.glowRgb},0.7)` : "none",
             }}>
             <svg width="13" height="13" viewBox="0 0 18 18" fill="none">
               <path d="M2 9h14M9 2l7 7-7 7"
@@ -436,108 +349,138 @@ export function CreationsRoom({
   return (
     <div className="relative w-full h-full overflow-hidden" style={{ background: "#080814" }}>
 
-      {/* Background */}
+      {/* Background room */}
       <img src="/arena1/empty_room.png" alt="" aria-hidden draggable={false}
         style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center", pointerEvents: "none" }}
       />
 
-      {/* ── Shelf items (large screens only) ──────────────────────────── */}
-      {SHELVES.map(shelf => {
-        const items = creations.filter(c => shelf.types.includes(c.output_type)).slice(0, 4);
-        return (
-          <div key={shelf.label}
-            className="hidden lg:flex"
+      {/* ── Left shelf hotspot zones (desktop only) ──────────────────────── */}
+      {/*   Transparent buttons overlaid on the AUDIO/IMAGE/VIDEO/SCRIPT/    */}
+      {/*   TEXT/SLIDE lit areas in the bookcase background                   */}
+      <div className="hidden lg:block" style={{ position: "absolute", inset: 0, zIndex: 12, pointerEvents: "none" }}>
+        {SHELF_HOTSPOTS.map(hz => (
+          <button
+            key={hz.id}
+            onClick={() => setSelectedShelfType(prev => prev === hz.id ? null : hz.id)}
+            title={`Browse ${hz.label}`}
             style={{
               position: "absolute",
-              left: "3%", top: shelf.top,
-              width: "20%",
-              alignItems: "flex-end",
-              gap: "3%",
-              zIndex: 12,
-              padding: "0 2%",
+              top: hz.top, left: hz.left, width: hz.width, height: hz.height,
+              background: "transparent",
+              border: "none",
+              borderRadius: 8,
+              cursor: "pointer",
+              pointerEvents: "auto",
             }}
+          />
+        ))}
+      </div>
+
+      {/* ── Center shelf creations (desktop only) ────────────────────────── */}
+      {/*   Shows 2 creations per shelf row for the selected hotspot type.   */}
+      {/*   Positioned on the empty-shelf column of the bookcase (~22-37%).  */}
+      {selectedShelfType && (() => {
+        const meta = OUTPUT_META[selectedShelfType];
+        const filtered = creations.filter(c => c.output_type === selectedShelfType);
+        return (
+          <div
+            className="hidden lg:block"
+            style={{ position: "absolute", left: "22%", top: 0, width: "16%", height: "70%", zIndex: 13 }}
           >
-            {items.length === 0 ? (
-              /* Empty shelf hint */
-              <div style={{
-                fontSize: 10, color: "rgba(255,255,255,0.18)", fontWeight: 600,
-                letterSpacing: "0.05em", textTransform: "uppercase",
-                padding: "2px 6px",
-              }}>
-                {shelf.emoji} {shelf.label}
-              </div>
-            ) : (
-              items.map(c => (
-                <button key={c.id}
-                  onClick={() => injectCreation(c)}
-                  title={`Use "${c.title}"`}
-                  style={{
-                    flex: "0 0 auto",
-                    width: "22%", minWidth: 36, maxWidth: 52,
-                    background: "none", border: "none", padding: 0, cursor: "pointer",
-                    display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
-                    transition: "transform 0.2s",
-                  }}
-                  onMouseEnter={e => (e.currentTarget.style.transform = "scale(1.12) translateY(-4px)")}
-                  onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}
-                >
-                  {/* Item card */}
-                  <div style={{
-                    width: "100%", aspectRatio: "1",
-                    borderRadius: 6, overflow: "hidden",
-                    background: `rgba(${shelf.rgb},0.15)`,
-                    border: `1.5px solid rgba(${shelf.rgb},0.45)`,
-                    boxShadow: `0 0 10px rgba(${shelf.rgb},0.25)`,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                  }}>
-                    {c.output_type === "image" && (c.file_url || /^https?:/.test(c.content)) ? (
-                      <img src={c.file_url ?? c.content.trim()} alt={c.title}
-                        style={{ width: "100%", height: "100%", objectFit: "cover" }}/>
-                    ) : (
-                      <span style={{ fontSize: 18 }}>{shelf.emoji}</span>
-                    )}
-                  </div>
-                  {/* Title */}
-                  <p style={{
-                    fontSize: 8, fontWeight: 700, color: shelf.color,
-                    margin: 0, maxWidth: "100%",
-                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                    textShadow: `0 0 8px rgba(${shelf.rgb},0.8)`,
-                  }}>
-                    {c.title.slice(0, 10)}
-                  </p>
-                </button>
-              ))
-            )}
+            {CENTER_SHELF_ROWS.map((row, rowIdx) => {
+              const pair = filtered.slice(rowIdx * 2, rowIdx * 2 + 2);
+              return (
+                <div key={rowIdx} style={{
+                  position: "absolute",
+                  top: row.top, height: row.height, left: "5%", right: "5%",
+                  display: "flex", alignItems: "center", gap: "6%",
+                }}>
+                  {[0, 1].map(slot => {
+                    const c = pair[slot];
+                    if (!c) {
+                      // Empty slot — subtle placeholder
+                      return (
+                        <div key={slot} style={{
+                          flex: 1, height: "75%",
+                          borderRadius: 6,
+                          border: `1px dashed rgba(${meta.glowRgb},0.18)`,
+                        }} />
+                      );
+                    }
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => injectCreation(c)}
+                        title={`Use "${c.title}"`}
+                        style={{
+                          flex: 1, height: "75%",
+                          background: "none", border: "none", padding: 0, cursor: "pointer",
+                          display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+                          transition: "transform 0.2s ease",
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.transform = "scale(1.1) translateY(-4px)")}
+                        onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}
+                      >
+                        {/* Thumbnail card */}
+                        <div style={{
+                          width: "100%", flex: 1,
+                          borderRadius: 6, overflow: "hidden",
+                          background: `rgba(${meta.glowRgb},0.15)`,
+                          border: `1.5px solid rgba(${meta.glowRgb},0.5)`,
+                          boxShadow: `0 0 10px rgba(${meta.glowRgb},0.3)`,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                        }}>
+                          {c.output_type === "image" && (c.file_url || /^https?:/.test(c.content)) ? (
+                            <img
+                              src={c.file_url ?? c.content.trim()} alt={c.title}
+                              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                            />
+                          ) : (
+                            <span style={{ fontSize: 18 }}>
+                              {c.output_type === "audio" ? "🎙️" : c.output_type === "slides" ? "📊" : c.output_type === "image" ? "🖼️" : "📝"}
+                            </span>
+                          )}
+                        </div>
+                        {/* Title */}
+                        <p style={{
+                          fontSize: 7, fontWeight: 700, margin: 0,
+                          color: meta.glowColor, maxWidth: "100%",
+                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                          textShadow: `0 0 8px rgba(${meta.glowRgb},0.8)`,
+                        }}>
+                          {c.title.slice(0, 10)}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })}
           </div>
         );
-      })}
+      })()}
 
-      {/* ── Sitting avatar ─────────────────────────────────────────────── */}
-      <img src="/arena1/avatar.png" alt="" aria-hidden draggable={false}
-        className="hidden lg:block"
-        style={{
-          position: "absolute", left: 0, bottom: "-8%",
-          width: "50%", height: "auto",
-          objectFit: "contain", objectPosition: "bottom left",
-          zIndex: 15, pointerEvents: "none",
-        }}
-      />
-
-      {/* ── Floor objects ───────────────────────────────────────────────── */}
+      {/* ── Floor objects (desktop only) ────────────────────────────────── */}
       <div className="hidden lg:flex"
         style={{
-          position: "absolute", bottom: "1%", left: "28%", right: "3%",
-          height: "20%", alignItems: "flex-end", justifyContent: "space-evenly",
+          position: "absolute", bottom: "7%", left: "2%", right: "2%",
+          height: "30%", alignItems: "flex-end", justifyContent: "space-evenly",
           zIndex: 10, paddingBottom: "0.5%",
         }}
       >
-        {OBJECTS.map(obj => {
+        {/* Brush stand — decorative only */}
+        <div style={{ flex: "0 0 auto", width: "40%", maxWidth: 90 }}>
+          <img src="/shelf/brush_stand.png" alt="" aria-hidden draggable={false}
+            style={{ width: "100%", height: "auto", objectFit: "contain", display: "block", filter: "brightness(0.85)", pointerEvents: "none" }}
+          />
+        </div>
+
+        {FLOOR_OBJECTS.map(obj => {
           const isActive = selected === obj.id;
           return (
-            <button key={obj.id} onClick={() => setSelected(obj.id)} title={obj.label}
+            <button key={obj.key} onClick={() => setSelected(obj.id)} title={obj.label}
               style={{
-                flex: "0 0 auto", width: "12%", maxWidth: 90,
+                flex: "0 0 auto", width: "40%", maxWidth: 180,
                 background: "none", border: "none", padding: 0, cursor: "pointer",
                 transition: "transform 0.25s ease",
                 transform: isActive ? "scale(1.14) translateY(-5%)" : "scale(1)",
@@ -557,24 +500,27 @@ export function CreationsRoom({
         })}
       </div>
 
-      {/* ── Desktop chat panel ─────────────────────────────────────────── */}
+      {/* ── Desktop chat panel — overlaid on the whiteboard ─────────────── */}
       <div className="hidden lg:flex flex-col"
         style={{
           position: "absolute",
-          left: "32%", top: "5%", right: "3%", bottom: "18%",
+          left: "42%", top: "4%", right: "2%", bottom: "26%",
           zIndex: 20,
-          background: `linear-gradient(180deg, ${arenaAccent}08 0%, transparent 40%)`,
-          borderTop: `2px solid ${arenaAccent}30`,
-          borderRadius: "4px 4px 0 0",
+          background: "transparent",
         }}
       >
-        <div style={{ height: 2, flexShrink: 0, borderRadius: 2, background: `linear-gradient(90deg, transparent, ${arenaAccent}80, ${arenaAccent}, ${arenaAccent}80, transparent)` }}/>
         {renderMessageList()}
         <div style={{ padding: "8px 12px 12px", flexShrink: 0 }}>
+          {/* Output-type dot row */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, marginBottom: 6 }}>
-            {OBJECTS.map(o => (
-              <button key={o.id} onClick={() => setSelected(o.id)} title={o.label}
-                style={{ width: 8, height: 8, borderRadius: "50%", border: "none", padding: 0, cursor: "pointer", background: selected === o.id ? o.glowColor : "rgba(0,0,0,0.15)", transition: "all 0.2s", boxShadow: selected === o.id ? `0 0 6px ${o.glowColor}` : "none" }}
+            {OUTPUT_TYPES.map(t => (
+              <button key={t.id} onClick={() => setSelected(t.id)} title={t.label}
+                style={{
+                  width: 8, height: 8, borderRadius: "50%", border: "none", padding: 0, cursor: "pointer",
+                  background: selected === t.id ? (OUTPUT_META[t.id]?.glowColor ?? "#fff") : "rgba(0,0,0,0.2)",
+                  transition: "all 0.2s",
+                  boxShadow: selected === t.id ? `0 0 6px ${OUTPUT_META[t.id]?.glowColor}` : "none",
+                }}
               />
             ))}
           </div>
@@ -582,21 +528,21 @@ export function CreationsRoom({
         </div>
       </div>
 
-      {/* ── Mobile + tablet overlay ────────────────────────────────────── */}
+      {/* ── Mobile + tablet overlay ──────────────────────────────────────── */}
       <div className="lg:hidden absolute inset-0 z-30 flex flex-col"
         style={{ background: "rgba(8,8,20,0.97)", padding: "16px 14px 14px", gap: 10 }}>
         <div style={{ height: 2, flexShrink: 0, borderRadius: 2, marginBottom: 2, background: `linear-gradient(90deg, transparent, ${arenaAccent}80, ${arenaAccent}, ${arenaAccent}80, transparent)` }}/>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", flexShrink: 0 }}>
-          {OBJECTS.map(o => (
-            <button key={o.id} onClick={() => setSelected(o.id)}
+          {OUTPUT_TYPES.map(t => (
+            <button key={t.id} onClick={() => setSelected(t.id)}
               style={{
                 padding: "5px 14px", borderRadius: 20, fontSize: 11, fontWeight: 700,
-                border: `1.5px solid ${selected === o.id ? o.glowColor : "rgba(255,255,255,0.15)"}`,
-                background: selected === o.id ? `rgba(${o.glowRgb},0.25)` : "transparent",
-                color: selected === o.id ? o.glowColor : "rgba(255,255,255,0.4)",
+                border: `1.5px solid ${selected === t.id ? (OUTPUT_META[t.id]?.glowColor ?? "#fff") : "rgba(255,255,255,0.15)"}`,
+                background: selected === t.id ? `rgba(${OUTPUT_META[t.id]?.glowRgb ?? "200,160,255"},0.25)` : "transparent",
+                color: selected === t.id ? (OUTPUT_META[t.id]?.glowColor ?? "#fff") : "rgba(255,255,255,0.4)",
                 textTransform: "uppercase", cursor: "pointer", transition: "all 0.2s",
               }}>
-              {o.label}
+              {t.label}
             </button>
           ))}
         </div>

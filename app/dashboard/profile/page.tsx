@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn, INTEREST_OPTIONS } from "@/lib/utils";
 import {
   getArena, getUnlockedArenas, getXPProgress, getXPForNextLevel,
-  BADGES, XP_THRESHOLDS, ARENAS, type ArenaConfig,
+  BADGES, ARENAS,
 } from "@/lib/arenas";
 import { isGameSfxEnabled, setGameSfxEnabled } from "@/lib/gameAudio";
 import type { AgeGroup, Profile } from "@/types";
@@ -232,17 +232,163 @@ function OnboardingFlow() {
   );
 }
 
+// ─── Arena objectives — per-arena mission lists ──────────────────────────────
+type ObjectiveCtx = {
+  xp: number; level: number; streak: number; creationCount: number; badges: Set<string>;
+  textCount: number; jsonCount: number; imageCount: number; audioCount: number; slidesCount: number;
+};
+type Objective = { id: string; label: string; check: (c: ObjectiveCtx) => boolean };
+
+// Each arena defines 18 missions — a 6-week curriculum-style progression.
+// Trackable goals tie to real signals (badges, counts, level, streak); the rest are
+// forward-looking learning prompts that appear as unchecked until manually surfaced.
+const ARENA_OBJECTIVES: Record<number, Objective[]> = {
+  1: [
+    { id: "send_first",     label: "Send your first message to AI",       check: c => c.xp > 0 },
+    { id: "first_creation", label: "Save your first creation",            check: c => c.badges.has("first_creation") },
+    { id: "ask_concept",    label: "Ask AI to explain a concept",         check: c => c.textCount >= 1 },
+    { id: "what_if",        label: "Try a 'what if' question",            check: c => c.textCount >= 2 },
+    { id: "text_5",         label: "Generate text 5 times",               check: c => c.textCount >= 5 },
+    { id: "ask_hobby",      label: "Ask AI about your favourite hobby",   check: c => c.textCount >= 3 },
+    { id: "ask_science",    label: "Ask a science question",              check: c => c.textCount >= 4 },
+    { id: "compare",        label: "Ask AI to compare two things",        check: c => c.textCount >= 6 },
+    { id: "text_10",        label: "Generate text 10 times",              check: c => c.textCount >= 10 },
+    { id: "save_3",         label: "Save 3 creations to your library",    check: c => c.creationCount >= 3 },
+    { id: "save_5",         label: "Save 5 creations",                    check: c => c.creationCount >= 5 },
+    { id: "streak_3",       label: "Build a 3-day creation streak",       check: c => c.badges.has("streak_3") },
+    { id: "summarize",      label: "Ask AI to summarise a topic",         check: c => c.textCount >= 8 },
+    { id: "first_json",     label: "Generate your first JSON output",     check: c => c.jsonCount >= 1 },
+    { id: "librarian",      label: "Save 10 creations (Librarian badge)", check: c => c.badges.has("librarian") },
+    { id: "try_other",      label: "Try image, audio, or slides once",    check: c => c.imageCount + c.audioCount + c.slidesCount >= 1 },
+    { id: "use_picker",     label: "Use the creation picker to add context", check: c => c.creationCount >= 4 },
+    { id: "level_2",        label: "Reach Level 2 to unlock Prompt Lab",  check: c => c.level >= 2 },
+  ],
+  2: [
+    { id: "unlock",         label: "Reach Level 2 to enter the lab",      check: c => c.level >= 2 },
+    { id: "badge",          label: "Earn the Prompt Lab badge",           check: c => c.badges.has("prompt_lab") },
+    { id: "long_prompt",    label: "Write a detailed 50+ word prompt",    check: c => c.textCount >= 12 },
+    { id: "step_by_step",   label: "Use a 'step by step' prompt",         check: c => c.textCount >= 14 },
+    { id: "role_prompt",    label: "Try role-based prompting (act as…)",  check: c => c.textCount >= 16 },
+    { id: "json_3",         label: "Generate JSON output 3 times",        check: c => c.jsonCount >= 3 },
+    { id: "json_5",         label: "Generate JSON output 5 times",        check: c => c.jsonCount >= 5 },
+    { id: "constraints",    label: "Try a prompt with constraints",       check: c => c.jsonCount >= 2 },
+    { id: "persona",        label: "Use a persona-driven prompt",         check: c => c.textCount >= 18 },
+    { id: "chain_thought",  label: "Use a chain-of-thought prompt",       check: c => c.textCount >= 20 },
+    { id: "compare_2",      label: "Compare two different prompts",       check: c => c.textCount >= 22 },
+    { id: "system_inst",    label: "Use clear system instructions",       check: c => c.jsonCount >= 4 },
+    { id: "save_3_prompts", label: "Save 3 prompt experiments",           check: c => c.creationCount >= 8 },
+    { id: "text_20",        label: "Generate text 20 times overall",      check: c => c.textCount >= 20 },
+    { id: "json_save",      label: "Save 5 JSON creations",               check: c => c.jsonCount >= 5 },
+    { id: "streak_5",       label: "Build a 5-day streak",                check: c => c.streak >= 5 },
+    { id: "lib_10",         label: "Save 10 prompt-lab creations",        check: c => c.creationCount >= 12 },
+    { id: "level_3",        label: "Reach Level 3 to unlock Story Forge", check: c => c.level >= 3 },
+  ],
+  3: [
+    { id: "unlock",         label: "Reach Level 3 to enter the forge",    check: c => c.level >= 3 },
+    { id: "badge",          label: "Earn the Story Forge badge",          check: c => c.badges.has("story_forge") },
+    { id: "first_story",    label: "Write your first story prompt",       check: c => c.textCount >= 24 },
+    { id: "character",      label: "Create a character description",      check: c => c.textCount >= 26 },
+    { id: "twist",          label: "Build a story with a twist ending",   check: c => c.textCount >= 28 },
+    { id: "three_act",      label: "Write a 3-act story structure",       check: c => c.textCount >= 30 },
+    { id: "dialogue",       label: "Write dialogue between characters",   check: c => c.textCount >= 32 },
+    { id: "fantasy",        label: "Build a fantasy world",               check: c => c.textCount >= 34 },
+    { id: "scifi",          label: "Write a sci-fi scene",                check: c => c.textCount >= 36 },
+    { id: "save_3_stories", label: "Save 3 stories to your library",      check: c => c.creationCount >= 15 },
+    { id: "save_5_stories", label: "Save 5 stories",                      check: c => c.creationCount >= 17 },
+    { id: "story_slides",   label: "Build a story slide deck",            check: c => c.slidesCount >= 1 },
+    { id: "streak_7",       label: "Earn the 7-day Week Warrior streak",  check: c => c.badges.has("streak_7") },
+    { id: "genres_3",       label: "Try 3 different genres",              check: c => c.textCount >= 38 },
+    { id: "continue",       label: "Continue a story across sessions",    check: c => c.textCount >= 40 },
+    { id: "cliffhanger",    label: "End a chapter on a cliffhanger",      check: c => c.textCount >= 42 },
+    { id: "save_10_stories",label: "Save 10 stories",                     check: c => c.creationCount >= 20 },
+    { id: "level_4",        label: "Reach Level 4 to unlock Visual Studio", check: c => c.level >= 4 },
+  ],
+  4: [
+    { id: "unlock",         label: "Reach Level 4 to enter the studio",   check: c => c.level >= 4 },
+    { id: "badge",          label: "Earn the Visual Studio badge",        check: c => c.badges.has("visual_studio") },
+    { id: "first_image",    label: "Generate your first image",           check: c => c.badges.has("image_maker") },
+    { id: "image_3",        label: "Generate 3 images",                   check: c => c.imageCount >= 3 },
+    { id: "image_5",        label: "Generate 5 images",                   check: c => c.imageCount >= 5 },
+    { id: "portrait",       label: "Try a portrait prompt",               check: c => c.imageCount >= 6 },
+    { id: "landscape",      label: "Try a landscape prompt",              check: c => c.imageCount >= 7 },
+    { id: "scifi_scene",    label: "Generate a sci-fi scene",             check: c => c.imageCount >= 8 },
+    { id: "img2img",        label: "Modify an image with img-to-img",     check: c => c.imageCount >= 9 },
+    { id: "abstract",       label: "Try an abstract art prompt",          check: c => c.imageCount >= 10 },
+    { id: "image_10",       label: "Generate 10 images",                  check: c => c.imageCount >= 10 },
+    { id: "character_des",  label: "Design a character",                  check: c => c.imageCount >= 12 },
+    { id: "logo",           label: "Generate a logo concept",             check: c => c.imageCount >= 14 },
+    { id: "save_5_images",  label: "Save 5 images to library",            check: c => c.imageCount >= 5 && c.creationCount >= 22 },
+    { id: "save_10_images", label: "Save 10 images",                      check: c => c.imageCount >= 10 && c.creationCount >= 26 },
+    { id: "deck_w_image",   label: "Build a slide deck with images",      check: c => c.slidesCount >= 2 },
+    { id: "image_15",       label: "Generate 15 images total",            check: c => c.imageCount >= 15 },
+    { id: "level_5",        label: "Reach Level 5 to unlock Sound Booth", check: c => c.level >= 5 },
+  ],
+  5: [
+    { id: "unlock",         label: "Reach Level 5 to enter the booth",    check: c => c.level >= 5 },
+    { id: "badge",          label: "Earn the Sound Booth badge",          check: c => c.badges.has("sound_booth") },
+    { id: "first_audio",    label: "Generate your first audio (Voice Actor)", check: c => c.badges.has("voice_actor") },
+    { id: "audio_3",        label: "Generate 3 audio clips",              check: c => c.audioCount >= 3 },
+    { id: "narrator",       label: "Try a single-narrator audio",         check: c => c.audioCount >= 4 },
+    { id: "multi_char",     label: "Try multi-character dialogue",        check: c => c.audioCount >= 5 },
+    { id: "ssml_emotion",   label: "Use emotion / SSML in a script",      check: c => c.audioCount >= 6 },
+    { id: "rap",            label: "Create a rap or rhyme audio",         check: c => c.audioCount >= 7 },
+    { id: "narration",      label: "Create a narration",                  check: c => c.audioCount >= 8 },
+    { id: "audio_5",        label: "Generate 5 audio clips total",        check: c => c.audioCount >= 5 },
+    { id: "voices_3",       label: "Try 3 different voices",              check: c => c.audioCount >= 9 },
+    { id: "modify_audio",   label: "Modify an existing audio",            check: c => c.audioCount >= 10 },
+    { id: "save_5_audio",   label: "Save 5 audio clips",                  check: c => c.audioCount >= 5 && c.creationCount >= 28 },
+    { id: "audio_scene",    label: "Build an audio scene",                check: c => c.audioCount >= 11 },
+    { id: "podcast",        label: "Create a podcast intro",              check: c => c.audioCount >= 12 },
+    { id: "save_10_audio",  label: "Save 10 audio creations",             check: c => c.audioCount >= 10 && c.creationCount >= 32 },
+    { id: "audio_15",       label: "Generate 15 audio clips total",       check: c => c.audioCount >= 15 },
+    { id: "level_6",        label: "Reach Level 6 to unlock Director's Suite", check: c => c.level >= 6 },
+  ],
+  6: [
+    { id: "unlock",         label: "Reach Level 6 to enter the suite",    check: c => c.level >= 6 },
+    { id: "badge",          label: "Earn the Director's Suite badge",     check: c => c.badges.has("directors_suite") },
+    { id: "first_deck",     label: "Build your first slide deck",         check: c => c.badges.has("slide_master") },
+    { id: "all_tools",      label: "Use every output type (Full Toolkit)", check: c => c.badges.has("all_tools") },
+    { id: "deck_3",         label: "Build 3 slide decks",                 check: c => c.slidesCount >= 3 },
+    { id: "deck_5",         label: "Build 5 slide decks",                 check: c => c.slidesCount >= 5 },
+    { id: "prolific",       label: "Save 25 creations (Prolific badge)",  check: c => c.badges.has("prolific") },
+    { id: "film_outline",   label: "Write a film script outline",         check: c => c.textCount >= 50 },
+    { id: "combine",        label: "Combine image + audio + slides in one project", check: c => c.imageCount >= 5 && c.audioCount >= 3 && c.slidesCount >= 2 },
+    { id: "multi_scene",    label: "Create a multi-scene story",          check: c => c.textCount >= 55 && c.imageCount >= 5 },
+    { id: "module",         label: "Build a complete learning module",    check: c => c.slidesCount >= 6 },
+    { id: "direct_arc",     label: "Direct a complete narrative arc",     check: c => c.textCount >= 60 },
+    { id: "save_30",        label: "Save 30 creations to library",        check: c => c.creationCount >= 30 },
+    { id: "save_50",        label: "Save 50 creations",                   check: c => c.creationCount >= 50 },
+    { id: "deck_10",        label: "Build 10 slide decks",                check: c => c.slidesCount >= 10 },
+    { id: "film_concept",   label: "Build a complete film concept",       check: c => c.slidesCount >= 8 && c.audioCount >= 6 },
+    { id: "all_badges",     label: "Earn all 13 trophies",                check: c => c.badges.size >= 13 },
+    { id: "architect",      label: "Become an AI Learning Architect",     check: c => c.level >= 6 && c.badges.size >= 13 },
+  ],
+};
+
+// Badge category map — for the Trophy Hall grouping
+const BADGE_CATEGORIES: { id: string; label: string; icon: string; ids: string[] }[] = [
+  { id: "creation", label: "Creation",     icon: "✨", ids: ["first_creation", "image_maker", "voice_actor", "slide_master"] },
+  { id: "mastery",  label: "Mastery",      icon: "🏆", ids: ["librarian", "prolific", "all_tools"] },
+  { id: "streak",   label: "Streaks",      icon: "🔥", ids: ["streak_3", "streak_7"] },
+  { id: "arena",    label: "Arena Unlocks", icon: "🌌", ids: ["prompt_lab", "story_forge", "visual_studio", "sound_booth", "directors_suite"] },
+];
+
 // ─── Trophy Room (profile dashboard) ─────────────────────────────────────────
 function TrophyRoom({ profile }: { profile: Profile }) {
   const [arenaSfx, setArenaSfx] = useState(false);
   const [creationCount, setCreationCount] = useState<number | null>(null);
-  useEffect(() => {
-    setArenaSfx(isGameSfxEnabled());
-  }, []);
+  const [typeCounts, setTypeCounts] = useState<Record<string, number>>({});
+  useEffect(() => { setArenaSfx(isGameSfxEnabled()); }, []);
   useEffect(() => {
     fetch("/api/creations")
       .then(r => (r.ok ? r.json() : { creations: [] }))
-      .then(({ creations }) => setCreationCount((creations ?? []).length))
+      .then(({ creations }) => {
+        const list = creations ?? [];
+        setCreationCount(list.length);
+        const counts: Record<string, number> = {};
+        for (const c of list) counts[c.output_type] = (counts[c.output_type] ?? 0) + 1;
+        setTypeCounts(counts);
+      })
       .catch(() => setCreationCount(null));
   }, []);
 
@@ -251,357 +397,480 @@ function TrophyRoom({ profile }: { profile: Profile }) {
   const level        = profile.level ?? 1;
   const streak       = profile.streak_days ?? 0;
   const earnedBadges = new Set((profile.badges ?? []).map((b: { id: string }) => b.id));
-  const unlockedArenas = getUnlockedArenas(level);
   const progress     = getXPProgress(xp, level);
-  const currentXPThreshold = XP_THRESHOLDS[level - 1] ?? 0;
   const nextXPThreshold    = getXPForNextLevel(level);
   const isMaxLevel   = level >= 6;
 
-  return (
-    <div
-      className="relative overflow-y-auto bg-transparent text-white"
-      style={{ minHeight: "100vh" }}
-    >
-      <div className="relative z-10 mx-auto max-w-4xl space-y-6 px-6 py-8">
+  const objectiveCtx: ObjectiveCtx = {
+    xp, level, streak, creationCount: creationCount ?? 0, badges: earnedBadges,
+    textCount:   typeCounts.text   ?? 0,
+    jsonCount:   typeCounts.json   ?? 0,
+    imageCount:  typeCounts.image  ?? 0,
+    audioCount:  typeCounts.audio  ?? 0,
+    slidesCount: typeCounts.slides ?? 0,
+  };
 
-        {/* ── Hero card ── */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-          className="rounded-3xl p-6 border"
+  return (
+    <div className="relative overflow-y-auto text-white" style={{ height: "100%", background: "#08080F" }}>
+
+      {/* ─── Arena ambient background — mirrors playground immersion ─── */}
+      <div aria-hidden className="absolute inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 0 }}>
+        <div className="absolute inset-0" style={{ background: arena.gradient }}/>
+        <motion.div
+          className="absolute rounded-full"
           style={{
-            background:  `linear-gradient(135deg, ${arena.accentDim}, rgba(15,15,26,0.9))`,
-            borderColor: arena.accent + "30",
-            boxShadow:   `0 0 60px ${arena.accentGlow}`,
-          }}>
-          <div className="flex items-start gap-5">
-            {/* Avatar */}
-            <div className="relative flex-shrink-0">
-              <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-4xl"
-                style={{ background: arena.accentDim, border: `2px solid ${arena.accent}40` }}>
-                {profile.avatar_emoji}
+            top: "-15%", left: "-10%", width: "60vw", height: "60vw",
+            background: `radial-gradient(circle, ${arena.accent}15 0%, transparent 60%)`,
+            filter: "blur(60px)",
+          }}
+          animate={{ x: [0, 40, 0], y: [0, 30, 0] }}
+          transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.div
+          className="absolute rounded-full"
+          style={{
+            bottom: "-20%", right: "-15%", width: "55vw", height: "55vw",
+            background: `radial-gradient(circle, ${arena.accent}10 0%, transparent 60%)`,
+            filter: "blur(80px)",
+          }}
+          animate={{ x: [0, -30, 0], y: [0, -20, 0] }}
+          transition={{ duration: 25, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <div
+          className="absolute inset-0 opacity-[0.04]"
+          style={{
+            backgroundImage: "linear-gradient(rgba(255,255,255,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.4) 1px, transparent 1px)",
+            backgroundSize: "60px 60px",
+          }}
+        />
+      </div>
+
+      <div className="relative z-10 mx-auto max-w-5xl space-y-7 px-6 py-10">
+
+        {/* ─── Hero ─── */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="relative rounded-3xl overflow-hidden border backdrop-blur-xl"
+          style={{
+            borderColor: `${arena.accent}30`,
+            background: `linear-gradient(135deg, ${arena.accentDim} 0%, rgba(15,15,26,0.85) 60%)`,
+            boxShadow: `0 30px 80px -20px ${arena.accentGlow}, inset 0 1px 0 rgba(255,255,255,0.05)`,
+          }}
+        >
+          {/* Decorative accent stripe */}
+          <div className="absolute top-0 left-0 right-0 h-px"
+            style={{ background: `linear-gradient(90deg, transparent, ${arena.accent}, transparent)` }}/>
+
+          <div className="relative p-7 md:p-9 flex flex-col md:flex-row items-start gap-6">
+            {/* Avatar with animated arena ring */}
+            <div className="relative flex-shrink-0 mx-auto md:mx-0">
+              <motion.div
+                className="absolute inset-0 rounded-3xl"
+                style={{ border: `2px solid ${arena.accent}80`, boxShadow: `0 0 30px ${arena.accentGlow}` }}
+                animate={{ scale: [1, 1.06, 1], opacity: [0.6, 1, 0.6] }}
+                transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+              />
+              <div className="relative w-24 h-24 rounded-3xl flex items-center justify-center text-5xl"
+                style={{ background: `linear-gradient(135deg, ${arena.accentDim}, rgba(15,15,26,0.9))`, border: `2px solid ${arena.accent}50` }}>
+                {(profile as { avatar_url?: string | null }).avatar_url ? (
+                  <img src={(profile as { avatar_url?: string | null }).avatar_url ?? ""} alt="" className="w-full h-full object-cover rounded-3xl"/>
+                ) : (
+                  <span>{profile.avatar_emoji}</span>
+                )}
               </div>
-              <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full flex items-center justify-center text-sm font-display font-black"
-                style={{ background: arena.accent, color: "#08080F" }}>
+              <div className="absolute -bottom-2 -right-2 w-9 h-9 rounded-2xl flex items-center justify-center font-display font-black text-sm"
+                style={{ background: arena.accent, color: "#08080F", boxShadow: `0 4px 16px ${arena.accentGlow}` }}>
                 {level}
               </div>
             </div>
 
-            {/* Name + role */}
-            <div className="flex-1 min-w-0">
-              <h1 className="font-display font-black text-2xl text-white leading-tight">
+            {/* Identity + XP */}
+            <div className="flex-1 min-w-0 w-full text-center md:text-left">
+              <div className="text-[10px] font-mono font-bold uppercase tracking-[0.18em] text-white/35 mb-1">
+                {arena.weekLabel} · Active Arena
+              </div>
+              <h1 className="font-display font-black text-3xl md:text-4xl leading-[1.05] text-white">
                 {profile.display_name}
               </h1>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-lg">{arena.emoji}</span>
-                <span className="font-display font-bold text-sm" style={{ color: arena.accent }}>
+              <div className="flex items-center justify-center md:justify-start gap-2 mt-2">
+                <span className="text-xl">{arena.emoji}</span>
+                <span className="font-display font-bold text-base" style={{ color: arena.accent }}>
                   {arena.role}
                 </span>
-                <span className="text-white/30 text-xs">{arena.weekLabel}</span>
               </div>
 
-              {/* XP bar */}
-              <div className="mt-3 space-y-1">
-                <div className="flex justify-between items-center">
-                  <span className="text-[10px] text-white/40 font-mono">
-                    {isMaxLevel ? "MAX LEVEL" : `Level ${level} → ${level + 1}`}
+              <div className="mt-5">
+                <div className="flex justify-between items-center mb-1.5">
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-white/45">
+                    {isMaxLevel ? "★ Max Level Reached ★" : `Level ${level} → ${level + 1}`}
                   </span>
-                  <span className="text-[10px] font-mono" style={{ color: arena.accent }}>
-                    {xp} XP {!isMaxLevel && `/ ${nextXPThreshold}`}
+                  <span className="text-[11px] font-mono font-bold" style={{ color: arena.accent }}>
+                    {xp} XP {!isMaxLevel && <span className="text-white/30">/ {nextXPThreshold}</span>}
                   </span>
                 </div>
-                <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                <div className="h-2.5 rounded-full bg-white/[0.06] overflow-hidden border border-white/[0.04]">
                   <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: `${isMaxLevel ? 100 : progress}%` }}
-                    transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
-                    className="h-full rounded-full"
+                    transition={{ duration: 1.4, ease: [0.16, 1, 0.3, 1] }}
+                    className="h-full rounded-full relative overflow-hidden"
                     style={{
-                      background:  arena.accent,
-                      boxShadow:   `0 0 10px ${arena.accentGlow}`,
-                    }}
-                  />
+                      background: `linear-gradient(90deg, ${arena.accent}, ${arena.accent}cc)`,
+                      boxShadow: `0 0 16px ${arena.accentGlow}`,
+                    }}>
+                    <motion.div
+                      className="absolute inset-0"
+                      style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)" }}
+                      animate={{ x: ["-100%", "200%"] }}
+                      transition={{ duration: 2.5, repeat: Infinity, ease: "linear" }}
+                    />
+                  </motion.div>
                 </div>
                 {!isMaxLevel && (
-                  <p className="text-[10px] text-white/30">
-                    {nextXPThreshold - xp} XP to unlock {ARENAS[level]?.name}
+                  <p className="text-[10px] text-white/35 mt-2">
+                    <span className="font-mono font-bold" style={{ color: arena.accent }}>{nextXPThreshold - xp} XP</span>
+                    {" "}until you unlock <span className="text-white/65 font-bold">{ARENAS[level]?.name}</span>
                   </p>
                 )}
               </div>
             </div>
 
-            {/* Streak */}
-            <div className="flex-shrink-0 text-center px-4 py-3 rounded-2xl border border-white/10"
-              style={{ background: "rgba(255,107,43,0.1)", borderColor: "rgba(255,107,43,0.2)" }}>
-              <div className="text-3xl">{streak >= 3 ? "🔥" : "⚡"}</div>
-              <div className="font-display font-black text-xl text-white">{streak}</div>
-              <div className="text-[10px] text-white/40">day streak</div>
+            {/* Streak medallion */}
+            <div className="flex-shrink-0 text-center px-5 py-4 rounded-2xl border self-stretch md:self-auto flex flex-col justify-center"
+              style={{
+                background: streak > 0 ? "linear-gradient(135deg, rgba(255,107,43,0.18), rgba(255,107,43,0.05))" : "rgba(255,255,255,0.03)",
+                borderColor: streak > 0 ? "rgba(255,107,43,0.35)" : "rgba(255,255,255,0.08)",
+                boxShadow: streak >= 3 ? "0 0 30px rgba(255,107,43,0.2)" : "none",
+              }}>
+              <div className="text-3xl mb-0.5">{streak >= 7 ? "🌟" : streak >= 3 ? "🔥" : "⚡"}</div>
+              <div className="font-display font-black text-2xl text-white leading-none">{streak}</div>
+              <div className="text-[9px] font-bold text-white/40 uppercase tracking-wider mt-1">Day Streak</div>
             </div>
           </div>
         </motion.div>
 
-        {/* ── Stats row ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {/* ─── Stat strip ─── */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
-            { label: "Total XP",      value: xp,     icon: "⚡", color: arena.accent },
-            { label: "Level",         value: level,  icon: arena.emoji, color: arena.accent },
-            { label: "Badges Earned", value: (profile.badges ?? []).length, icon: "🏅", color: "#FF6B2B" },
-          ].map((stat, i) => (
-            <motion.div key={stat.label}
-              initial={{ opacity: 0, y: 16 }}
+            { label: "Total XP",   value: xp,                              sub: "earned",      icon: "⚡", color: arena.accent },
+            { label: "Creations",  value: creationCount ?? "—",            sub: "saved",       icon: "💎", color: "#00D4FF" },
+            { label: "Badges",     value: `${earnedBadges.size}/${BADGES.length}`, sub: "collected", icon: "🏅", color: "#FFB400" },
+            { label: "Arenas",     value: `${getUnlockedArenas(level).length}/6`,    sub: "unlocked",  icon: "🌌", color: "#C8FF00" },
+          ].map((s, i) => (
+            <motion.div key={s.label}
+              initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.08 }}
-              className="rounded-2xl p-4 text-center border border-white/[0.07]"
-              style={{ background: "rgba(255,255,255,0.03)" }}>
-              <div className="text-2xl mb-1">{stat.icon}</div>
-              <div className="font-display font-black text-2xl text-white">{stat.value}</div>
-              <div className="text-[10px] text-white/40 mt-0.5">{stat.label}</div>
+              transition={{ delay: 0.1 + i * 0.06 }}
+              className="rounded-2xl p-4 border backdrop-blur-xl relative overflow-hidden group"
+              style={{
+                background: "rgba(255,255,255,0.03)",
+                borderColor: "rgba(255,255,255,0.08)",
+              }}>
+              <div className="absolute -top-8 -right-8 w-20 h-20 rounded-full opacity-20 group-hover:opacity-40 transition-opacity"
+                style={{ background: s.color, filter: "blur(30px)" }}/>
+              <div className="relative">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-white/40">{s.label}</span>
+                  <span className="text-base">{s.icon}</span>
+                </div>
+                <div className="font-display font-black text-2xl text-white leading-none">{s.value}</div>
+                <div className="text-[10px] text-white/35 mt-1">{s.sub}</div>
+              </div>
             </motion.div>
           ))}
         </div>
 
-        {/* ── P3: Goals / next achievements ── */}
-        <div
-          className="rounded-2xl border border-white/10 p-5"
-          style={{ background: "rgba(255,255,255,0.03)" }}>
-          <h2 className="font-display font-black text-lg text-white mb-4 flex items-center gap-2">
-            <span>🎯</span> Next goals
-          </h2>
-          <div className="space-y-4">
-            {!earnedBadges.has("streak_7") && (
-              <div>
-                <div className="flex justify-between text-[11px] font-display font-bold text-white/70 mb-1">
-                  <span>Week Warrior streak</span>
-                  <span className="font-mono text-white/40">{streak} / 7 days</span>
-                </div>
-                <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-700"
-                    style={{
-                      width:      `${Math.min(100, Math.round((streak / 7) * 100))}%`,
-                      background: arena.accent,
-                      boxShadow:  `0 0 10px ${arena.accentGlow}`,
-                    }}
-                  />
-                </div>
-                <p className="text-[10px] text-white/35 mt-1">Use the playground on consecutive days.</p>
-              </div>
-            )}
-            {!earnedBadges.has("librarian") && creationCount != null && (
-              <div>
-                <div className="flex justify-between text-[11px] font-display font-bold text-white/70 mb-1">
-                  <span>Librarian badge</span>
-                  <span className="font-mono text-white/40">{creationCount} / 10 saves</span>
-                </div>
-                <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-700"
-                    style={{
-                      width:      `${Math.min(100, Math.round((creationCount / 10) * 100))}%`,
-                      background: "#FF6B2B",
-                      boxShadow:  "0 0 10px rgba(255,107,43,0.35)",
-                    }}
-                  />
-                </div>
-              </div>
-            )}
-            {!earnedBadges.has("all_tools") && (
-              <p className="text-[11px] text-white/40 leading-relaxed">
-                Try every output format (text, JSON, image, audio, slides) to earn <span className="text-white/60 font-bold">Full Toolkit</span>.
-              </p>
-            )}
-            {earnedBadges.has("streak_7") && earnedBadges.has("librarian") && earnedBadges.has("all_tools") && (
-              <p className="text-sm text-white/45 font-display font-bold">
-                You have cleared the starter goals — keep creating for fun and new arenas!
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* ── Arenas unlocked ── */}
+        {/* ─── Arena Journey — per-arena objectives ─── */}
         <div>
-          <h2 className="font-display font-black text-lg text-white mb-3 flex items-center gap-2">
-            <span>🏟️</span> Your Arenas
-          </h2>
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+          <div className="flex items-baseline justify-between mb-4">
+            <h2 className="font-display font-black text-xl text-white flex items-center gap-2">
+              <span className="text-2xl">🗺️</span> Arena Journey
+            </h2>
+            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-white/30">
+              {getUnlockedArenas(level).length} of 6 unlocked
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             {ARENAS.map((a, i) => {
               const unlocked = a.unlockLevel <= level;
               const active   = a.id === (profile.active_arena ?? 1);
+              const objs     = ARENA_OBJECTIVES[a.id] ?? [];
+              const done     = objs.filter(o => o.check(objectiveCtx)).length;
+              const total    = objs.length;
+              const ratio    = total > 0 ? done / total : 0;
+
               return (
                 <motion.div key={a.id}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: i * 0.05 }}
-                  className={cn("rounded-2xl p-3 text-center border transition-all", !unlocked && "opacity-30")}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.15 + i * 0.05 }}
+                  className="relative rounded-2xl p-5 border backdrop-blur-xl overflow-hidden"
                   style={{
-                    background:  unlocked ? a.accentDim : "rgba(255,255,255,0.02)",
-                    borderColor: active ? a.accent : unlocked ? a.accent + "30" : "rgba(255,255,255,0.06)",
-                    boxShadow:   active ? `0 0 16px ${a.accentGlow}` : "none",
+                    background: unlocked
+                      ? `linear-gradient(135deg, ${a.accentDim}, rgba(15,15,26,0.7))`
+                      : "rgba(255,255,255,0.025)",
+                    borderColor: active ? a.accent : unlocked ? `${a.accent}30` : "rgba(255,255,255,0.06)",
+                    boxShadow: active ? `0 0 32px ${a.accentGlow}, inset 0 1px 0 rgba(255,255,255,0.04)` : "none",
                   }}>
-                  <div className="text-2xl mb-1">{unlocked ? a.emoji : "🔒"}</div>
-                  <div className="text-[9px] font-bold leading-tight" style={{ color: unlocked ? a.accent : "rgba(255,255,255,0.3)" }}>
-                    {a.weekLabel}
-                  </div>
-                  {active && (
-                    <div className="text-[8px] text-white/50 mt-0.5">active</div>
+                  {/* Accent corner glow for unlocked */}
+                  {unlocked && (
+                    <div className="absolute -top-12 -right-12 w-32 h-32 rounded-full opacity-30 pointer-events-none"
+                      style={{ background: a.accent, filter: "blur(40px)" }}/>
                   )}
-                </motion.div>
-              );
-            })}
-          </div>
-        </div>
 
-        {/* ── XP Journey ── */}
-        <div>
-          <h2 className="font-display font-black text-lg text-white mb-3 flex items-center gap-2">
-            <span>📈</span> XP Journey
-          </h2>
-          <div className="rounded-2xl p-5 border border-white/[0.07]"
-            style={{ background: "rgba(255,255,255,0.02)" }}>
-            <div className="flex items-end gap-0 h-16 mb-3">
-              {XP_THRESHOLDS.map((threshold, i) => {
-                const nextThreshold = XP_THRESHOLDS[i + 1] ?? threshold + 500;
-                const isCurrentLevel = i + 1 === level;
-                const isPast = i + 1 < level;
-                const pct = isPast ? 100 : isCurrentLevel ? progress : 0;
-                return (
-                  <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                    <div className="w-full mx-0.5 rounded-t-lg overflow-hidden bg-white/5" style={{ height: "48px" }}>
-                      <motion.div
-                        initial={{ height: 0 }}
-                        animate={{ height: `${pct}%` }}
-                        transition={{ duration: 1, delay: i * 0.1, ease: [0.16, 1, 0.3, 1] }}
-                        className="w-full rounded-t-lg"
-                        style={{
-                          background: isPast || isCurrentLevel ? ARENAS[i]?.accent : "transparent",
-                          opacity:    isPast ? 0.5 : 1,
-                          marginTop:  "auto",
-                        }}
-                      />
+                  {/* Header */}
+                  <div className="relative flex items-start gap-3 mb-4">
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0"
+                      style={{
+                        background: unlocked ? a.accentDim : "rgba(255,255,255,0.04)",
+                        border: `1.5px solid ${unlocked ? `${a.accent}50` : "rgba(255,255,255,0.08)"}`,
+                        filter: unlocked ? "none" : "grayscale(1)",
+                      }}>
+                      {unlocked ? a.emoji : "🔒"}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-[9px] font-mono font-bold uppercase tracking-[0.15em]"
+                          style={{ color: unlocked ? a.accent : "rgba(255,255,255,0.3)" }}>
+                          {a.weekLabel}
+                        </span>
+                        {active && (
+                          <span className="text-[9px] font-mono font-black uppercase tracking-widest px-1.5 py-0.5 rounded"
+                            style={{ background: a.accent, color: "#08080F" }}>
+                            Active
+                          </span>
+                        )}
+                        {!unlocked && (
+                          <span className="text-[9px] font-mono font-bold uppercase tracking-widest px-1.5 py-0.5 rounded border border-white/10 text-white/30">
+                            Locked
+                          </span>
+                        )}
+                      </div>
+                      <h3 className={cn("font-display font-black text-base leading-tight",
+                        unlocked ? "text-white" : "text-white/40")}>
+                        {a.name}
+                      </h3>
+                      <p className="text-[11px] text-white/40 mt-0.5 leading-snug">{a.tagline}</p>
+                    </div>
+                    <div className="flex-shrink-0 text-right">
+                      <div className="font-display font-black text-lg leading-none"
+                        style={{ color: unlocked ? a.accent : "rgba(255,255,255,0.25)" }}>
+                        {done}/{total}
+                      </div>
+                      <div className="text-[9px] text-white/30 uppercase tracking-wider mt-0.5">missions</div>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-            <div className="flex">
-              {ARENAS.map((a, i) => (
-                <div key={a.id} className="flex-1 text-center">
-                  <div className="text-[8px] text-white/30 leading-tight">{a.weekLabel}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
 
-        {/* ── Badges ── */}
-        <div>
-          <h2 className="font-display font-black text-lg text-white mb-3 flex items-center gap-2">
-            <span>🏅</span> Badges
-            <span className="text-sm font-normal text-white/30">
-              {earnedBadges.size} / {BADGES.length}
-            </span>
-          </h2>
-          <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
-            {BADGES.map((badge, i) => {
-              const earned = earnedBadges.has(badge.id);
-              return (
-                <motion.div key={badge.id}
-                  initial={{ opacity: 0, scale: 0.85 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: i * 0.04 }}
-                  className={cn(
-                    "rounded-2xl p-3 text-center border transition-all",
-                    earned ? "border-white/10" : "border-white/[0.04] opacity-35"
-                  )}
-                  style={{
-                    background: earned ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.02)",
-                    boxShadow:  earned ? "0 0 20px rgba(200,255,0,0.08)" : "none",
-                  }}>
-                  <div className={cn("text-2xl mb-1.5", !earned && "grayscale")}>
-                    {badge.emoji}
+                  {/* Progress bar */}
+                  <div className="h-1 rounded-full bg-white/[0.06] overflow-hidden mb-4">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${ratio * 100}%` }}
+                      transition={{ duration: 1, delay: 0.3 + i * 0.05, ease: [0.16, 1, 0.3, 1] }}
+                      className="h-full rounded-full"
+                      style={{ background: a.accent, boxShadow: `0 0 8px ${a.accentGlow}` }}
+                    />
                   </div>
-                  <div className={cn("font-display font-bold text-[10px] leading-tight mb-0.5",
-                    earned ? "text-white" : "text-white/30")}>
-                    {badge.name}
-                  </div>
-                  <div className="text-[9px] text-white/25 leading-tight">
-                    {badge.condition}
-                  </div>
-                  {earned && (
-                    <div className="mt-1.5 w-1.5 h-1.5 rounded-full mx-auto"
-                      style={{ background: "#C8FF00", boxShadow: "0 0 6px rgba(200,255,0,0.6)" }}/>
-                  )}
+
+                  {/* Objective checklist — 2-column compact grid */}
+                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1.5">
+                    {objs.map((obj, idx) => {
+                      const ok = obj.check(objectiveCtx);
+                      return (
+                        <li key={obj.id} className="flex items-center gap-2 text-[11px] leading-tight">
+                          <div className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0"
+                            style={{
+                              background: ok ? `${a.accent}30` : "rgba(255,255,255,0.04)",
+                              border: `1px solid ${ok ? `${a.accent}70` : "rgba(255,255,255,0.08)"}`,
+                            }}>
+                            {ok ? (
+                              <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
+                                <path d="M2.5 6.5l2.5 2.5 4.5-5.5" stroke={a.accent} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            ) : (
+                              <span className="font-mono font-bold text-[8px] text-white/30">{String(idx + 1).padStart(2, "0")}</span>
+                            )}
+                          </div>
+                          <span className={cn("font-medium truncate",
+                            ok ? "text-white/90" : "text-white/40")}>
+                            {obj.label}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
                 </motion.div>
               );
             })}
           </div>
         </div>
 
-        {/* ── Interests ── */}
-        {profile.interests?.length > 0 && (
-          <div>
-            <h2 className="font-display font-black text-lg text-white mb-3 flex items-center gap-2">
-              <span>✨</span> Your Interests
+        {/* ─── Trophy Hall — categorized badges ─── */}
+        <div>
+          <div className="flex items-baseline justify-between mb-4">
+            <h2 className="font-display font-black text-xl text-white flex items-center gap-2">
+              <span className="text-2xl">🏆</span> Trophy Hall
             </h2>
-            <div className="flex flex-wrap gap-2">
-              {profile.interests.map(interest => (
-                <span key={interest}
-                  className="px-3 py-1.5 rounded-full text-xs font-bold border"
-                  style={{
-                    background:  arena.accentDim,
-                    borderColor: arena.accent + "40",
-                    color:       arena.accent,
-                  }}>
-                  {interest}
-                </span>
-              ))}
-            </div>
+            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-white/30">
+              {earnedBadges.size} of {BADGES.length} earned
+            </span>
           </div>
-        )}
 
-        {/* ── Game audio (arena + level up) ── */}
-        <div
-          className="rounded-2xl border border-white/10 p-4"
-          style={{ background: "rgba(255,255,255,0.03)" }}>
-          <h2 className="font-display font-black text-lg text-white mb-3 flex items-center gap-2">
-            <span>🎛️</span> Sounds & celebrations
-          </h2>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <p className="font-display font-bold text-sm text-white">Arena & level-up audio</p>
-              <p className="text-[10px] text-white/35 mt-0.5 leading-snug max-w-md">
-                Arena stings, level-up fanfare, and badge unlock sounds. Off unless you enable it. No audio if your device uses reduced motion.
-              </p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={arenaSfx}
-              aria-label="Arena and level-up sounds"
-              onClick={() => {
-                const next = !arenaSfx;
-                setGameSfxEnabled(next);
-                setArenaSfx(next);
-              }}
-              className={cn(
-                "relative h-8 w-14 shrink-0 rounded-full border transition-colors",
-                arenaSfx ? "border-white/25" : "border-white/10 bg-white/[0.06]",
-              )}
-              style={
-                arenaSfx
-                  ? { background: arena.accentDim, borderColor: `${arena.accent}55` }
-                  : undefined
-              }>
-              <span
-                className={cn(
-                  "absolute top-1 h-6 w-6 rounded-full bg-white shadow-md transition-transform duration-200",
-                  arenaSfx ? "translate-x-[1.75rem]" : "translate-x-1",
-                )}
-                style={arenaSfx ? { boxShadow: `0 0 12px ${arena.accentGlow}` } : undefined}
-              />
-            </button>
+          <div className="space-y-5">
+            {BADGE_CATEGORIES.map(cat => {
+              const catBadges = BADGES.filter(b => cat.ids.includes(b.id));
+              const catEarned = catBadges.filter(b => earnedBadges.has(b.id)).length;
+              return (
+                <div key={cat.id}>
+                  <div className="flex items-center gap-2 mb-2.5">
+                    <span className="text-base">{cat.icon}</span>
+                    <span className="font-display font-bold text-[11px] uppercase tracking-[0.15em] text-white/55">
+                      {cat.label}
+                    </span>
+                    <span className="text-[10px] font-mono text-white/30">
+                      {catEarned}/{catBadges.length}
+                    </span>
+                    <div className="flex-1 h-px bg-white/[0.06] ml-2"/>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                    {catBadges.map((badge, i) => {
+                      const earned = earnedBadges.has(badge.id);
+                      return (
+                        <motion.div key={badge.id}
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: 0.05 * i }}
+                          whileHover={earned ? { y: -3, scale: 1.02 } : {}}
+                          className="relative rounded-2xl p-4 border overflow-hidden text-center group cursor-default"
+                          style={{
+                            background: earned
+                              ? "linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)"
+                              : "rgba(255,255,255,0.015)",
+                            borderColor: earned ? `${arena.accent}45` : "rgba(255,255,255,0.05)",
+                            boxShadow: earned ? `0 8px 28px -8px ${arena.accentGlow}, inset 0 1px 0 rgba(255,255,255,0.06)` : "none",
+                          }}>
+
+                          {/* Pedestal glow for earned */}
+                          {earned && (
+                            <div className="absolute inset-x-0 -bottom-4 h-12 pointer-events-none"
+                              style={{ background: `radial-gradient(ellipse at center, ${arena.accent}30 0%, transparent 70%)` }}/>
+                          )}
+
+                          {/* Trophy emoji on pedestal */}
+                          <div className="relative mx-auto mb-2 w-14 h-14 rounded-2xl flex items-center justify-center"
+                            style={{
+                              background: earned
+                                ? `linear-gradient(135deg, ${arena.accent}30, ${arena.accent}10)`
+                                : "rgba(255,255,255,0.03)",
+                              border: `1.5px solid ${earned ? `${arena.accent}55` : "rgba(255,255,255,0.06)"}`,
+                              boxShadow: earned ? `inset 0 0 20px ${arena.accent}20` : "none",
+                            }}>
+                            {earned && (
+                              <motion.div
+                                className="absolute inset-0 rounded-2xl"
+                                style={{ border: `1px solid ${arena.accent}` }}
+                                animate={{ opacity: [0.3, 0.8, 0.3] }}
+                                transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+                              />
+                            )}
+                            <span className={cn("text-3xl relative", !earned && "grayscale opacity-40")}>
+                              {badge.emoji}
+                            </span>
+                          </div>
+
+                          <div className={cn("font-display font-black text-[11px] leading-tight mb-1",
+                            earned ? "text-white" : "text-white/40")}>
+                            {badge.name}
+                          </div>
+                          <div className={cn("text-[9px] leading-snug",
+                            earned ? "text-white/50" : "text-white/25")}>
+                            {badge.condition}
+                          </div>
+
+                          {earned && (
+                            <div className="absolute top-2 right-2 w-4 h-4 rounded-full flex items-center justify-center"
+                              style={{ background: arena.accent }}>
+                              <svg width="8" height="8" viewBox="0 0 12 12" fill="none">
+                                <path d="M2.5 6.5l2.5 2.5 4.5-5.5" stroke="#08080F" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            </div>
+                          )}
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        <div className="h-8" />
+        {/* ─── Footer: Interests + audio settings ─── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {profile.interests?.length > 0 && (
+            <div className="rounded-2xl p-5 border backdrop-blur-xl"
+              style={{ background: "rgba(255,255,255,0.025)", borderColor: "rgba(255,255,255,0.07)" }}>
+              <h3 className="font-display font-bold text-[11px] uppercase tracking-[0.15em] text-white/55 mb-3 flex items-center gap-2">
+                <span>✨</span> Your Interests
+              </h3>
+              <div className="flex flex-wrap gap-1.5">
+                {profile.interests.map(interest => (
+                  <span key={interest}
+                    className="px-2.5 py-1 rounded-full text-[11px] font-bold border"
+                    style={{
+                      background: arena.accentDim,
+                      borderColor: `${arena.accent}40`,
+                      color: arena.accent,
+                    }}>
+                    {interest}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-2xl p-5 border backdrop-blur-xl"
+            style={{ background: "rgba(255,255,255,0.025)", borderColor: "rgba(255,255,255,0.07)" }}>
+            <h3 className="font-display font-bold text-[11px] uppercase tracking-[0.15em] text-white/55 mb-3 flex items-center gap-2">
+              <span>🎛️</span> Sound Effects
+            </h3>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-display font-bold text-[13px] text-white leading-tight">Arena & level-up audio</p>
+                <p className="text-[10px] text-white/40 mt-1 leading-snug">
+                  Stings, fanfare, and badge sounds. Off by default.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={arenaSfx}
+                aria-label="Arena and level-up sounds"
+                onClick={() => {
+                  const next = !arenaSfx;
+                  setGameSfxEnabled(next);
+                  setArenaSfx(next);
+                }}
+                className={cn(
+                  "relative h-7 w-12 shrink-0 rounded-full border transition-colors",
+                  arenaSfx ? "border-white/25" : "border-white/10 bg-white/[0.06]",
+                )}
+                style={arenaSfx ? { background: arena.accentDim, borderColor: `${arena.accent}55` } : undefined}>
+                <span
+                  className={cn(
+                    "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-md transition-transform duration-200",
+                    arenaSfx ? "translate-x-[1.5rem]" : "translate-x-0.5",
+                  )}
+                  style={arenaSfx ? { boxShadow: `0 0 10px ${arena.accentGlow}` } : undefined}
+                />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="h-8"/>
       </div>
     </div>
   );
