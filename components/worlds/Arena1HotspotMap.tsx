@@ -5,26 +5,33 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Zap } from "lucide-react";
 import type { Objective } from "@/lib/objectives";
 
-// Percentage positions [left%, top%] mapped to the numbered panels in arena-1.png
+// Percentage positions [left%, top%] — top-left corner of each invisible card hit-area
 const HOTSPOT_POSITIONS: Record<number, [number, number]> = {
-  1:  [2,  3],   // 01 AI Fundamentals
-  2:  [2,   17],   // 02 Machine Learning
-  3:  [2,   32],   // 03 Prompt Engineering
-  4:  [2,   46],   // 04 Data & Datasets
-  5:  [20,  9],   // 05 Computer Vision
-  6:  [20,  25],   // 06 NLP
-  7:  [20,  42],   // 07 AI Tools & Platforms
-  8:  [20,  54],   // 08 AI Ethics
-  9:  [37,  25],   // 09 Deep Learning
-  10: [52,  25],   // 10 AI Projects
-  11: [37,  45],   // 11 AI Explorer Lab
-  12: [71,  12],   // 12 AI Model Training
-  13: [71,  28],   // 13 Generative AI
-  14: [71,  43],   // 14 AI x Design
-  15: [84,  7],   // 15 AI for Creativity
-  16: [84,  20],   // 16 AI in Real World
-  17: [84,  33],   // 17 AI Automation
-  18: [84,  46],   // 18 AI Personalisation
+  // ── TOP-LEFT wall ──
+  1:  [6,   18],
+  2:  [14,  20],
+  3:  [20,  21],
+  4:  [26,  22],
+  5:  [32,  23],
+
+  // ── BOTTOM-LEFT wall ──
+  6:  [6,   45],
+  7:  [14,  45],
+  8:  [21,  45],
+  9:  [28,  45],
+
+  // ── TOP-RIGHT wall ──
+  10: [69,  24],
+  11: [76,  23],
+  12: [84,  22],
+  13: [92,  21],
+
+  // ── BOTTOM-RIGHT wall ──
+  14: [69,  49],
+  15: [74,  49],
+  16: [80,  49],
+  17: [86,  49],
+  18: [92,  49],
 };
 
 const OUTPUT_COLORS: Record<string, string> = {
@@ -35,86 +42,76 @@ const OUTPUT_COLORS: Record<string, string> = {
   slides: "#C8FF00",
 };
 
-// Decide tooltip placement based on hotspot position in the viewport
 function getTooltipStyle(left: number, top: number): React.CSSProperties {
-  const showBelow = top < 28;                    // near top edge → open downward
-  const anchorRight = left > 72;                 // near right edge → anchor right
-  const anchorLeft  = left < 18;                 // near left edge → anchor left
+  const showBelow   = top < 35;
+  const anchorRight = left > 78;
+  const anchorLeft  = left < 18;
 
-  const base: React.CSSProperties = {
-    position: "absolute",
-    width: 200,
-    zIndex: 50,
-    pointerEvents: "none",
-  };
-
-  if (showBelow) {
-    return {
-      ...base,
-      top: "calc(100% + 10px)",
-      ...(anchorRight
-        ? { right: 0 }
-        : anchorLeft
-        ? { left: 0 }
-        : { left: "50%", transform: "translateX(-50%)" }),
-    };
-  }
+  const hAlign = anchorRight
+    ? { right: 0 }
+    : anchorLeft
+    ? { left: 0 }
+    : { left: "50%", transform: "translateX(-50%)" };
 
   return {
-    ...base,
-    bottom: "calc(100% + 10px)",
-    ...(anchorRight
-      ? { right: 0 }
-      : anchorLeft
-      ? { left: 0 }
-      : { left: "50%", transform: "translateX(-50%)" }),
+    position:      "absolute",
+    width:         210,
+    zIndex:        50,
+    pointerEvents: "auto",       // ← must be auto so the card itself is hoverable
+    ...(showBelow
+      ? { top:    "calc(100% + 8px)", ...hAlign }
+      : { bottom: "calc(100% + 8px)", ...hAlign }),
   };
 }
 
 function getArrowStyle(left: number, top: number, accent: string): React.CSSProperties {
-  const showBelow = top < 28;
-  const anchorRight = left > 72;
+  const showBelow   = top < 35;
+  const anchorRight = left > 78;
   const anchorLeft  = left < 18;
 
   const hPos = anchorRight
-    ? { right: 12, left: "auto" }
+    ? { right: 14, left: "auto" }
     : anchorLeft
-    ? { left: 12, right: "auto" }
+    ? { left: 14, right: "auto" }
     : { left: "50%", transform: "translateX(-50%)" };
 
   return {
     position: "absolute",
     ...(showBelow ? { top: -5 } : { bottom: -5 }),
     ...hPos,
-    width: 10,
-    height: 10,
-    background: "rgba(6,6,15,0.92)",
-    border: `1px solid ${accent}50`,
+    width:      10,
+    height:     10,
+    background: "rgba(6,6,15,0.94)",
+    border:     `1px solid ${accent}50`,
     ...(showBelow
       ? { borderBottom: "none", borderRight: "none" }
-      : { borderTop: "none", borderLeft: "none" }),
+      : { borderTop:    "none", borderLeft:  "none" }),
     rotate: "45deg",
+    pointerEvents: "none",
   };
 }
 
 interface Props {
-  objectives: Objective[];
-  completed: Set<string>;
+  objectives:       Objective[];
+  completed:        Set<string>;
   onObjectiveClick: (obj: Objective) => void;
 }
 
 export default function Arena1HotspotMap({ objectives, completed, onObjectiveClick }: Props) {
-  // activeId covers both hover (desktop) and tap (touch)
-  const [activeId, setActiveId] = useState<string | null>(null);
+  // hoveredId  — shows tooltip on mouse-over (cleared on mouse-out)
+  // pinnedId   — locked open by a click (only cleared by clicking outside or re-clicking)
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [pinnedId,  setPinnedId]  = useState<string | null>(null);
 
-  const toggle = (id: string) =>
-    setActiveId(prev => (prev === id ? null : id));
+  const dismiss = () => {
+    setPinnedId(null);
+    setHoveredId(null);
+  };
 
   return (
     <div
       className="absolute inset-0 w-full h-full"
-      // Dismiss tooltip when clicking the background
-      onClick={() => setActiveId(null)}
+      onClick={dismiss}
     >
       {objectives.map((obj) => {
         const pos = HOTSPOT_POSITIONS[obj.order];
@@ -123,99 +120,105 @@ export default function Arena1HotspotMap({ objectives, completed, onObjectiveCli
         const [left, top] = pos;
         const done    = completed.has(obj.id);
         const accent  = OUTPUT_COLORS[obj.outputType] ?? "#7C3AED";
-        const isOpen  = activeId === obj.id;
+        const isPinned = pinnedId === obj.id;
+        const isVisible = isPinned || hoveredId === obj.id;
 
         return (
           <div
             key={obj.id}
             style={{
               position: "absolute",
-              left: `${left}%`,
-              top: `${top}%`,
-              zIndex: isOpen ? 40 : 30,
+              left:     `${left}%`,
+              top:      `${top}%`,
+              zIndex:   isVisible ? 40 : 30,
             }}
-            // Stop background-click from closing the tooltip immediately after opening
             onClick={e => e.stopPropagation()}
           >
-            {/* Pulse ring — desktop only via pointer-coarse detection avoidance */}
-            {!done && !isOpen && (
-              <span
-                className="absolute -inset-3 rounded-full animate-ping pointer-events-none"
-                style={{
-                  background: `${accent}28`,
-                  animationDuration: "2.2s",
-                  animationDelay: `${obj.order * 0.12}s`,
-                }}
-              />
-            )}
-
-            {/* Hotspot dot */}
-            <motion.button
-              onMouseEnter={() => setActiveId(obj.id)}
-              onMouseLeave={() => !isOpen && setActiveId(null)}
-              onClick={() => toggle(obj.id)}
-              whileHover={{ scale: 1.3 }}
-              whileTap={{ scale: 0.88 }}
-              aria-label={obj.title}
-              className="relative flex items-center justify-center rounded-full font-mono font-bold cursor-pointer select-none
-                         text-[9px] sm:text-[10px]"
-              style={{
-                // Responsive size: 32px on mobile, 28px on desktop
-                width:  "clamp(28px, 3vw, 36px)",
-                height: "clamp(28px, 3vw, 36px)",
-                background: done ? `${accent}ee` : "rgba(6,6,15,0.85)",
-                border: `2px solid ${accent}`,
-                color:  done ? "#08080F" : accent,
-                boxShadow: `0 0 ${isOpen ? 20 : 8}px ${accent}${isOpen ? "cc" : "55"}`,
-                transition: "box-shadow 0.2s, background 0.2s",
+            {/* Invisible card-sized hit area */}
+            <button
+              onMouseEnter={() => setHoveredId(obj.id)}
+              onMouseLeave={() => {
+                // Only clear hover; pinned state keeps the popup open
+                setHoveredId(null);
               }}
-            >
-              {done ? "✓" : String(obj.order).padStart(2, "0")}
-            </motion.button>
+              onClick={() => {
+                // Toggle pin — clicking again unpins
+                setPinnedId(prev => prev === obj.id ? null : obj.id);
+                setHoveredId(null);
+              }}
+              aria-label={obj.title}
+              style={{
+                width:      "clamp(56px, 5.5vw, 90px)",
+                height:     "clamp(64px, 12vh, 110px)",
+                background: "transparent",
+                border:     "none",
+                cursor:     "pointer",
+                display:    "block",
+                padding:    0,
+              }}
+            />
 
-            {/* Tooltip */}
+            {/* Tooltip popup */}
             <AnimatePresence>
-              {isOpen && (
+              {isVisible && (
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.88, y: top < 28 ? -6 : 6 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.88, y: top < 28 ? -6 : 6 }}
-                  transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
+                  initial={{ opacity: 0, scale: 0.9, y: top < 35 ? -8 : 8 }}
+                  animate={{ opacity: 1, scale: 1,   y: 0 }}
+                  exit={{    opacity: 0, scale: 0.9, y: top < 35 ? -8 : 8 }}
+                  transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
                   style={getTooltipStyle(left, top)}
+                  // Keep popup visible while the mouse is over it
+                  onMouseEnter={() => setHoveredId(obj.id)}
+                  onMouseLeave={() => setHoveredId(null)}
+                  onClick={e => e.stopPropagation()}
                 >
                   <div
-                    className="rounded-xl p-3"
+                    className="rounded-2xl p-3.5"
                     style={{
-                      background: "rgba(6,6,15,0.94)",
-                      border: `1px solid ${accent}50`,
-                      backdropFilter: "blur(18px)",
-                      boxShadow: `0 4px 28px rgba(0,0,0,0.65), 0 0 18px ${accent}28`,
+                      background:     "rgba(6,6,15,0.95)",
+                      border:         `1px solid ${accent}55`,
+                      backdropFilter: "blur(20px)",
+                      boxShadow:      `0 6px 32px rgba(0,0,0,0.7), 0 0 20px ${accent}22`,
                     }}
                   >
-                    {/* Output type + done badge */}
-                    <div className="flex items-center gap-2 mb-1.5">
+                    {/* Pin hint — only show when not yet pinned */}
+                    {!isPinned && (
+                      <p className="text-[8px] font-mono text-white/25 mb-1.5">
+                        Click card to pin open
+                      </p>
+                    )}
+
+                    {/* Output type badge + done */}
+                    <div className="flex items-center gap-2 mb-2">
                       <span
                         className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full"
                         style={{
                           background: `${accent}18`,
-                          color: accent,
-                          border: `1px solid ${accent}40`,
+                          color:      accent,
+                          border:     `1px solid ${accent}40`,
                         }}
                       >
                         {obj.outputType.toUpperCase()}
                       </span>
                       {done && (
-                        <span className="text-[9px] font-mono text-[#00FF94] font-bold">✓ DONE</span>
+                        <span className="text-[9px] font-mono font-bold text-[#00FF94]">
+                          ✓ DONE
+                        </span>
+                      )}
+                      {isPinned && (
+                        <span className="text-[8px] font-mono text-white/30 ml-auto">
+                          📌 pinned
+                        </span>
                       )}
                     </div>
 
                     {/* Title */}
-                    <p className="font-display font-black text-white text-xs leading-tight mb-1">
+                    <p className="font-display font-black text-white text-xs leading-tight mb-1.5">
                       {obj.emoji} {obj.title}
                     </p>
 
                     {/* Description */}
-                    <p className="text-[10px] text-white/50 leading-snug mb-2.5">
+                    <p className="text-[10px] text-white/50 leading-snug mb-3">
                       {obj.description}
                     </p>
 
@@ -231,14 +234,17 @@ export default function Arena1HotspotMap({ objectives, completed, onObjectiveCli
                       <button
                         onClick={() => onObjectiveClick(obj)}
                         className="text-[10px] font-display font-extrabold px-2.5 py-1 rounded-full transition-opacity hover:opacity-80 active:scale-95"
-                        style={{ background: accent, color: "#08080F", pointerEvents: "auto" }}
+                        style={{
+                          background: accent,
+                          color:      "#08080F",
+                        }}
                       >
                         {done ? "Redo ↺" : "Enter →"}
                       </button>
                     </div>
                   </div>
 
-                  {/* Arrow pointer */}
+                  {/* Arrow */}
                   <div style={getArrowStyle(left, top, accent)} />
                 </motion.div>
               )}

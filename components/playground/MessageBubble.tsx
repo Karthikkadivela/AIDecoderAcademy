@@ -66,23 +66,23 @@ function LoadingBubble({ outputType, arenaId }: { outputType?: string; arenaId?:
   const dots = ".".repeat((tick % 3) + 1).padEnd(3, "\u00a0");
 
   return (
-    <div className={cn("w-72 rounded-2xl border p-4 space-y-3 backdrop-blur-xl", colors.ring, colors.bg)}>
-      <div className="flex items-center gap-2.5">
-        <span className="text-2xl animate-bounce" style={{ animationDuration: "1.2s" }}>{meta.icon}</span>
+    <div className={cn("w-56 rounded-xl border p-3 space-y-2 backdrop-blur-xl", colors.ring, colors.bg)}>
+      <div className="flex items-center gap-2">
+        <span className="text-lg animate-bounce" style={{ animationDuration: "1.2s" }}>{meta.icon}</span>
         <div>
-          <p className={cn("text-sm font-display font-extrabold leading-tight tracking-tight", colors.text)}>
+          <p className={cn("text-xs font-display font-extrabold leading-tight tracking-tight", colors.text)}>
             {meta.label}{dots}
           </p>
-          <p className="text-xs text-white/35 mt-0.5">This takes 20–30 seconds</p>
+          <p className="text-[10px] text-white/35 mt-0.5">20–30 seconds</p>
         </div>
       </div>
-      <div className="h-1.5 w-full bg-[#1E1E30] rounded-full overflow-hidden border border-white/10">
+      <div className="h-1 w-full bg-[#1E1E30] rounded-full overflow-hidden border border-white/10">
         <div className={cn("h-full rounded-full transition-all", colors.bar)}
           style={{ width: `${barWidth}%`, transitionDuration: "600ms", transitionTimingFunction: "ease-out" }}/>
       </div>
-      <div className="space-y-1.5">
+      <div className="space-y-1">
         {[null, "w-4/5", "w-2/3"].map((w, i) => (
-          <div key={i} className={cn("h-2.5 rounded-full bg-white/[0.06] overflow-hidden", w)}>
+          <div key={i} className={cn("h-2 rounded-full bg-white/[0.06] overflow-hidden", w)}>
             <div className="h-full w-full animate-shimmer" style={{ animationDelay: `${i * 0.2}s` }}/>
           </div>
         ))}
@@ -144,10 +144,12 @@ function ActionFooter({ onSave, content, outputType, accent, accentGlow }: {
   const canDownload = outputType === "text" || outputType === "json" || outputType === "image";
 
   // Shared ghost button style
+  // Active (copied/saved) → mint green confirmation
+  // Inactive → steel-blue: readable on dark purple bubbles, won't compete with the accent Save button
   const ghostBtn = (active: boolean) => ({
-    background:   active ? "rgba(0,255,148,0.12)" : "rgba(255,255,255,0.06)",
-    borderColor:  active ? "rgba(0,255,148,0.35)" : "rgba(255,255,255,0.12)",
-    color:        active ? "#7BFFC4" : "rgba(255,255,255,0.45)",
+    background:  active ? "rgba(0,255,148,0.15)"  : "rgba(148,168,200,0.10)",
+    borderColor: active ? "rgba(0,255,148,0.45)"  : "rgba(148,168,200,0.35)",
+    color:       active ? "#7BFFC4"               : "#94A8C8",
   });
 
   return (
@@ -157,7 +159,7 @@ function ActionFooter({ onSave, content, outputType, accent, accentGlow }: {
         <button
           onClick={handleCopy}
           title="Copy to clipboard"
-          className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-display font-semibold border transition-all duration-200 active:scale-95 hover:border-white/25 hover:text-white/70"
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-display font-semibold border transition-all duration-200 active:scale-95 hover:border-[#94A8C8]/70 hover:text-[#C8DBF0]"
           style={ghostBtn(copied)}
         >
           {copied ? (
@@ -179,14 +181,14 @@ function ActionFooter({ onSave, content, outputType, accent, accentGlow }: {
         <button
           onClick={handleDownload}
           title={outputType === "image" ? "Download image" : `Download .${outputType}`}
-          className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-display font-semibold border transition-all duration-200 active:scale-95 hover:border-white/25 hover:text-white/70"
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-display font-semibold border transition-all duration-200 active:scale-95 hover:border-[#94A8C8]/70 hover:text-[#C8DBF0]"
           style={ghostBtn(false)}
         >
           <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
             <path d="M6 1v7M3.5 5.5L6 8l2.5-2.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
             <path d="M1 9.5v1A1.5 1.5 0 002.5 12h7a1.5 1.5 0 001.5-1.5v-1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
           </svg>
-          {outputType === "image" ? "Download" : `Download .${outputType}`}
+          {outputType === "image" ? "Download" : "Download"}
         </button>
       )}
 
@@ -268,11 +270,11 @@ export function MessageBubble({
   const userTextColor  = darkTextArenas.has(arenaId) ? "#08080F" : "#ffffff";
 
   return (
-    <div className={cn("flex gap-2 sm:gap-3 message-in items-end w-full", isUser ? "flex-row-reverse" : "justify-start")}>
+    <div className={cn("flex gap-1.5 sm:gap-2 message-in items-end w-full", isUser ? "flex-row-reverse" : "justify-start")}>
 
       {/* Avatar */}
       <div
-        className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl sm:rounded-2xl flex items-center justify-center text-base sm:text-lg flex-shrink-0 mt-1 border backdrop-blur-md"
+        className="w-5 h-5 sm:w-6 sm:h-6 rounded-lg flex items-center justify-center text-xs flex-shrink-0 mt-1 border backdrop-blur-md"
         style={isUser ? {
           background:  `${arenaAccent}28`,
           borderColor: `${arenaAccent}55`,
@@ -287,15 +289,15 @@ export function MessageBubble({
       {/* Content column */}
       <div className={cn(
         "flex flex-col",
-        isUser ? "max-w-[55%] sm:max-w-[50%]" : "max-w-[72%] sm:max-w-[60%]"
+        isUser ? "max-w-[50%] sm:max-w-[45%]" : "max-w-[68%] sm:max-w-[58%]"
       )}>
 
         {/* Bubble */}
         <div className={cn(
           !audioData && !slideData && !isImage && !isLoading && (
             isUser
-              ? "px-4 py-3 sm:px-5 sm:py-3.5 rounded-[20px] rounded-br-[4px] text-sm leading-relaxed"
-              : "px-4 py-3 sm:px-5 sm:py-3.5 rounded-[20px] rounded-bl-[4px] text-white text-sm leading-relaxed backdrop-blur-xl"
+              ? "px-3 py-2 sm:px-4 sm:py-2.5 rounded-[16px] rounded-br-[4px] text-xs leading-relaxed"
+              : "px-3 py-2 sm:px-4 sm:py-2.5 rounded-[16px] rounded-bl-[4px] text-white text-xs leading-relaxed backdrop-blur-xl"
           )
         )}
           style={!audioData && !slideData && !isImage && !isLoading ? (isUser ? {
@@ -330,7 +332,7 @@ export function MessageBubble({
             <div className="rounded-2xl overflow-hidden border border-white/[0.09]"
               style={{ boxShadow: `0 0 32px ${arenaAccentGlow}` }}>
               <img src={message.content.trim()} alt="Generated image"
-                className="w-full max-w-sm object-cover rounded-2xl"/>
+                className="w-full max-w-[220px] object-cover rounded-xl"/>
             </div>
           )}
 

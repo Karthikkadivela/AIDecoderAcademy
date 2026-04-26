@@ -8,6 +8,7 @@ import { getArena } from "@/lib/arenas";
 import { getArenaObjectives, getCompletedObjectives, type Objective } from "@/lib/objectives";
 import type { Profile } from "@/types";
 import Arena1HotspotMap from "@/components/worlds/Arena1HotspotMap";
+import Arena1CenterOverlay from "@/components/worlds/Arena1CenterOverlay";
 
 const OUTPUT_LABELS: Record<string, { label: string; color: string }> = {
   text:   { label: "Text",   color: "#C4B5FD" },
@@ -106,6 +107,16 @@ export default function WorldPage() {
                 objectives={objectives}
                 completed={completed}
                 onObjectiveClick={handleStartObjective}
+              />
+            )}
+
+            {/* Center summary + engagement overlay */}
+            {unlocked && (
+              <Arena1CenterOverlay
+                objectives={objectives}
+                completed={completed}
+                profile={profile}
+                onStartNext={handleStartObjective}
               />
             )}
           </div>

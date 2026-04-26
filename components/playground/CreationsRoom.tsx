@@ -32,25 +32,30 @@ const SHELF_HOTSPOTS: {
 ];
 
 // ── Center shelf rows — empty shelves in the right column of the bookcase ────
-// Creations from the selected hotspot type are displayed here (2 per row)
+// Creations from the selected hotspot type are displayed here (2 per row × 6 rows = 12 slots)
 const CENTER_SHELF_ROWS: { top: string; height: string }[] = [
-  { top: "8%",  height: "17%" },
-  { top: "29%", height: "16%" },
-  { top: "49%", height: "16%" },
+  { top: "8%",  height: "13%" },
+  { top: "20%", height: "13%" },
+  { top: "32%", height: "13%" },
+  { top: "44%", height: "13%" },
+  { top: "56%", height: "13%" },
+  { top: "68%", height: "13%" },
 ];
 
 // ── Floor objects (left → right across the floor) ────────────────────────────
+// Note: spilled_paint is decorative only (rendered alongside brush_stand, not here)
+// `vw` — viewport-relative width for the floor button (no px caps, fully responsive)
 const FLOOR_OBJECTS: {
   key: string; id: OutputType; label: string; src: string;
   blend: "screen" | "normal"; glowColor: string; glowRgb: string;
+  vw: string; // responsive width, e.g. "9vw"
 }[] = [
-  { key:"spill",  id:"image",  label:"Image",  src:"/shelf/spilled_paint.png", blend:"normal", glowColor:"#ff4488", glowRgb:"255,68,136"  },
-  { key:"phones", id:"audio",  label:"Audio",  src:"/arena1/headphones.png",   blend:"screen", glowColor:"#00aaff", glowRgb:"0,170,255"   },
-  { key:"slide",  id:"slides", label:"Slides", src:"/arena1/slide.png",         blend:"screen", glowColor:"#ffb400", glowRgb:"255,180,0"   },
-  { key:"book",   id:"text",   label:"Text",   src:"/arena1/book.png",          blend:"normal", glowColor:"#c8a0ff", glowRgb:"200,160,255" },
-  { key:"camera", id:"image",  label:"Image",  src:"/arena1/camera.png",        blend:"screen", glowColor:"#ff4488", glowRgb:"255,68,136"  },
-  { key:"clap",   id:"video",  label:"Video",  src:"/arena1/clapperboard.png",  blend:"screen", glowColor:"#ff7800", glowRgb:"255,120,0"   },
-  { key:"js",     id:"json",   label:"JSON",   src:"/arena1/jscube.png",        blend:"screen", glowColor:"#00ff64", glowRgb:"0,255,100"   },
+  { key:"phones", id:"audio",  label:"Audio",  src:"/arena1/headphones.png",   blend:"screen", glowColor:"#00aaff", glowRgb:"0,170,255",   vw:"10vw"  },
+  { key:"slide",  id:"slides", label:"Slides", src:"/arena1/slide.png",         blend:"normal", glowColor:"#ffb400", glowRgb:"255,180,0",   vw:"15vw" },
+  { key:"book",   id:"text",   label:"Text",   src:"/arena1/book.png",          blend:"normal", glowColor:"#c8a0ff", glowRgb:"200,160,255", vw:"8vw" },
+  { key:"camera", id:"image",  label:"Image",  src:"/arena1/camera.png",        blend:"screen", glowColor:"#ff4488", glowRgb:"255,68,136",  vw:"8vw" },
+  { key:"clap",   id:"video",  label:"Video",  src:"/arena1/clapperboard.png",  blend:"screen", glowColor:"#ff7800", glowRgb:"255,120,0",   vw:"10vw" },
+  { key:"js",     id:"json",   label:"JSON",   src:"/arena1/jscube.png",        blend:"screen", glowColor:"#00ff64", glowRgb:"0,255,100",   vw:"10vw" },
 ];
 
 // Simple list used for the output-type dot row and mobile pill selectors
@@ -117,7 +122,8 @@ export function CreationsRoom({
   const [injected,         setInjected]         = useState<Creation | null>(null);
   const [plusOpen,         setPlusOpen]         = useState(false);
 
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRefDesktop = useRef<HTMLDivElement>(null);   // desktop message list
+  const scrollRefMobile  = useRef<HTMLDivElement>(null);   // mobile message list
   const taRef     = useRef<HTMLTextAreaElement>(null);
   const fileRef   = useRef<HTMLInputElement>(null);
 
@@ -139,9 +145,18 @@ export function CreationsRoom({
     }
   }, [messages.length]);
 
+  // Scroll both message containers (desktop + mobile) to the bottom after every update.
+  // renderMessageList() is called twice in the JSX, so we need two separate refs.
+  // requestAnimationFrame ensures the DOM has painted before we measure scrollHeight.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
-  }, [messages]);
+    requestAnimationFrame(() => {
+      [scrollRefDesktop, scrollRefMobile].forEach(ref => {
+        if (ref.current) {
+          ref.current.scrollTop = ref.current.scrollHeight;
+        }
+      });
+    });
+  }, [messages, isStreaming]);
 
   const send = () => {
     const t = input.trim();
@@ -192,8 +207,8 @@ export function CreationsRoom({
   };
 
   // ── Message list ─────────────────────────────────────────────────────────
-  const renderMessageList = () => (
-    <div className="select-text" style={{
+  const renderMessageList = (ref: React.RefObject<HTMLDivElement | null>) => (
+    <div ref={ref} className="select-text" style={{
       flex: 1, overflowY: "auto", padding: "12px 14px 8px",
       display: "flex", flexDirection: "column", gap: 8,
       scrollbarWidth: "none", minHeight: 0,
@@ -221,7 +236,6 @@ export function CreationsRoom({
           ))}
         </div>
       )}
-      <div ref={bottomRef}/>
     </div>
   );
 
@@ -351,7 +365,7 @@ export function CreationsRoom({
 
       {/* Background room */}
       <img src="/arena1/empty_room.png" alt="" aria-hidden draggable={false}
-        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center", pointerEvents: "none" }}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "fill", pointerEvents: "none" }}
       />
 
       {/* ── Left shelf hotspot zones (desktop only) ──────────────────────── */}
@@ -385,7 +399,7 @@ export function CreationsRoom({
         return (
           <div
             className="hidden lg:block"
-            style={{ position: "absolute", left: "22%", top: 0, width: "16%", height: "70%", zIndex: 13 }}
+            style={{ position: "absolute", left: "22%", top: 0, width: "16%", height: "92%", zIndex: 13 }}
           >
             {CENTER_SHELF_ROWS.map((row, rowIdx) => {
               const pair = filtered.slice(rowIdx * 2, rowIdx * 2 + 2);
@@ -460,30 +474,45 @@ export function CreationsRoom({
         );
       })()}
 
-      {/* ── Floor objects (desktop only) ────────────────────────────────── */}
+      {/* ── Brush stand — absolutely pinned to visible floor gap (left of whiteboard) ── */}
+      <div className="hidden lg:block" style={{
+        position: "absolute", bottom: "5%", left: "20%",
+        width: "25vw", zIndex: 10, pointerEvents: "none",
+      }}>
+        <img src="/shelf/brush_stand.png" alt="" aria-hidden draggable={false}
+          style={{ width: "100%", height: "auto", objectFit: "contain", display: "block", filter: "brightness(0.85)" }}
+        />
+      </div>
+
+      {/* ── Spilled paint — absolutely pinned next to brush stand ── */}
+      <div className="hidden lg:block" style={{
+        position: "absolute", bottom: "7%", left: "15%",
+        width: "30vw", zIndex: 10, pointerEvents: "none",
+      }}>
+        <img src="/shelf/spilled_paint.png" alt="" aria-hidden draggable={false}
+          style={{ width: "100%", height: "auto", objectFit: "contain", display: "block", filter: "brightness(0.85)" }}
+        />
+      </div>
+
+      {/* ── Interactive floor objects — flex row below the whiteboard ── */}
       <div className="hidden lg:flex"
         style={{
-          position: "absolute", bottom: "7%", left: "2%", right: "2%",
+          position: "absolute", bottom: "7%", left: "35%", right: "2%",
           height: "30%", alignItems: "flex-end", justifyContent: "space-evenly",
           zIndex: 10, paddingBottom: "0.5%",
         }}
       >
-        {/* Brush stand — decorative only */}
-        <div style={{ flex: "0 0 auto", width: "40%", maxWidth: 90 }}>
-          <img src="/shelf/brush_stand.png" alt="" aria-hidden draggable={false}
-            style={{ width: "100%", height: "auto", objectFit: "contain", display: "block", filter: "brightness(0.85)", pointerEvents: "none" }}
-          />
-        </div>
-
         {FLOOR_OBJECTS.map(obj => {
           const isActive = selected === obj.id;
+          // Slides monitor sits slightly high due to image padding — nudge it down
+          const baseTransform = obj.key === "slide" ? "translateY(30%)" : "scale(1)";
           return (
             <button key={obj.key} onClick={() => setSelected(obj.id)} title={obj.label}
               style={{
-                flex: "0 0 auto", width: "40%", maxWidth: 180,
+                flex: "0 0 auto", width: obj.vw,
                 background: "none", border: "none", padding: 0, cursor: "pointer",
                 transition: "transform 0.25s ease",
-                transform: isActive ? "scale(1.14) translateY(-5%)" : "scale(1)",
+                transform: isActive ? `scale(1.14) translateY(-5%)` : baseTransform,
               }}>
               <img src={obj.src} alt={obj.label} draggable={false}
                 style={{
@@ -504,12 +533,12 @@ export function CreationsRoom({
       <div className="hidden lg:flex flex-col"
         style={{
           position: "absolute",
-          left: "42%", top: "4%", right: "2%", bottom: "26%",
+          left: "42%", top: "10%", right: "2%", bottom: "24%",
           zIndex: 20,
           background: "transparent",
         }}
       >
-        {renderMessageList()}
+        {renderMessageList(scrollRefDesktop)}
         <div style={{ padding: "8px 12px 12px", flexShrink: 0 }}>
           {/* Output-type dot row */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, marginBottom: 6 }}>
@@ -546,7 +575,7 @@ export function CreationsRoom({
             </button>
           ))}
         </div>
-        {renderMessageList()}
+        {renderMessageList(scrollRefMobile)}
         {renderInputRow(true)}
       </div>
 

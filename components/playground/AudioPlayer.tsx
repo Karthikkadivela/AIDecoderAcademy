@@ -102,57 +102,57 @@ export function AudioPlayer({ data, onSave }: { data: AudioData; onSave?: () => 
   const elapsed = audioRef.current ? audioRef.current.currentTime : 0;
 
   return (
-    <div className="w-full rounded-2xl overflow-hidden border border-[#FF2D78]/25 bg-[#0F0F1A]/90 shadow-[0_0_32px_rgba(255,45,120,0.12)] backdrop-blur-xl">
+    <div className="w-full rounded-xl overflow-hidden border border-[#FF2D78]/25 bg-[#0F0F1A]/90 shadow-[0_0_20px_rgba(255,45,120,0.1)] backdrop-blur-xl">
       {/* Player header */}
-      <div className="bg-gradient-to-r from-[#1a1020] to-[#0F0F1A] px-5 py-4 flex items-center gap-4">
+      <div className="bg-gradient-to-r from-[#1a1020] to-[#0F0F1A] px-3 py-2.5 flex items-center gap-3">
         <button
           onClick={togglePlay}
-          className="w-11 h-11 rounded-full bg-[#FF2D78] text-[#08080F] flex items-center justify-center flex-shrink-0 transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] shadow-[0_0_24px_rgba(255,45,120,0.45)] hover:scale-[1.04] active:scale-95"
+          className="w-7 h-7 rounded-full bg-[#FF2D78] text-[#08080F] flex items-center justify-center flex-shrink-0 transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] shadow-[0_0_14px_rgba(255,45,120,0.45)] hover:scale-[1.04] active:scale-95"
         >
           {playing
-            ? <Pause size={18} className="text-[#08080F]" fill="currentColor"/>
-            : <Play  size={18} className="text-[#08080F] ml-0.5" fill="currentColor"/>
+            ? <Pause size={12} className="text-[#08080F]" fill="currentColor"/>
+            : <Play  size={12} className="text-[#08080F] ml-0.5" fill="currentColor"/>
           }
         </button>
 
-        <div className="flex-1 flex flex-col gap-1.5">
+        <div className="flex-1 flex flex-col gap-1">
           <div
-            className="h-2 bg-white/10 rounded-full cursor-pointer overflow-hidden"
+            className="h-1.5 bg-white/10 rounded-full cursor-pointer overflow-hidden"
             onClick={seek}
           >
             <div
-              className="h-full bg-[#FF2D78] rounded-full transition-all shadow-[0_0_12px_rgba(255,45,120,0.5)]"
+              className="h-full bg-[#FF2D78] rounded-full transition-all shadow-[0_0_8px_rgba(255,45,120,0.5)]"
               style={{ width: `${progress}%` }}
             />
           </div>
-          <div className="flex justify-between text-[10px] text-white/40 font-mono">
+          <div className="flex justify-between text-[9px] text-white/40 font-mono">
             <span>{fmt(elapsed)}</span>
             <span>{fmt(duration)}</span>
           </div>
         </div>
 
-        <Volume2 size={16} className="text-[#FF2D78]/60 flex-shrink-0"/>
+        <Volume2 size={12} className="text-[#FF2D78]/60 flex-shrink-0"/>
       </div>
 
       {/* Waveform decoration */}
-      <div className="bg-[#0a0a12] px-5 pb-3 flex items-end gap-0.5 h-8">
-        {Array.from({ length: 40 }).map((_, i) => (
+      <div className="bg-[#0a0a12] px-3 pb-1.5 flex items-end gap-0.5 h-5">
+        {Array.from({ length: 28 }).map((_, i) => (
           <div
             key={i}
             className="flex-1 rounded-full transition-all"
             style={{
               height: `${Math.max(15, Math.sin(i * 0.8) * 50 + 50) * (playing ? (Math.random() * 0.4 + 0.6) : 1)}%`,
-              background: progress > (i / 40) * 100 ? "#FF2D78" : "rgba(255,255,255,0.08)",
+              background: progress > (i / 28) * 100 ? "#FF2D78" : "rgba(255,255,255,0.08)",
             }}
           />
         ))}
       </div>
 
       {/* Footer: info + actions */}
-      <div className="px-4 py-3 border-t border-white/[0.08] flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-1.5 text-xs text-white/50">
-          <span className="text-base">🎭</span>
-          <span className="font-semibold text-white/75">Multi-character scene</span>
+      <div className="px-3 py-2 border-t border-white/[0.08] flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-1 text-[10px] text-white/50">
+          <span className="text-sm">🎭</span>
+          <span className="font-semibold text-white/75">Scene</span>
           <span className="text-white/20">·</span>
           <span>{data.script.dialogues.length} dialogues</span>
         </div>
@@ -203,14 +203,14 @@ export function AudioPlayer({ data, onSave }: { data: AudioData; onSave?: () => 
 
       {/* Transcript */}
       {showScript && (
-        <div className="px-5 pb-5 space-y-3 border-t border-white/[0.08] pt-3 max-h-72 overflow-y-auto">
+        <div className="px-3 pb-3 space-y-1.5 border-t border-white/[0.08] pt-2 max-h-40 overflow-y-auto">
           {/* Narrator */}
           {data.script.narrator_text && (
-            <div className={`flex gap-2.5 p-3 rounded-xl border ${CHARACTER_COLORS.narrator}`}>
-              <span className="text-lg flex-shrink-0">{CHARACTER_EMOJI.narrator}</span>
+            <div className={`flex gap-2 p-2 rounded-lg border ${CHARACTER_COLORS.narrator}`}>
+              <span className="text-sm flex-shrink-0">{CHARACTER_EMOJI.narrator}</span>
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-wide mb-1 opacity-60">Narrator</p>
-                <p className="text-xs leading-relaxed">{data.script.narrator_text}</p>
+                <p className="text-[9px] font-bold uppercase tracking-wide mb-0.5 opacity-60">Narrator</p>
+                <p className="text-[10px] leading-relaxed">{data.script.narrator_text}</p>
               </div>
             </div>
           )}
@@ -220,14 +220,14 @@ export function AudioPlayer({ data, onSave }: { data: AudioData; onSave?: () => 
             const color = CHARACTER_COLORS[d.character] ?? "border-[#FF2D78]/30 bg-[#FF2D78]/10 text-[#FF8FB8] backdrop-blur-sm";
             const emoji = CHARACTER_EMOJI[d.character] ?? "🧒";
             return (
-              <div key={i} className={`flex gap-2.5 p-3 rounded-xl border ${color}`}>
-                <span className="text-lg flex-shrink-0">{emoji}</span>
+              <div key={i} className={`flex gap-2 p-2 rounded-lg border ${color}`}>
+                <span className="text-sm flex-shrink-0">{emoji}</span>
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wide mb-1 opacity-60">
+                  <p className="text-[9px] font-bold uppercase tracking-wide mb-0.5 opacity-60">
                     {d.character.replace(/_/g, " ")}
                     {d.emotion && <span className="ml-2 normal-case opacity-50">({d.emotion})</span>}
                   </p>
-                  <p className="text-xs leading-relaxed">{d.text}</p>
+                  <p className="text-[10px] leading-relaxed">{d.text}</p>
                 </div>
               </div>
             );
