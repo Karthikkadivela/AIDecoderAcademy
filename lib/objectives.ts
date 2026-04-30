@@ -334,6 +334,18 @@ export const OBJECTIVES: Objective[] = [
   },
 ];
 
+// ── LMS rubric ID derivation ──────────────────────────────────────────────
+// The objectives in this file use playful arena-prefixed IDs (a1-3, a2-15).
+// The validator rubric file (lib/objectiveRubrics.ts) is keyed by the
+// LMS curriculum's canonical IDs (l1-03, l2-15). This helper converts
+// between them deterministically — no migration of localStorage or URLs
+// is required.
+export function toLmsId(id: string): string {
+  const m = id.match(/^a(\d+)-(\d+)$/);
+  if (!m) return id;
+  return `l${m[1]}-${m[2].padStart(2, "0")}`;
+}
+
 export function getArenaObjectives(arenaId: number): Objective[] {
   return OBJECTIVES
     .filter(o => o.arenaId === arenaId)

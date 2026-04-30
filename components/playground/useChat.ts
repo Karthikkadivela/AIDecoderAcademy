@@ -1,6 +1,7 @@
 "use client";
 import { useState, useCallback, useRef } from "react";
 import type { Profile, PlaygroundMode, OutputType } from "@/types";
+import { serializeHistory } from "@/lib/serializeHistory";
 
 export interface Attachment {
   name: string; mimeType: string; data: string; size: number;
@@ -160,6 +161,7 @@ export function useChat(profile: Profile | null, mode: PlaygroundMode) {
               display_name: profile.display_name,
               age_group:    profile.age_group,
               interests:    profile.interests,
+              active_arena: profile.active_arena,
             },
             history:     historySnapshot,
             attachments: attachments.map(a => ({ data: a.data, mimeType: a.mimeType, name: a.name })),
@@ -207,6 +209,7 @@ export function useChat(profile: Profile | null, mode: PlaygroundMode) {
   const sendImage = useCallback(async (prompt: string, displayPrompt?: string, bubbleMeta?: string[]) => {
     if (!profile || isStreaming) return;
     const cleanUserText = displayPrompt ?? prompt;
+    const conversationHistory = serializeHistory(messages, 6);
 
     setMessages(prev => [...prev, {
       id: crypto.randomUUID(), role: "user", content: cleanUserText,
@@ -229,7 +232,7 @@ export function useChat(profile: Profile | null, mode: PlaygroundMode) {
     try {
       const res  = await fetch("/api/generate-image", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ prompt, conversationHistory }),
       });
       const data = await res.json();
 
@@ -260,13 +263,14 @@ export function useChat(profile: Profile | null, mode: PlaygroundMode) {
     } finally {
       setIsStreaming(false);
     }
-  }, [profile, isStreaming, sessionId, mode, createSession]);
+  }, [profile, isStreaming, sessionId, mode, createSession, messages]);
 
   // ─── Audio generation ─────────────────────────────────────────────────────
 
   const sendAudio = useCallback(async (prompt: string, ageGroup: string, displayPrompt?: string, bubbleMeta?: string[]) => {
     if (!profile || isStreaming) return;
     const cleanUserText = displayPrompt ?? prompt;
+    const conversationHistory = serializeHistory(messages, 6);
 
     setMessages(prev => [...prev, {
       id: crypto.randomUUID(), role: "user", content: cleanUserText,
@@ -289,7 +293,7 @@ export function useChat(profile: Profile | null, mode: PlaygroundMode) {
     try {
       const res  = await fetch("/api/generate-audio", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, ageGroup }),
+        body: JSON.stringify({ prompt, ageGroup, conversationHistory }),
       });
       const data = await res.json();
 
@@ -321,13 +325,14 @@ export function useChat(profile: Profile | null, mode: PlaygroundMode) {
     } finally {
       setIsStreaming(false);
     }
-  }, [profile, isStreaming, sessionId, mode, createSession]);
+  }, [profile, isStreaming, sessionId, mode, createSession, messages]);
 
   // ─── Slides generation ────────────────────────────────────────────────────
 
   const sendSlides = useCallback(async (prompt: string, ageGroup: string, displayPrompt?: string, bubbleMeta?: string[]) => {
     if (!profile || isStreaming) return;
     const cleanUserText = displayPrompt ?? prompt;
+    const conversationHistory = serializeHistory(messages, 6);
 
     setMessages(prev => [...prev, {
       id: crypto.randomUUID(), role: "user", content: cleanUserText,
@@ -350,7 +355,7 @@ export function useChat(profile: Profile | null, mode: PlaygroundMode) {
     try {
       const res  = await fetch("/api/generate-ppt", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, ageGroup }),
+        body: JSON.stringify({ prompt, ageGroup, conversationHistory }),
       });
       const data = await res.json();
 
@@ -382,7 +387,7 @@ export function useChat(profile: Profile | null, mode: PlaygroundMode) {
     } finally {
       setIsStreaming(false);
     }
-  }, [profile, isStreaming, sessionId, mode, createSession]);
+  }, [profile, isStreaming, sessionId, mode, createSession, messages]);
 
   // ─── Static message ───────────────────────────────────────────────────────
 

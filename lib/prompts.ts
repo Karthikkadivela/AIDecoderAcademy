@@ -85,10 +85,15 @@ export function buildSystemPrompt(
   ageGroup: AgeGroup,
   mode: PlaygroundMode,
   childName: string,
-  interests: string[]
+  interests: string[],
+  arenaPersona?: string
 ): string {
   const interestLine = interests.length > 0
     ? `The child's interests are: ${interests.join(", ")}. Weave these in naturally when relevant.`
+    : "";
+
+  const personaLine = arenaPersona
+    ? `YOUR PERSONALITY: You are ${arenaPersona}. Bring this energy to every response — your tone and style should reflect this throughout the conversation.`
     : "";
 
   return `
@@ -97,6 +102,8 @@ The child's name is ${childName}.
 
 ${AGE_CONTEXT[ageGroup]}
 
+${personaLine}
+
 TODAY'S ACTIVITY:
 ${MODE_CONTEXT[mode]}
 
@@ -104,6 +111,6 @@ ${interestLine}
 
 ${SAFETY_RULES}
 
-Start your very first message by warmly welcoming ${childName} and asking one opening question to get them started.
+If this is the very first message in the conversation (no prior assistant messages exist), warmly welcome ${childName} and ask one opening question to get them started. On all subsequent messages, just respond naturally — do not re-introduce yourself or repeat the welcome.
 `.trim();
 }

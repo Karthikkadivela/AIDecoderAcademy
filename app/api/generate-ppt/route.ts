@@ -33,6 +33,7 @@ async function generateSlideStructure(
   ageGroup: string,
   isModification: boolean,
   existingSummary?: string,
+  conversationHistory?: string,
 ): Promise<PPTInput> {
 
   const baseRules = `STRUCTURE RULES:
@@ -47,6 +48,10 @@ IMAGE PROMPT RULES:
 - Characters: energetic teens in a bright colourful world
 - BAD: "students in a classroom"
 - GOOD: "A teenage girl holds a glowing leaf to sunlight in a lush garden, tiny arrows showing water rising through roots, Ghibli style"`;
+
+  const historySection = !isModification && conversationHistory?.trim()
+    ? `\n\nCONVERSATION HISTORY (what was created before this request — use it to understand what the student is referring to):\n${conversationHistory}`
+    : "";
 
   const systemPrompt = isModification
     ? `You are an educational content creator for students aged ${ageGroup}.
@@ -78,7 +83,7 @@ Generate a PowerPoint presentation. Return ONLY valid JSON:
   }]
 }
 
-${baseRules}`;
+${baseRules}${historySection}`;
 
   const res = await openai.chat.completions.create({
     model: "gpt-4o-mini",
@@ -116,7 +121,7 @@ export async function POST(req: Request) {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { prompt, ageGroup = "11-13" } = await req.json();
+    const { prompt, ageGroup = "11-13", conversationHistory } = await req.json();
     if (!prompt?.trim()) return NextResponse.json({ error: "Prompt required" }, { status: 400 });
 
     const { existingSlides, cleanPrompt } = extractExistingSlides(prompt);
@@ -132,7 +137,7 @@ export async function POST(req: Request) {
 
     console.log(`[generate-ppt] mode=${isModification ? "modify" : "fresh"}`);
 
-    const structure = await generateSlideStructure(cleanPrompt, ageGroup, isModification, existingSummary);
+    const structure = await generateSlideStructure(cleanPrompt, ageGroup, isModification, existingSummary, conversationHistory);
     console.log(`[generate-ppt] ${structure.sections.length} sections`);
 
     const enriched  = await generateSceneImages(structure);

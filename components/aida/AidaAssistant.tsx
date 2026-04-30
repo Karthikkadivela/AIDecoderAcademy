@@ -1,0 +1,1198 @@
+"use client";
+
+import { useState, useRef, useEffect } from "react";
+import { usePathname } from "next/navigation";
+import { X, Send, Mic, Square, MessageSquare, Radio, PhoneOff } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import { usePlaygroundSession } from "@/lib/playgroundSessionContext";
+import { useLiveVoice } from "@/components/aida/voice/useLiveVoice";
+import type { LiveState } from "@/components/aida/voice/LiveVoiceSession";
+import type { Profile } from "@/types";
+
+// Serialize live playground messages so AIDA can reason about them.
+function serializePlaygroundSession(msgs: PlaygroundMessage[]): { text: string; imageUrls: string[] } {
+  const lines: string[] = [];
+  const imageUrls: string[] = [];
+
+  for (const m of msgs) {
+    if (m.isLoading || !m.content) continue;
+    const type = m.outputType ?? "text";
+
+    if (m.role === "user") {
+      lines.push(`Student (${type} prompt): ${m.content}`);
+      continue;
+    }
+
+    switch (type) {
+      case "image": {
+        if (m.content.startsWith("http")) {
+          imageUrls.push(m.content);
+          lines.push(`AI generated image #${imageUrls.length} (see attached image)`);
+        }
+        break;
+      }
+      case "audio": {
+        try {
+          const d = JSON.parse(m.content);
+          if (Array.isArray(d.script)) {
+            const fullScript = d.script
+              .map((s: { character?: string; text?: string }) =>
+                `${s.character ?? "Narrator"}: ${s.text ?? ""}`)
+              .join("\n");
+            lines.push(`AI generated audio story. Full script:\n${fullScript}`);
+          }
+        } catch { lines.push("AI generated audio story"); }
+        break;
+      }
+      case "slides": {
+        try {
+          const d = JSON.parse(m.content);
+          if (Array.isArray(d.sections)) {
+            const slidesText = d.sections
+              .map((s: { title?: string; bullets?: string[]; content?: string }) => {
+                const body = Array.isArray(s.bullets)
+                  ? s.bullets.join(" | ")
+                  : (s.content ?? "");
+                return `  Slide "${s.title}": ${body}`;
+              })
+              .join("\n");
+            lines.push(`AI generated slides:\n${slidesText}`);
+          }
+        } catch { lines.push("AI generated slides"); }
+        break;
+      }
+      default:
+        lines.push(`AI (${type}): ${m.content}`);
+    }
+  }
+
+  return { text: lines.join("\n"), imageUrls };
+}
+
+interface ChatMessage {
+  role:    "user" | "assistant";
+  content: string;
+}
+
+type PlaygroundMessage = import("@/components/playground/useChat").Message;
+type VoiceState        = "idle" | "listening" | "processing" | "speaking";
+type VoiceSubMode      = "tap" | "live";
+
+const HIDDEN_ON: string[] = [];
+
+const VOICE_LABEL: Record<VoiceState, string> = {
+  idle:       "Tap mic to start",
+  listening:  "Recording… tap stop to send",
+  processing: "Thinking…",
+  speaking:   "Speaking…",
+};
+
+// Live-mode UI strings + colors per state. Keeps the indicator coherent across
+// the conversation lifecycle (listening → user-speaking → thinking → ai-speaking).
+const LIVE_LABEL: Record<LiveState, string> = {
+  "idle":          "Tap to start a live call",
+  "arming":        "Connecting…",
+  "listening":     "Listening… just talk",
+  "user-speaking": "Heard you — keep going",
+  "awaiting-end":  "Catching the rest…",
+  "llm-thinking":  "Thinking…",
+  "ai-speaking":   "Speaking… (talk to interrupt)",
+};
+
+const LIVE_COLOR: Record<LiveState, string> = {
+  "idle":          "#7C3AED",
+  "arming":        "rgba(255,255,255,0.4)",
+  "listening":     "#7C3AED",
+  "user-speaking": "#FF2D78",
+  "awaiting-end":  "#9D5BFF",
+  "llm-thinking":  "#FFB020",
+  "ai-speaking":   "#00D4FF",
+};
+
+export function AidaAssistant({ profile }: { profile: Profile | null }) {
+  const pathname = usePathname();
+  const [open, setOpen]               = useState(false);
+  const [messages, setMessages]       = useState<ChatMessage[]>([]);
+  const [input, setInput]             = useState("");
+  const [streaming, setStreaming]     = useState(false);
+  const [mode, setMode]               = useState<"text" | "voice">("text");
+  const [voiceSubMode, setVoiceSubMode] = useState<VoiceSubMode>("tap");
+  const [voiceState, setVoiceState]   = useState<VoiceState>("idle");
+  const [streamReady, setStreamReady] = useState(false);
+  const [voiceOK, setVoiceOK]         = useState(false);
+  const [voiceError, setVoiceError]   = useState<string | null>(null);
+
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef  = useRef<HTMLTextAreaElement>(null);
+  const prevPathRef = useRef(pathname);
+  const { playgroundMessages } = usePlaygroundSession();
+  const isOnPlayground = pathname.startsWith("/dashboard/playground");
+
+  // ── Stable refs (avoid stale closures in async callbacks) ─────────────────
+  const messagesRef        = useRef<ChatMessage[]>([]);
+  const audioRef           = useRef<HTMLAudioElement | null>(null);
+  const voiceStateRef      = useRef<VoiceState>("idle");
+  const modeRef            = useRef<"text" | "voice">("text");
+  const subModeRef         = useRef<VoiceSubMode>("tap");
+  // Stashed partial AI response when the user interrupts mid-speech in Live mode.
+  // Consumed by the next coreSend() call and forwarded to /api/aida as
+  // interruptedContext (route already supports this — see app/api/aida/route.ts).
+  const interruptedContextRef = useRef<string | null>(null);
+  const profileRef         = useRef(profile);
+  const pathnameRef        = useRef(pathname);
+  const isOnPGRef          = useRef(isOnPlayground);
+  const pmRef              = useRef(playgroundMessages);
+  const sendIdRef          = useRef(0);
+  const audioQueueRef      = useRef<{ audio: HTMLAudioElement; url: string }[]>([]);
+  const ttsAbortRef        = useRef<AbortController | null>(null);
+  const ttsGenRef          = useRef(0);
+  const cancelledRef       = useRef(false);
+  const mediaRecorderRef   = useRef<MediaRecorder | null>(null);
+  const audioChunksRef     = useRef<Blob[]>([]);
+  const micStreamRef       = useRef<MediaStream | null>(null);
+  const sttAbortRef        = useRef<AbortController | null>(null);
+  const vizCanvasRef       = useRef<HTMLCanvasElement>(null);
+  const vizAudioCtxRef     = useRef<AudioContext | null>(null);
+  const vizRafRef          = useRef<number>(0);
+
+  // Function refs — updated every render so async callbacks always call latest
+  const coreSendRef       = useRef<(text: string) => void>(() => {});
+  const startListeningRef = useRef<() => void>(() => {});
+  const speakTextRef      = useRef<(text: string) => Promise<void>>(async () => {});
+  // Live-session setter (set after useLiveVoice runs below). Bridges TTS
+  // start/end events to the LiveVoiceSession state machine so the VAD knows
+  // when AIDA is talking — required for interruption detection.
+  const liveSetAiSpeakingRef = useRef<(speaking: boolean) => void>(() => {});
+
+  // ── Sync state → refs ─────────────────────────────────────────────────────
+  useEffect(() => { messagesRef.current = messages; },        [messages]);
+  useEffect(() => { modeRef.current = mode; },                [mode]);
+  useEffect(() => { subModeRef.current = voiceSubMode; },     [voiceSubMode]);
+  useEffect(() => { profileRef.current = profile; },          [profile]);
+  useEffect(() => { pathnameRef.current = pathname; },        [pathname]);
+  useEffect(() => { isOnPGRef.current = isOnPlayground; },    [isOnPlayground]);
+  useEffect(() => { pmRef.current = playgroundMessages; },    [playgroundMessages]);
+
+  // ── Check MediaRecorder availability (voice mode requires it) ─────────────
+  useEffect(() => {
+    setVoiceOK(typeof window !== "undefined"
+      && typeof window.MediaRecorder !== "undefined"
+      && typeof navigator?.mediaDevices?.getUserMedia === "function");
+  }, []);
+
+  // ── Reset on page navigation ──────────────────────────────────────────────
+  useEffect(() => {
+    if (prevPathRef.current !== pathname) {
+      prevPathRef.current = pathname;
+      setMessages([]);
+      setInput("");
+      setOpen(false);
+      cleanupVoice();
+      // Live session also has to drop its WS + VAD on navigation.
+      // useLiveVoice's own unmount handler covers component removal, but
+      // navigation keeps the assistant mounted, so stop explicitly.
+      void liveVoice.stop();
+    }
+  }, [pathname]);
+
+  // ── Scroll to latest message ──────────────────────────────────────────────
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // ── Mic audio visualizer (uses the shared mic stream) ────────────────────
+  useEffect(() => {
+    function stopViz() {
+      cancelAnimationFrame(vizRafRef.current);
+      if (vizAudioCtxRef.current) {
+        vizAudioCtxRef.current.close().catch(() => {});
+        vizAudioCtxRef.current = null;
+      }
+    }
+
+    if (voiceState !== "listening" || !open || !micStreamRef.current) {
+      stopViz();
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const stream = micStreamRef.current!;
+
+        const ACtx = (window.AudioContext ?? (window as any).webkitAudioContext) as typeof AudioContext;
+        const actx = new ACtx();
+        vizAudioCtxRef.current = actx;
+
+        const src      = actx.createMediaStreamSource(stream);
+        const analyser = actx.createAnalyser();
+        analyser.fftSize               = 64;
+        analyser.smoothingTimeConstant = 0.78;
+        src.connect(analyser);
+
+        const bufLen  = analyser.frequencyBinCount; // 32
+        const data    = new Uint8Array(bufLen);
+        const canvas = vizCanvasRef.current!;
+        if (!canvas) return;
+        const ctx2d  = canvas.getContext("2d")!;
+        const cw     = canvas.width;
+        const ch     = canvas.height;
+
+        const BAR_N  = 26;
+        const BAR_W  = 3;
+        const GAP    = 2;
+        const TOT_W  = BAR_N * (BAR_W + GAP) - GAP;
+
+        function draw() {
+          if (cancelled) return;
+          vizRafRef.current = requestAnimationFrame(draw);
+          analyser.getByteFrequencyData(data);
+
+          ctx2d.clearRect(0, 0, cw, ch);
+          const startX = (cw - TOT_W) / 2;
+          const maxH   = ch;
+
+          for (let i = 0; i < BAR_N; i++) {
+            const bin = Math.floor((i / BAR_N) * bufLen * 0.55);
+            const amp = data[bin] / 255;
+            // Gentle idle ripple so bars aren't completely flat when quiet
+            const idle = (Math.sin(Date.now() / 280 + i * 0.7) * 0.5 + 0.5) * 4;
+            const h    = Math.max(2, amp * (maxH - 6) + idle);
+            const x    = startX + i * (BAR_W + GAP);
+            const y    = (maxH - h) / 2;
+
+            // Interpolate #7C3AED → #FF2D78
+            const t = i / (BAR_N - 1);
+            const r = Math.round(124 + (255 - 124) * t);
+            const g = Math.round(58  + (45  - 58)  * t);
+            const b = Math.round(237 + (120 - 237)  * t);
+            ctx2d.fillStyle = `rgba(${r},${g},${b},${0.45 + amp * 0.55})`;
+            ctx2d.fillRect(x, y, BAR_W, h);
+          }
+        }
+        draw();
+      } catch {
+        // getUserMedia denied or unavailable — visualizer skipped, voice still works
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      stopViz();
+    };
+  }, [voiceState, open, streamReady]);
+
+  // ── Live voice session hook ───────────────────────────────────────────────
+  // Must be above any conditional return (React rules of hooks).
+  // Callbacks use stable refs (coreSendRef, messagesRef, interruptedContextRef)
+  // and abortAiResponse — a function declaration, so it's hoisted and always
+  // in scope even though the explicit definition appears below.
+  const liveVoice = useLiveVoice({
+    onFinalTranscript: (text) => {
+      coreSendRef.current(text);
+    },
+    onInterrupt: () => {
+      const last = messagesRef.current[messagesRef.current.length - 1];
+      if (last?.role === "assistant" && last.content) {
+        interruptedContextRef.current = last.content;
+      }
+      abortAiResponse();
+    },
+    onError: (err) => {
+      console.error("[AIDA Live]", err);
+    },
+  });
+  liveSetAiSpeakingRef.current = liveVoice.setAiSpeaking;
+
+  if (HIDDEN_ON.some(p => pathname.startsWith(p))) return null;
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  function setVS(s: VoiceState) {
+    voiceStateRef.current = s;
+    setVoiceState(s);
+  }
+
+  function flashVoiceError(msg: string) {
+    setVoiceError(msg);
+    setTimeout(() => setVoiceError(null), 3500);
+  }
+
+  function stopMicStream() {
+    micStreamRef.current?.getTracks().forEach(t => t.stop());
+    micStreamRef.current = null;
+    setStreamReady(false);
+  }
+
+  function clearAudioQueue() {
+    for (const { audio, url } of audioQueueRef.current) {
+      audio.pause();
+      URL.revokeObjectURL(url);
+    }
+    audioQueueRef.current = [];
+  }
+
+  function cleanupVoice() {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      cancelledRef.current = true;
+      try { mediaRecorderRef.current.stop(); } catch {}
+    }
+    mediaRecorderRef.current = null;
+    audioChunksRef.current = [];
+    stopMicStream();
+    // Abort any in-flight requests so stale responses don't append messages later
+    if (sttAbortRef.current) { sttAbortRef.current.abort(); sttAbortRef.current = null; }
+    if (ttsAbortRef.current) { ttsAbortRef.current.abort(); ttsAbortRef.current = null; }
+    ++sendIdRef.current; // invalidate any in-flight coreSend stream
+    ++ttsGenRef.current;
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+    clearAudioQueue();
+    setVS("idle");
+  }
+
+  // Live mode interruption: kill the AI's audio + LLM stream WITHOUT touching
+  // the mic — the Live session owns the mic via its VAD/worklet. This is the
+  // key difference vs cleanupVoice(), which fully tears voice down.
+  function abortAiResponse() {
+    if (ttsAbortRef.current) { ttsAbortRef.current.abort(); ttsAbortRef.current = null; }
+    ++sendIdRef.current; // invalidate any in-flight coreSend stream reader
+    ++ttsGenRef.current; // invalidate any in-flight playNext callbacks
+    if (audioRef.current) { try { audioRef.current.pause(); } catch {} audioRef.current = null; }
+    clearAudioQueue();
+    setStreaming(false);
+  }
+
+  // ── Core send ─────────────────────────────────────────────────────────────
+
+  async function coreSend(text: string) {
+    if (!text.trim()) return;
+
+    const myId = ++sendIdRef.current;
+
+    const history = messagesRef.current.slice(-6);
+    const p   = profileRef.current;
+    const pn  = pathnameRef.current;
+    const ioP = isOnPGRef.current;
+    const pm  = pmRef.current;
+
+    setMessages(prev => [...prev, { role: "user",      content: text }]);
+    setMessages(prev => [...prev, { role: "assistant", content: "" }]);
+    setStreaming(true);
+
+    let full = "";
+
+    try {
+      const body: Record<string, unknown> = {
+        message: text,
+        history,
+        pathname: pn,
+        isVoiceMode: modeRef.current === "voice",
+        profile: {
+          display_name:           p?.display_name           ?? "Student",
+          age_group:              p?.age_group              ?? "11-13",
+          interests:              p?.interests              ?? [],
+          xp:                     p?.xp                     ?? 0,
+          level:                  p?.level                  ?? 1,
+          streak_days:            p?.streak_days            ?? 0,
+          active_arena:           p?.active_arena           ?? 1,
+          // Phase 3 personalisation — server reads these from buildAidaSystemPrompt
+          reading_level:          p?.reading_level          ?? null,
+          language_preference:    p?.language_preference    ?? null,
+          learning_style:         p?.learning_style         ?? null,
+          difficulty_preference:  p?.difficulty_preference  ?? null,
+          current_grade:          p?.current_grade          ?? null,
+          // Filler fields the server's Profile type expects
+          id:            p?.id            ?? "",
+          clerk_user_id: p?.clerk_user_id ?? "",
+          avatar_emoji:  p?.avatar_emoji  ?? "",
+          badges:        p?.badges        ?? [],
+          created_at:    p?.created_at    ?? "",
+          updated_at:    p?.updated_at    ?? "",
+        },
+      };
+
+      if (ioP && pm.length > 0) {
+        const { text: st, imageUrls } = serializePlaygroundSession(pm);
+        if (st)              body.playgroundSession = st;
+        if (imageUrls.length) body.playgroundImages = imageUrls;
+      }
+
+      // Live-mode barge-in: hand the LLM the partial response we cut off so it
+      // can acknowledge naturally ("Sorry, you cut me off there — to answer…").
+      // Consumed once, then cleared.
+      if (interruptedContextRef.current) {
+        body.interruptedContext = interruptedContextRef.current;
+        interruptedContextRef.current = null;
+      }
+
+      const res = await fetch("/api/aida", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify(body),
+      });
+
+      if (!res.ok || !res.body) throw new Error("Request failed");
+
+      const reader  = res.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (sendIdRef.current !== myId) break; // superseded by barge-in
+        full += decoder.decode(value, { stream: true });
+        const captured = full;
+        setMessages(prev => {
+          const copy = [...prev];
+          copy[copy.length - 1] = { role: "assistant", content: captured };
+          return copy;
+        });
+      }
+
+      if (sendIdRef.current !== myId) return;
+
+      if (modeRef.current === "voice" && full.trim()) {
+        setVS("speaking");
+        await speakTextRef.current(full);
+      }
+    } catch {
+      if (sendIdRef.current !== myId) return;
+      setMessages(prev => {
+        const copy = [...prev];
+        copy[copy.length - 1] = { role: "assistant", content: "Sorry, something went wrong. Please try again." };
+        return copy;
+      });
+      if (modeRef.current === "voice") {
+        setVS("idle");
+      }
+    } finally {
+      if (sendIdRef.current === myId) {
+        setStreaming(false);
+        if (modeRef.current === "text") inputRef.current?.focus();
+      }
+    }
+  }
+
+  // ── TTS playback (chunked streaming — sentence-by-sentence for low latency) ─
+
+  async function speakText(text: string) {
+    const myGen = ++ttsGenRef.current;
+
+    // Abort any prior TTS request
+    if (ttsAbortRef.current) { ttsAbortRef.current.abort(); }
+    ttsAbortRef.current = new AbortController();
+
+    // Stop + clear any prior audio
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+    clearAudioQueue();
+
+    let streamDone  = false;
+    let firstChunk  = true;
+
+    // Plays the next queued chunk, then recurses via onended
+    function playNext() {
+      if (ttsGenRef.current !== myGen) return; // superseded by barge-in or cleanup
+
+      const item = audioQueueRef.current.shift();
+      if (!item) {
+        audioRef.current = null;
+        // Queue empty + stream done — go back to idle so user can tap mic again
+        if (streamDone && voiceStateRef.current === "speaking") {
+          setVS("idle");
+          // Live session: tell the VAD AIDA stopped talking so a new
+          // user-speech-start no longer fires interrupt.
+          if (subModeRef.current === "live") liveSetAiSpeakingRef.current(false);
+        }
+        return;
+      }
+
+      const { audio, url } = item;
+      audioRef.current = audio;
+      // First chunk hitting playback = AIDA has started speaking. Tell the
+      // Live session so it transitions to "ai-speaking" and any subsequent
+      // VAD onSpeechStart fires interrupt instead of a normal turn.
+      if (subModeRef.current === "live") liveSetAiSpeakingRef.current(true);
+      let advanced = false;
+      const advance = () => {
+        if (advanced) return;
+        advanced = true;
+        URL.revokeObjectURL(url);
+        audioRef.current = null;
+        playNext();
+      };
+      audio.onended = advance;
+      audio.onerror = advance;
+      audio.play().catch(advance);
+    }
+
+    try {
+      const res = await fetch("/api/aida/tts", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ text }),
+        signal:  ttsAbortRef.current.signal,
+      });
+      if (!res.ok || !res.body) throw new Error("TTS failed");
+
+      const reader  = res.body.getReader();
+      const decoder = new TextDecoder();
+      let   buf     = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (ttsGenRef.current !== myGen) break; // barge-in happened
+
+        buf += decoder.decode(value, { stream: true });
+
+        // Parse SSE frames
+        const frames = buf.split("\n\n");
+        buf = frames.pop() ?? "";
+
+        for (const frame of frames) {
+          const line = frame.trim();
+          if (!line.startsWith("data: ")) continue;
+          const data = line.slice(6);
+          if (data === "[DONE]") { streamDone = true; continue; }
+
+          // base64 → Blob → Audio element, queued for playback
+          const bin   = atob(data);
+          const bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          const blob  = new Blob([bytes], { type: "audio/mpeg" });
+          const url   = URL.createObjectURL(blob);
+          const audio = new Audio(url);
+
+          audioQueueRef.current.push({ audio, url });
+
+          if (firstChunk) {
+            firstChunk = false;
+            playNext(); // start playing immediately — no waiting for full response
+          }
+        }
+      }
+
+      streamDone = true;
+
+      if (ttsGenRef.current !== myGen) return;
+
+      // Edge cases after stream ends:
+      // 1) Queue has chunks but playback never started (e.g. [DONE] arrived before any chunk
+      //    triggered firstChunk's playNext) — kick playback now
+      if (!audioRef.current && audioQueueRef.current.length > 0) {
+        playNext();
+        return;
+      }
+      // 2) Nothing playing and queue empty — done speaking
+      if (!audioRef.current && audioQueueRef.current.length === 0) {
+        if (voiceStateRef.current === "speaking") setVS("idle");
+      }
+    } catch (err) {
+      if ((err as Error)?.name === "AbortError") return;
+      if (ttsGenRef.current === myGen && voiceStateRef.current === "speaking") {
+        setVS("idle");
+        if (subModeRef.current === "live") liveSetAiSpeakingRef.current(false);
+      }
+    }
+  }
+
+  // ── MediaRecorder-based STT (audio → Deepgram via /api/aida/stt) ─────────
+  // Tap mic to start recording, tap stop to send, tap cancel to discard.
+
+  function pickMimeType(): string {
+    const candidates = [
+      "audio/webm;codecs=opus",
+      "audio/webm",
+      "audio/mp4",
+      "audio/ogg;codecs=opus",
+    ];
+    for (const m of candidates) {
+      if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(m)) return m;
+    }
+    return "audio/webm";
+  }
+
+  async function startListening() {
+    cancelledRef.current = false;
+    audioChunksRef.current = [];
+
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          noiseSuppression: true,
+          echoCancellation: true,
+          autoGainControl:  true,
+        },
+        video: false,
+      });
+    } catch (err) {
+      console.error("[AIDA] mic permission denied or unavailable:", err);
+      setVS("idle");
+      return;
+    }
+
+    if (voiceStateRef.current !== "listening") {
+      // User cancelled before stream came back
+      stream.getTracks().forEach(t => t.stop());
+      return;
+    }
+
+    micStreamRef.current = stream;
+    setStreamReady(true); // wakes the visualizer effect
+
+    const mimeType = pickMimeType();
+    let mr: MediaRecorder;
+    try {
+      mr = new MediaRecorder(stream, { mimeType });
+    } catch (err) {
+      console.error("[AIDA] MediaRecorder failed:", err);
+      stopMicStream();
+      setVS("idle");
+      return;
+    }
+
+    mr.ondataavailable = (e: BlobEvent) => {
+      if (e.data && e.data.size > 0) audioChunksRef.current.push(e.data);
+    };
+
+    mr.onstop = async () => {
+      const wasCancelled = cancelledRef.current;
+      cancelledRef.current = false;
+      const chunks = audioChunksRef.current;
+      audioChunksRef.current = [];
+      stopMicStream();
+
+      if (wasCancelled) return; // user tapped cancel — discard
+
+      const blob = new Blob(chunks, { type: mimeType });
+      if (blob.size === 0) {
+        flashVoiceError("No audio captured — try again");
+        setVS("idle");
+        return;
+      }
+
+      // AbortController so cleanupVoice can cancel a pending STT request
+      const controller = new AbortController();
+      sttAbortRef.current = controller;
+
+      try {
+        const res = await fetch("/api/aida/stt", {
+          method:  "POST",
+          headers: { "Content-Type": mimeType },
+          body:    blob,
+          signal:  controller.signal,
+        });
+        if (sttAbortRef.current === controller) sttAbortRef.current = null;
+        if (!res.ok) {
+          console.error("[AIDA] STT HTTP error:", res.status);
+          flashVoiceError("Voice recognition failed — try again");
+          setVS("idle");
+          return;
+        }
+        const data = await res.json();
+        const transcript = (data?.transcript ?? "").trim();
+        if (transcript) {
+          coreSendRef.current(transcript);
+        } else {
+          flashVoiceError("Didn't catch that — try again");
+          setVS("idle");
+        }
+      } catch (err) {
+        if ((err as Error)?.name === "AbortError") return; // expected — cleanupVoice
+        console.error("[AIDA] STT failed:", err);
+        flashVoiceError("Voice recognition failed — try again");
+        setVS("idle");
+      }
+    };
+
+    mediaRecorderRef.current = mr;
+    // timeslice ensures ondataavailable fires periodically so we always get
+    // a non-empty blob even for very short recordings.
+    mr.start(100);
+  }
+
+  function stopListeningAndSend() {
+    setVS("processing"); // immediate UI feedback while we wait for STT
+    cancelledRef.current = false;
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      try { mediaRecorderRef.current.stop(); } catch {}
+    } else {
+      setVS("idle");
+    }
+  }
+
+  function cancelRecording() {
+    cancelledRef.current = true;
+    setVS("idle");
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      try { mediaRecorderRef.current.stop(); } catch {}
+    } else {
+      stopMicStream();
+    }
+  }
+
+  // ── Sync function refs after every render ─────────────────────────────────
+  // This must stay below the function definitions.
+  coreSendRef.current       = coreSend;
+  startListeningRef.current = startListening;
+  speakTextRef.current      = speakText;
+  // liveSetAiSpeakingRef is synced near the useLiveVoice call above, but we
+  // re-sync here too so it always reflects the current render's setAiSpeaking.
+  liveSetAiSpeakingRef.current = liveVoice.setAiSpeaking;
+
+  // ── UI handlers ───────────────────────────────────────────────────────────
+
+  function toggleVoiceSession() {
+    if (voiceState === "idle") {
+      setVS("listening");
+      startListening();
+    } else if (voiceState === "listening") {
+      stopListeningAndSend();
+    } else {
+      cleanupVoice();
+    }
+  }
+
+  function switchMode(m: "text" | "voice") {
+    if (m === mode) return;
+    cleanupVoice();
+    void liveVoice.stop();
+    setMode(m);
+  }
+
+  function switchVoiceSubMode(s: VoiceSubMode) {
+    if (s === voiceSubMode) return;
+    // Switching sub-modes always returns voice to a clean idle state — kill
+    // whichever engine was active.
+    cleanupVoice();
+    void liveVoice.stop();
+    setVoiceSubMode(s);
+  }
+
+  async function toggleLiveCall() {
+    if (liveVoice.state === "idle") {
+      await liveVoice.start();
+    } else {
+      // Any other state = active session; tapping ends the call.
+      abortAiResponse();
+      await liveVoice.stop();
+    }
+  }
+
+  const onKey = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      const t = input.trim();
+      if (t) { coreSend(t); setInput(""); }
+    }
+  };
+
+  const voicePulse = voiceState === "listening" || voiceState === "speaking";
+
+  // On the playground, the floating button uses the bespoke assistant.png
+  // sprite instead of the gradient ✦ disc — matches the JRPG-style room
+  // alongside the Validator Teacher. Behaviour (open/close, voice gate) is
+  // unchanged.
+  const onPlayground = isOnPlayground;
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
+  return (
+    <>
+      {/* Floating button */}
+      <button
+        onClick={() => { if (voiceState === "listening") return; setOpen(o => !o); }}
+        className="fixed z-50 flex items-center justify-center transition-all duration-300 hover:scale-105 active:scale-95"
+        style={onPlayground ? {
+          right:      "clamp(16px, 1.5vw, 32px)",
+          bottom:     "clamp(16px, 2vh, 32px)",
+          width:      "clamp(64px, 5.5vw, 96px)",
+          height:     "clamp(64px, 5.5vw, 96px)",
+          background: "transparent",
+          border:     "none",
+          padding:    0,
+          filter:     "drop-shadow(0 0 22px rgba(124,58,237,0.55))",
+        } : {
+          right:      "clamp(16px, 1.5vw, 32px)",
+          bottom:     "clamp(16px, 2vh, 32px)",
+          width:      "clamp(48px, 3.6vw, 64px)",
+          height:     "clamp(48px, 3.6vw, 64px)",
+          borderRadius: 9999,
+          background: "linear-gradient(135deg, #7C3AED, #FF2D78)",
+          boxShadow:  "0 0 32px rgba(124,58,237,0.5), 0 4px 20px rgba(0,0,0,0.4)",
+        }}
+        title="Ask AIDA"
+      >
+        {onPlayground ? (
+          open ? (
+            <X size={22} className="text-white drop-shadow-lg" />
+          ) : (
+            <img
+              src="/teacher.png"
+              alt=""
+              draggable={false}
+              style={{ width: "100%", height: "100%", objectFit: "contain" }}
+            />
+          )
+        ) : (
+          open ? <X size={22} className="text-white" /> : <span className="text-2xl select-none">✦</span>
+        )}
+      </button>
+
+      {/* Chat panel — fluid width/height so it doesn't dominate ultrawide
+          screens or get cut off on smaller laptops. */}
+      {open && (
+        <div
+          className="fixed z-50 flex flex-col rounded-2xl overflow-hidden"
+          style={{
+            right:          "clamp(16px, 1.5vw, 32px)",
+            bottom:         "clamp(96px, 12vh, 140px)",
+            width:          "clamp(320px, 28vw, 460px)",
+            height:         "clamp(440px, 62vh, 640px)",
+            background:     "rgba(10,8,28,0.97)",
+            border:         "1px solid rgba(124,58,237,0.35)",
+            boxShadow:      "0 0 60px rgba(124,58,237,0.2), 0 20px 60px rgba(0,0,0,0.6)",
+            backdropFilter: "blur(24px)",
+          }}
+        >
+          {/* Header */}
+          <div
+            className="flex items-center gap-3 px-4 py-3 flex-shrink-0"
+            style={{ borderBottom: "1px solid rgba(255,255,255,0.07)", background: "rgba(124,58,237,0.12)" }}
+          >
+            <div
+              className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+              style={{ background: "linear-gradient(135deg, #7C3AED, #FF2D78)" }}
+            >
+              <span className="text-sm">✦</span>
+            </div>
+            <div>
+              <p className="text-sm font-display font-extrabold text-white tracking-tight">AIDA</p>
+              <p className="text-[10px] text-white/40">AI Decoder Academy Assistant</p>
+            </div>
+
+            <div className="ml-auto flex items-center gap-2">
+              {/* Mode toggle (only show if Web Speech API available) */}
+              {voiceOK && (
+                <div className="flex items-center gap-0.5 rounded-lg p-0.5" style={{ background: "rgba(255,255,255,0.06)" }}>
+                  <button
+                    onClick={() => switchMode("text")}
+                    className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] transition-all duration-200"
+                    style={mode === "text"
+                      ? { background: "rgba(124,58,237,0.45)", color: "#fff" }
+                      : { color: "rgba(255,255,255,0.38)" }}
+                  >
+                    <MessageSquare size={9} />
+                    Text
+                  </button>
+                  <button
+                    onClick={() => switchMode("voice")}
+                    className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] transition-all duration-200"
+                    style={mode === "voice"
+                      ? { background: "linear-gradient(135deg,#7C3AED,#FF2D78)", color: "#fff" }
+                      : { color: "rgba(255,255,255,0.38)" }}
+                  >
+                    <Mic size={9} />
+                    Voice
+                  </button>
+                </div>
+              )}
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-[10px] text-white/30">online</span>
+            </div>
+          </div>
+
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3" style={{ scrollbarWidth: "none" }}>
+            {messages.length === 0 && (
+              <div className="flex flex-col items-center justify-center h-full gap-3 opacity-50 pointer-events-none">
+                <span className="text-3xl">✦</span>
+                <p className="text-xs text-white/50 text-center font-medium leading-relaxed">
+                  Hi {profile?.display_name?.split(" ")[0] ?? "there"}!<br />
+                  {mode === "voice"
+                    ? "Tap the mic below to start talking."
+                    : "Ask me anything — about this page,\nyour creations, or anything at all."}
+                </p>
+              </div>
+            )}
+
+            {messages.map((msg, i) => (
+              <div key={i} className={`flex gap-2 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                {msg.role === "assistant" && (
+                  <div
+                    className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
+                    style={{ background: "linear-gradient(135deg, #7C3AED, #FF2D78)" }}
+                  >
+                    <span className="text-[10px]">✦</span>
+                  </div>
+                )}
+                <div
+                  className="max-w-[80%] px-3 py-2 rounded-2xl text-xs leading-relaxed"
+                  style={msg.role === "user" ? {
+                    background:   "linear-gradient(135deg, #7C3AED, #7C3AEDcc)",
+                    color:        "#fff",
+                    borderRadius: "18px 18px 4px 18px",
+                  } : {
+                    background:   "rgba(255,255,255,0.06)",
+                    border:       "1px solid rgba(255,255,255,0.08)",
+                    color:        "rgba(255,255,255,0.88)",
+                    borderRadius: "18px 18px 18px 4px",
+                  }}
+                >
+                  {msg.content ? (
+                    msg.role === "assistant" ? (
+                      <ReactMarkdown
+                        components={{
+                          p:      ({ children }) => <p className="mb-1.5 last:mb-0">{children}</p>,
+                          strong: ({ children }) => <strong className="font-bold text-white/95">{children}</strong>,
+                          em:     ({ children }) => <em className="italic text-white/80">{children}</em>,
+                          ul:     ({ children }) => <ul className="list-disc pl-4 space-y-0.5 my-1">{children}</ul>,
+                          ol:     ({ children }) => <ol className="list-decimal pl-4 space-y-0.5 my-1">{children}</ol>,
+                          li:     ({ children }) => <li className="leading-relaxed">{children}</li>,
+                          code:   ({ children }) => <code className="bg-white/10 rounded px-1 py-0.5 font-mono text-[10px]">{children}</code>,
+                          h1:     ({ children }) => <p className="font-bold text-white/95 mb-1">{children}</p>,
+                          h2:     ({ children }) => <p className="font-bold text-white/90 mb-1">{children}</p>,
+                          h3:     ({ children }) => <p className="font-semibold text-white/85 mb-0.5">{children}</p>,
+                        }}
+                      >
+                        {msg.content}
+                      </ReactMarkdown>
+                    ) : (
+                      msg.content
+                    )
+                  ) : (
+                    <span className="flex gap-1">
+                      {[0, 1, 2].map(j => (
+                        <span key={j} className="w-1 h-1 rounded-full bg-white/40 inline-block animate-bounce"
+                          style={{ animationDelay: `${j * 0.15}s` }} />
+                      ))}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            <div ref={bottomRef} />
+          </div>
+
+          {/* ── Text input ─────────────────────────────────────────────────── */}
+          {mode === "text" && (
+            <div
+              className="px-3 py-3 flex-shrink-0"
+              style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}
+            >
+              <div
+                className="flex items-center gap-2 rounded-xl px-3 py-2"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(124,58,237,0.35)" }}
+              >
+                <textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={e => {
+                    setInput(e.target.value);
+                    const t = e.target;
+                    t.style.height = "auto";
+                    t.style.height = Math.min(t.scrollHeight, 80) + "px";
+                  }}
+                  onKeyDown={onKey}
+                  placeholder="Ask AIDA anything…"
+                  rows={1}
+                  disabled={streaming}
+                  style={{
+                    flex:       1,
+                    resize:     "none",
+                    border:     "none",
+                    outline:    "none",
+                    background: "transparent",
+                    fontSize:   12,
+                    color:      "rgba(255,255,255,0.9)",
+                    fontFamily: "inherit",
+                    lineHeight: 1.5,
+                    overflowY:  "hidden",
+                  }}
+                />
+                <button
+                  onClick={() => { const t = input.trim(); if (t) { coreSend(t); setInput(""); } }}
+                  disabled={!input.trim() || streaming}
+                  className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-200 active:scale-90"
+                  style={{
+                    background: input.trim() && !streaming
+                      ? "linear-gradient(135deg, #7C3AED, #FF2D78)"
+                      : "rgba(255,255,255,0.08)",
+                  }}
+                >
+                  <Send size={12} className="text-white" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Voice panel ────────────────────────────────────────────────── */}
+          {mode === "voice" && (
+            <div
+              className="px-3 py-3 flex-shrink-0 flex flex-col items-center gap-2"
+              style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}
+            >
+              {/* Tap | Live sub-mode toggle */}
+              <div className="flex items-center gap-0.5 rounded-lg p-0.5" style={{ background: "rgba(255,255,255,0.06)" }}>
+                <button
+                  onClick={() => switchVoiceSubMode("tap")}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] transition-all duration-200"
+                  style={voiceSubMode === "tap"
+                    ? { background: "rgba(124,58,237,0.45)", color: "#fff" }
+                    : { color: "rgba(255,255,255,0.38)" }}
+                >
+                  <Mic size={9} />
+                  Tap
+                </button>
+                <button
+                  onClick={() => switchVoiceSubMode("live")}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] transition-all duration-200"
+                  style={voiceSubMode === "live"
+                    ? { background: "linear-gradient(135deg,#7C3AED,#FF2D78)", color: "#fff" }
+                    : { color: "rgba(255,255,255,0.38)" }}
+                >
+                  <Radio size={9} />
+                  Live
+                </button>
+              </div>
+
+              {voiceSubMode === "tap" && (
+                <>
+              <p className="text-[10px] h-3" style={{ color: voiceError ? "#FF6B6B" : "rgba(255,255,255,0.4)" }}>
+                {voiceError ?? VOICE_LABEL[voiceState]}
+              </p>
+
+              {/* Audio visualizer — real mic amplitude, purple→pink bars */}
+              <canvas
+                ref={vizCanvasRef}
+                width={160}
+                height={32}
+                style={{
+                  opacity:    voiceState === "listening" ? 1 : 0,
+                  transition: "opacity 0.4s ease",
+                  display:    "block",
+                }}
+              />
+
+              {/* Mic button row — cancel sits beside mic when recording */}
+              <div className="flex items-center gap-4">
+                {/* Cancel placeholder (left side) — keeps mic centred */}
+                <div className="w-8 h-8" />
+
+                {/* Mic / stop button */}
+                <button
+                  onClick={toggleVoiceSession}
+                  disabled={voiceState === "processing"}
+                  className="relative w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300 active:scale-90 disabled:opacity-50"
+                  style={{
+                    background: voiceState === "idle"
+                      ? "rgba(255,255,255,0.08)"
+                      : "linear-gradient(135deg, #7C3AED, #FF2D78)",
+                    boxShadow: voiceState !== "idle"
+                      ? "0 0 28px rgba(124,58,237,0.55)"
+                      : "none",
+                  }}
+                >
+                  {voicePulse && (
+                    <>
+                      <span
+                        className="absolute inset-0 rounded-full animate-ping"
+                        style={{ background: "rgba(124,58,237,0.22)", animationDuration: "1.4s" }}
+                      />
+                      <span
+                        className="absolute rounded-full animate-ping"
+                        style={{
+                          inset:             -7,
+                          background:        "rgba(124,58,237,0.10)",
+                          animationDuration: "2.1s",
+                          animationDelay:    "0.3s",
+                        }}
+                      />
+                    </>
+                  )}
+                  {voiceState === "speaking" ? (
+                    <span className="text-xl select-none">✦</span>
+                  ) : voiceState === "listening" ? (
+                    <Square size={18} className="text-white" fill="white" />
+                  ) : (
+                    <Mic size={20} className={voiceState === "idle" ? "text-white/50" : "text-white"} />
+                  )}
+                </button>
+
+                {/* Cancel button — only visible while recording */}
+                {voiceState === "listening" ? (
+                  <button
+                    onClick={e => { e.stopPropagation(); cancelRecording(); }}
+                    className="w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90"
+                    style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)" }}
+                    title="Cancel recording"
+                  >
+                    <X size={13} className="text-white/50" />
+                  </button>
+                ) : (
+                  <div className="w-8 h-8" />
+                )}
+              </div>
+
+              {voiceState === "speaking" && (
+                <p className="text-[9px] text-white/25">tap to stop</p>
+              )}
+                </>
+              )}
+
+              {voiceSubMode === "live" && (
+                <>
+                  <p className="text-[10px] text-white/55 h-3">{LIVE_LABEL[liveVoice.state]}</p>
+
+                  <button
+                    onClick={toggleLiveCall}
+                    disabled={liveVoice.state === "arming"}
+                    className="relative w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 active:scale-95 disabled:opacity-60"
+                    style={{
+                      background: liveVoice.state === "idle"
+                        ? "rgba(255,255,255,0.08)"
+                        : `linear-gradient(135deg, ${LIVE_COLOR[liveVoice.state]}, ${LIVE_COLOR[liveVoice.state]}cc)`,
+                      boxShadow: liveVoice.state !== "idle"
+                        ? `0 0 32px ${LIVE_COLOR[liveVoice.state]}66`
+                        : "none",
+                    }}
+                  >
+                    {liveVoice.state !== "idle" && (
+                      <span
+                        className="absolute inset-0 rounded-full animate-ping"
+                        style={{
+                          background: `${LIVE_COLOR[liveVoice.state]}33`,
+                          animationDuration: liveVoice.state === "user-speaking" ? "1s" : "1.6s",
+                        }}
+                      />
+                    )}
+                    {liveVoice.state === "idle" ? (
+                      <Radio size={22} className="text-white/55" />
+                    ) : (
+                      <PhoneOff size={20} className="text-white" />
+                    )}
+                  </button>
+
+                  {/* Live interim transcript — what Deepgram thinks the kid is saying right now. */}
+                  <div className="h-4 max-w-full px-2">
+                    {liveVoice.interim && (
+                      <p
+                        className="text-[10px] italic text-white/55 truncate"
+                        style={{ maxWidth: 320 }}
+                      >
+                        “{liveVoice.interim}”
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
+}

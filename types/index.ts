@@ -3,11 +3,17 @@ export type PlaygroundMode = "story" | "code" | "art" | "quiz" | "free";
 export type AgeGroup       = "5-7" | "8-10" | "11-13" | "14+";
 export type CreationType   = "story" | "code" | "art" | "quiz" | "chat" | "mixed";
 
+export type ReadingLevel         = "below_grade" | "at_grade" | "above_grade";
+export type LanguagePreference   = "en" | "hi" | "en_with_hi_terms";
+export type LearningStyle        = "visual" | "hands_on" | "story" | "facts_and_logic";
+export type DifficultyPreference = "challenge_me" | "explain_gently" | "let_me_pick";
+
 export interface Profile {
   id:                string;
   clerk_user_id:     string;
   display_name:      string;
   avatar_emoji:      string;
+  avatar_url?:       string;
   age_group:         AgeGroup;
   interests:         string[];
   xp:                number;
@@ -18,6 +24,13 @@ export interface Profile {
   badges:            { id: string; earned_at: string }[];
   created_at:        string;
   updated_at:        string;
+
+  // Phase 3 personalisation (all nullable — existing rows have NULL).
+  reading_level?:         ReadingLevel | null;
+  language_preference?:   LanguagePreference | null;
+  learning_style?:        LearningStyle | null;
+  difficulty_preference?: DifficultyPreference | null;
+  current_grade?:         number | null;
 }
 
 export interface Creation {
@@ -60,7 +73,7 @@ export interface ChatRequest {
   sessionId:    string;
   mode:         PlaygroundMode;
   outputType?:  OutputType;
-  profile:      Pick<Profile, "display_name" | "age_group" | "interests">;
+  profile:      Pick<Profile, "display_name" | "age_group" | "interests" | "active_arena">;
   history:      Array<{ role: "user" | "assistant"; content: string }>;
   attachments?: Array<{ data: string; mimeType: string; name: string }>;
 }

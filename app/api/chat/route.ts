@@ -2,14 +2,18 @@ import { auth } from "@clerk/nextjs/server";
 import OpenAI from "openai";
 import { createAdminClient } from "@/lib/supabase";
 import { buildSystemPrompt } from "@/lib/prompts";
-import type { ChatRequest } from "@/types";
+import { ARENAS } from "@/lib/arenas";
+import type { ChatRequest, Profile } from "@/types";
+import { isEnabled } from "@/lib/featureFlags";
+import { buildPlaygroundSystemPrompt } from "@/lib/playgroundPersona";
+import { moderateContent } from "@/lib/aidaSafety";
 
 export const runtime = "nodejs";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
 const OUTPUT_INSTRUCTIONS: Record<string, string> = {
-  text: "Respond in clear, readable text. Use markdown formatting where helpful.",
+  text: "Respond in clear, readable text. Only use markdown formatting (headers, bullet lists) if the child is aged 8 or older and it genuinely helps clarity — never use markdown for simple conversational replies.",
   json: "Respond ONLY with valid JSON. No explanation, no backticks — just the raw JSON.",
 };
 
@@ -40,6 +44,29 @@ export async function POST(req: Request) {
     if (!message?.trim()) return new Response("Empty message", { status: 400 });
 
     const isInit = message === "__init__";
+
+    // Pre-flight moderation (skip for __init__ pseudo-message)
+    if (!isInit && isEnabled("USE_NEW_AIDA_PROMPTS")) {
+      const verdict = await moderateContent(message);
+      if (!verdict.allow) {
+        console.warn("[chat] flagged input:", verdict.reason);
+        const encoder = new TextEncoder();
+        const refusal = verdict.suggestedReply;
+        const readable = new ReadableStream({
+          start(controller) {
+            controller.enqueue(encoder.encode(
+              `data: ${JSON.stringify({ text: refusal })}\n\n`
+            ));
+            controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+            controller.close();
+          },
+        });
+        return new Response(readable, {
+          headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" },
+        });
+      }
+    }
+
     const supabase = createAdminClient();
 
     // Get actual profile UUID
@@ -75,9 +102,20 @@ export async function POST(req: Request) {
     }
 
     // Build system prompt
-    const systemPrompt = buildSystemPrompt(profile.age_group, mode, profile.display_name, profile.interests);
-    const outputInstruction = OUTPUT_INSTRUCTIONS[outputType] ?? OUTPUT_INSTRUCTIONS.text;
-    const fullSystem = `${systemPrompt}\n\nOUTPUT FORMAT: ${outputInstruction}`;
+    const arena = ARENAS.find(a => a.id === (profile.active_arena ?? 1)) ?? ARENAS[0];
+
+    const fullSystem = isEnabled("USE_NEW_AIDA_PROMPTS")
+      ? buildPlaygroundSystemPrompt({
+          profile:           profile as Profile,
+          mode,
+          outputType,
+          arenaTutorPersona: arena.tutorPersona,
+        })
+      : (() => {
+          const systemPrompt = buildSystemPrompt(profile.age_group, mode, profile.display_name, profile.interests, arena.tutorPersona);
+          const outputInstruction = OUTPUT_INSTRUCTIONS[outputType] ?? OUTPUT_INSTRUCTIONS.text;
+          return `${systemPrompt}\n\nOUTPUT FORMAT: ${outputInstruction}`;
+        })();
 
     // Build message history for OpenAI
     const openaiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [

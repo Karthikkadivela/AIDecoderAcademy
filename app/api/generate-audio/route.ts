@@ -3,6 +3,10 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createAdminClient } from "@/lib/supabase";
 import { generateScene, type SceneInput } from "@/lib/audioGenerator";
+import { isEnabled } from "@/lib/featureFlags";
+import { classifyAudioRequest, generatePodcastEpisode } from "@/lib/podcastGenerator";
+import { moderateContent } from "@/lib/aidaSafety";
+import type { Profile, AgeGroup } from "@/types";
 
 export const runtime     = "nodejs";
 export const maxDuration = 120;
@@ -67,6 +71,7 @@ async function generateScriptWithModification(
   ageGroup: string,
   existingScript: SceneInput | null,
   isMultiChar: boolean,
+  conversationHistory?: string,
 ): Promise<SceneInput> {
 
   const VALID_EMOTIONS = new Set([
@@ -134,6 +139,10 @@ Return the MODIFIED script:
   }
 
   // Fresh generation
+  const historySection = conversationHistory?.trim()
+    ? `\n\nCONVERSATION HISTORY (what was created before this request — use it to understand what the student is referring to):\n${conversationHistory}`
+    : "";
+
   const systemPrompt = isMultiChar
     ? `You are a creative audio producer for students aged ${ageGroup}.
 Create a multi-character audio scene. Return ONLY valid JSON.
@@ -149,7 +158,7 @@ Create a multi-character audio scene. Return ONLY valid JSON.
 Characters: maya (Ivy), leo (Kevin), mr_chen (Matthew), joey (Kevin)
 Use 2 characters. Max 15 words per line. Build emotional arc.
 Emotions: happy, sad, curious, excited, frustrated, neutral, confident, realization, awestruck, proud
-NEVER repeat same emotion more than twice in a row.`
+NEVER repeat same emotion more than twice in a row.${historySection}`
     : `You are a creative audio producer for students aged ${ageGroup}.
 Create exactly what the student asks — rap, poem, story, narration.
 Return ONLY valid JSON.
@@ -160,7 +169,7 @@ Return ONLY valid JSON.
   "dialogues": []
 }
 
-60–120 words. Match the tone. Do NOT add educational explanations.`;
+60–120 words. Match the tone. Do NOT add educational explanations.${historySection}`;
 
   const res = await openai.chat.completions.create({
     model: "gpt-4o-mini",
@@ -190,8 +199,57 @@ export async function POST(req: Request) {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { prompt, ageGroup = "11-13" } = await req.json();
+    const { prompt, ageGroup = "11-13", conversationHistory } = await req.json();
     if (!prompt?.trim()) return NextResponse.json({ error: "Prompt required" }, { status: 400 });
+
+    // Pre-flight safety
+    if (isEnabled("USE_NEW_AIDA_PROMPTS")) {
+      const verdict = await moderateContent(prompt);
+      if (!verdict.allow) {
+        return NextResponse.json({ error: verdict.suggestedReply }, { status: 200 });
+      }
+    }
+
+    // New podcast routing path — only when flag is on AND no existing script
+    // (modification mode keeps using legacy path).
+    if (isEnabled("USE_NEW_AIDA_PROMPTS") && !prompt.includes('[Audio titled "')) {
+      const intent = await classifyAudioRequest(prompt);
+      if (intent === "multi_character") {
+        try {
+          // Synthesise a minimal Profile from the route's ageGroup parameter.
+          const minimalProfile = {
+            id:           "",
+            clerk_user_id: userId,
+            display_name: "Student",
+            avatar_emoji: "🎙",
+            age_group:    ageGroup as AgeGroup,
+            interests:    [],
+            xp:           0,
+            level:        1,
+            active_arena: 1,
+            streak_days:  0,
+            badges:       [],
+            created_at:   "",
+            updated_at:   "",
+          } as Profile;
+          const episode = await generatePodcastEpisode({ topic: prompt, profile: minimalProfile });
+          console.log(`[generate-audio] podcast episode generated, voices=${episode.voiceCast.length}`);
+          return NextResponse.json({
+            url:        episode.mp3Url,
+            script:     {
+              scene_id:      "podcast_01",
+              narrator_text: episode.scriptText,
+              dialogues:     [],
+            },
+            voiceCast:  episode.voiceCast,
+            multiChar:  true,
+          });
+        } catch (err) {
+          console.error("[generate-audio] podcast path failed, falling back to monologue:", err);
+          // fall through to legacy path
+        }
+      }
+    }
 
     const { existingScript, cleanPrompt } = extractExistingScript(prompt);
     // If student explicitly asks for one person, override multi-char detection
@@ -201,7 +259,7 @@ export async function POST(req: Request) {
 
     console.log(`[generate-audio] mode=${existingScript ? "modify" : "fresh"} multiChar=${isMultiChar}`);
 
-    const script = await generateScriptWithModification(cleanPrompt, ageGroup, existingScript, isMultiChar);
+    const script = await generateScriptWithModification(cleanPrompt, ageGroup, existingScript, isMultiChar, conversationHistory);
     console.log(`[generate-audio] narrator=${!!script.narrator_text} dialogues=${script.dialogues.length}`);
 
     const { combined_mp3, parts } = await generateScene(script);

@@ -1,15 +1,18 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { AnimatePresence } from "framer-motion";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { CreationsRoom }     from "@/components/playground/CreationsRoom";
 import { SaveCreationModal } from "@/components/playground/SaveCreationModal";
+import { TeacherCharacter }  from "@/components/playground/TeacherCharacter";
 import { BadgeUnlockToast }  from "@/components/gamification/BadgeUnlockToast";
 import { XPFlash }           from "@/components/gamification/XPFlash";
 import { useChat }           from "@/components/playground/useChat";
 import { useXP, type XPResult } from "@/lib/useXP";
 import { getArena, type Badge } from "@/lib/arenas";
+import { usePlaygroundSession } from "@/lib/playgroundSessionContext";
+import { markObjectiveComplete } from "@/lib/objectives";
 import type { Profile, PlaygroundMode, OutputType } from "@/types";
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -67,7 +70,21 @@ function buildPreviousOutputContext(
 // ── page ───────────────────────────────────────────────────────────────────
 
 export default function PlaygroundPage() {
-  const router = useRouter();
+  return (
+    <Suspense>
+      <PlaygroundInner />
+    </Suspense>
+  );
+}
+
+function PlaygroundInner() {
+  const router       = useRouter();
+  const searchParams = useSearchParams();
+  // Validator Teacher: only present when student arrived via an objective.
+  // Arena room sends ?objective=<id> (e.g. "a1-3"). Free-play visits have no
+  // ?objective= param so the teacher stays hidden.
+  const activeObjectiveId = searchParams?.get("objective") ?? null;
+
   const [profile,        setProfile]        = useState<Profile | null>(null);
   const [mode]                               = useState<PlaygroundMode>("free");
   const [outputType,     setOutputType]      = useState<OutputType>("text");
@@ -85,6 +102,13 @@ export default function PlaygroundPage() {
     sendMessage, sendImage, sendAudio, sendSlides,
     reset,
   } = useChat(profile, mode);
+
+  const { setPlaygroundMessages } = usePlaygroundSession();
+
+  // Keep AIDA's context in sync with live playground messages
+  useEffect(() => {
+    setPlaygroundMessages(messages);
+  }, [messages, setPlaygroundMessages]);
 
   const onBadgeUnlock = useCallback((b: Badge & { earned_at: string }) => {
     setBadgeToast(prev => {
@@ -240,6 +264,20 @@ export default function PlaygroundPage() {
         defaultOutputType={saveOutputType}
         suggestedTitle=""
       />
+
+      {/* Validator Teacher — only when entered via an objective */}
+      {activeObjectiveId && (
+        <TeacherCharacter
+          objectiveId={activeObjectiveId}
+          messages={messages}
+          profile={profile}
+          onObjectiveCompleted={(objectiveId) => {
+            markObjectiveComplete(objectiveId);
+            // Send the kid back to the arena room so they see the green tick.
+            router.push(`/dashboard/world/${profile?.active_arena ?? 1}`);
+          }}
+        />
+      )}
     </div>
   );
 }

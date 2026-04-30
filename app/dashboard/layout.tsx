@@ -5,6 +5,9 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { UserButton } from "@clerk/nextjs";
 import { ArenaEnvironment } from "@/components/dashboard/ArenaEnvironment";
+import { AidaAssistant } from "@/components/aida/AidaAssistant";
+import { PersonalisationNudge } from "@/components/dashboard/PersonalisationNudge";
+import { PlaygroundSessionProvider } from "@/lib/playgroundSessionContext";
 import { getArena, ACTIVE_ARENA_CHANGED_EVENT } from "@/lib/arenas";
 import { playArenaEnterSound } from "@/lib/gameAudio";
 import type { Profile } from "@/types";
@@ -81,9 +84,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     : Math.round(((xp - currentThreshold) / (nextThreshold - currentThreshold)) * 100);
 
   return (
+    <PlaygroundSessionProvider>
     <div
       className="relative overflow-hidden bg-[#08080F]"
-      style={{ height: "100vh", position: "fixed", inset: 0 }}
+      style={{ height: "100dvh", position: "fixed", inset: 0 }}
     >
       <ArenaEnvironment preset={arena.environmentPreset} gradient={arena.gradient} />
 
@@ -192,9 +196,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </header>
 
       {/* ── Main content — always full-height since nav is overlaid ── */}
-      <main className="relative z-10 w-full overflow-hidden" style={{ height: "100vh" }}>
+      <main className="relative z-10 w-full overflow-hidden" style={{ height: "100dvh" }}>
         {children}
       </main>
+
+      <AidaAssistant profile={profile} />
+      <PersonalisationNudge profile={profile} />
     </div>
+    </PlaygroundSessionProvider>
   );
 }

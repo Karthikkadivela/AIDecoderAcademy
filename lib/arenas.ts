@@ -188,6 +188,9 @@ export const XP_REWARDS: Record<string, number> = {
   daily_streak:         20,
   new_output_type:      25,   // first time using each output type
   session_start:        3,
+  // Objective_complete uses meta.xp from the objective definition (variable
+  // per objective). The xp route reads meta.xp when the constant is 0.
+  objective_complete:   0,
 };
 
 // Badge definitions

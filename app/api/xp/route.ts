@@ -12,8 +12,11 @@ export async function POST(req: Request) {
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { event_type, meta = {} } = await req.json();
-    const xpEarned = XP_REWARDS[event_type];
-    if (!xpEarned) return NextResponse.json({ error: "Unknown event type" }, { status: 400 });
+    const baseReward = XP_REWARDS[event_type];
+    if (baseReward === undefined) return NextResponse.json({ error: "Unknown event type" }, { status: 400 });
+    // Variable-reward events (e.g. objective_complete) use meta.xp.
+    const xpEarned = baseReward > 0 ? baseReward : Number(meta.xp ?? 0);
+    if (!xpEarned || xpEarned <= 0) return NextResponse.json({ error: "Missing xp amount" }, { status: 400 });
 
     const supabase = createAdminClient();
     const { data: profile } = await supabase
