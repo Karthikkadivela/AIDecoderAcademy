@@ -62,7 +62,11 @@ export function buildDistressFooter(region: Region): string {
 
 import OpenAI from "openai";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY ?? "" });
+let _openai: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!_openai) _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY ?? "" });
+  return _openai;
+}
 
 export type ModerationVerdict =
   | { allow: true }
@@ -97,7 +101,7 @@ export async function moderateContent(text: string): Promise<ModerationVerdict> 
   if (cached) return cached;
 
   try {
-    const res = await openai.moderations.create({
+    const res = await getOpenAI().moderations.create({
       model: "omni-moderation-latest",
       input: text,
     });

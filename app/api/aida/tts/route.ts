@@ -38,14 +38,17 @@ export async function POST(req: Request) {
     const chunks  = splitIntoChunks(text.slice(0, 4096));
     const encoder = new TextEncoder();
 
+    let cancelled = false;
     const readable = new ReadableStream({
       async start(controller) {
         for (const chunk of chunks) {
+          if (cancelled || req.signal.aborted) break;
           try {
             const res = await fetch(
               `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`,
               {
                 method:  "POST",
+                signal:  req.signal,
                 headers: {
                   "xi-api-key":   process.env.ELEVENLABS_API_KEY ?? "",
                   "Content-Type": "application/json",
@@ -67,18 +70,23 @@ export async function POST(req: Request) {
             if (!res.ok) {
               const errBody = await res.text().catch(() => "");
               console.error(`[AIDA TTS] ElevenLabs ${res.status}:`, errBody.slice(0, 200));
-              continue; // skip this chunk but keep streaming
+              continue;
             }
 
+            if (cancelled || req.signal.aborted) break;
             const b64 = Buffer.from(await res.arrayBuffer()).toString("base64");
             controller.enqueue(encoder.encode(`data: ${b64}\n\n`));
-          } catch (err) {
+          } catch (err: unknown) {
+            if ((err as { name?: string }).name === "AbortError") break;
             console.error("[AIDA TTS] chunk fetch failed:", err);
           }
         }
-        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-        controller.close();
+        if (!cancelled) {
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+        }
       },
+      cancel() { cancelled = true; },
     });
 
     return new Response(readable, {
