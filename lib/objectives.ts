@@ -304,7 +304,7 @@ export const OBJECTIVES: Objective[] = [
     xpReward: 25,
   },
 
-  // ── Arena 6 — Director's Suite ──────────────────────────
+  // ── Arena 6 — Slide Skate ───────────────────────────────
   {
     id: "a6-1", arenaId: 6, order: 1,
     emoji: "📽️",
@@ -326,11 +326,40 @@ export const OBJECTIVES: Objective[] = [
   {
     id: "a6-3", arenaId: 6, order: 3,
     emoji: "🏆",
-    title: "The Final Cut",
-    description: "Produce your ultimate audio creation — the Director's masterpiece.",
-    outputType: "audio",
-    starterPrompt: "Create an epic 60-second audio trailer for the AI Decoder Academy. Maya narrates dramatically, Leo adds excitement, Mr Chen gives wisdom. End with all voices saying 'The future is yours to decode'",
+    title: "The Grand Finale Deck",
+    description: "Build your ultimate slide deck — the masterpiece presentation.",
+    outputType: "slides",
+    starterPrompt: "Create the ultimate AI Academy pitch deck: 5 sections — Vision, The Problem, Our Solution, Key Features, Call to Action. Each section should have a bold headline, 3 key points, and a vivid visual description.",
     xpReward: 50,
+  },
+
+  // ── Arena 7 — Video Fusion ───────────────────────────────
+  {
+    id: "a7-1", arenaId: 7, order: 1,
+    emoji: "🎥",
+    title: "Storyboard to Screen",
+    description: "Generate a series of cinematic scenes that tell a visual story.",
+    outputType: "image",
+    starterPrompt: "Generate a storyboard of 4 sequential cinematic shots for a short film: 'A student discovers AI for the first time.' Shot 1: wide establishing shot of a futuristic school. Shot 2: close-up of curious eyes reflected in a glowing screen. Shot 3: hands reaching toward a holographic AI interface. Shot 4: triumphant wide shot of the student standing in a beam of light.",
+    xpReward: 35,
+  },
+  {
+    id: "a7-2", arenaId: 7, order: 2,
+    emoji: "🎙️",
+    title: "Director's Voiceover",
+    description: "Write and produce a dramatic movie-quality narration.",
+    outputType: "audio",
+    starterPrompt: "Create a cinematic 90-second documentary narration about AI changing education. Maya narrates the opening dramatically, Leo describes the technology with excitement, Mr Chen closes with wisdom about the future. Make it feel like a Hollywood documentary trailer.",
+    xpReward: 40,
+  },
+  {
+    id: "a7-3", arenaId: 7, order: 3,
+    emoji: "🏆",
+    title: "The Final Cut",
+    description: "Produce your ultimate creation — combine every skill into one legendary piece.",
+    outputType: "slides",
+    starterPrompt: "Create the ultimate 'AI Decoder Academy' showcase deck: 6 sections — My Journey (what I've learned), Best Image I Made, Best Audio I Created, My Favourite Script, What's Next For Me, and a final Thank You slide. Include vivid visual descriptions for each section. Make it a celebration of everything you've built.",
+    xpReward: 60,
   },
 ];
 
@@ -373,4 +402,10 @@ export function markObjectiveComplete(id: string): void {
 export function isArenaComplete(arenaId: number): boolean {
   const done = getCompletedObjectives();
   return getArenaObjectives(arenaId).every(o => done.has(o.id));
+}
+
+// Arena 1 is always open; every other arena requires the previous one to be fully complete.
+export function isArenaUnlocked(arenaId: number): boolean {
+  if (arenaId <= 1) return true;
+  return isArenaComplete(arenaId - 1);
 }

@@ -98,30 +98,18 @@ interface Props {
 }
 
 export default function Arena1HotspotMap({ objectives, completed, onObjectiveClick }: Props) {
-  // hoveredId  — shows tooltip on mouse-over (cleared on mouse-out)
-  // pinnedId   — locked open by a click (only cleared by clicking outside or re-clicking)
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const [pinnedId,  setPinnedId]  = useState<string | null>(null);
-
-  const dismiss = () => {
-    setPinnedId(null);
-    setHoveredId(null);
-  };
 
   return (
-    <div
-      className="absolute inset-0 w-full h-full"
-      onClick={dismiss}
-    >
+    <div className="absolute inset-0 w-full h-full">
       {objectives.map((obj) => {
         const pos = HOTSPOT_POSITIONS[obj.order];
         if (!pos) return null;
 
         const [left, top] = pos;
-        const done    = completed.has(obj.id);
-        const accent  = OUTPUT_COLORS[obj.outputType] ?? "#7C3AED";
-        const isPinned = pinnedId === obj.id;
-        const isVisible = isPinned || hoveredId === obj.id;
+        const done       = completed.has(obj.id);
+        const accent     = OUTPUT_COLORS[obj.outputType] ?? "#7C3AED";
+        const isVisible  = hoveredId === obj.id;
 
         return (
           <div
@@ -132,20 +120,12 @@ export default function Arena1HotspotMap({ objectives, completed, onObjectiveCli
               top:      `${top}%`,
               zIndex:   isVisible ? 40 : 30,
             }}
-            onClick={e => e.stopPropagation()}
           >
             {/* Invisible card-sized hit area */}
             <button
               onMouseEnter={() => setHoveredId(obj.id)}
-              onMouseLeave={() => {
-                // Only clear hover; pinned state keeps the popup open
-                setHoveredId(null);
-              }}
-              onClick={() => {
-                // Toggle pin — clicking again unpins
-                setPinnedId(prev => prev === obj.id ? null : obj.id);
-                setHoveredId(null);
-              }}
+              onMouseLeave={() => setHoveredId(null)}
+              onClick={() => onObjectiveClick(obj)}
               aria-label={obj.title}
               style={{
                 width:      "clamp(56px, 5.5vw, 90px)",
@@ -167,10 +147,8 @@ export default function Arena1HotspotMap({ objectives, completed, onObjectiveCli
                   exit={{    opacity: 0, scale: 0.9, y: top < 35 ? -8 : 8 }}
                   transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
                   style={getTooltipStyle(left, top)}
-                  // Keep popup visible while the mouse is over it
                   onMouseEnter={() => setHoveredId(obj.id)}
                   onMouseLeave={() => setHoveredId(null)}
-                  onClick={e => e.stopPropagation()}
                 >
                   <div
                     className="rounded-2xl p-3.5"
@@ -181,13 +159,6 @@ export default function Arena1HotspotMap({ objectives, completed, onObjectiveCli
                       boxShadow:      `0 6px 32px rgba(0,0,0,0.7), 0 0 20px ${accent}22`,
                     }}
                   >
-                    {/* Pin hint — only show when not yet pinned */}
-                    {!isPinned && (
-                      <p className="text-[8px] font-mono text-white/25 mb-1.5">
-                        Click card to pin open
-                      </p>
-                    )}
-
                     {/* Output type badge + done */}
                     <div className="flex items-center gap-2 mb-2">
                       <span
@@ -205,11 +176,9 @@ export default function Arena1HotspotMap({ objectives, completed, onObjectiveCli
                           ✓ DONE
                         </span>
                       )}
-                      {isPinned && (
-                        <span className="text-[8px] font-mono text-white/30 ml-auto">
-                          📌 pinned
-                        </span>
-                      )}
+                      <span className="text-[8px] font-mono text-white/30 ml-auto">
+                        click to enter
+                      </span>
                     </div>
 
                     {/* Title */}
@@ -218,30 +187,18 @@ export default function Arena1HotspotMap({ objectives, completed, onObjectiveCli
                     </p>
 
                     {/* Description */}
-                    <p className="text-[10px] text-white/50 leading-snug mb-3">
+                    <p className="text-[10px] text-white/50 leading-snug mb-2">
                       {obj.description}
                     </p>
 
-                    {/* XP + CTA */}
-                    <div className="flex items-center justify-between">
-                      <span
-                        className="flex items-center gap-1 text-[10px] font-bold"
-                        style={{ color: accent }}
-                      >
-                        <Zap size={9} fill="currentColor" />
-                        +{obj.xpReward} XP
-                      </span>
-                      <button
-                        onClick={() => onObjectiveClick(obj)}
-                        className="text-[10px] font-display font-extrabold px-2.5 py-1 rounded-full transition-opacity hover:opacity-80 active:scale-95"
-                        style={{
-                          background: accent,
-                          color:      "#08080F",
-                        }}
-                      >
-                        {done ? "Redo ↺" : "Enter →"}
-                      </button>
-                    </div>
+                    {/* XP */}
+                    <span
+                      className="flex items-center gap-1 text-[10px] font-bold"
+                      style={{ color: accent }}
+                    >
+                      <Zap size={9} fill="currentColor" />
+                      +{obj.xpReward} XP
+                    </span>
                   </div>
 
                   {/* Arrow */}

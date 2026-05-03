@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { MessageBubble } from "@/components/playground/MessageBubble";
+import { ObjectiveCard } from "@/components/playground/ObjectiveCard";
 import type { Message } from "@/components/playground/useChat";
 import type { OutputType, Creation } from "@/types";
 
@@ -58,6 +59,170 @@ const FLOOR_OBJECTS: {
   { key:"js",     id:"json",   label:"JSON",   src:"/arena1/jscube.png",        blend:"screen", glowColor:"#00ff64", glowRgb:"0,255,100",   vw:"10vw" },
 ];
 
+// ── Shelf thumbnail — rich visual preview for each output type ───────────────
+function ShelfThumbnail({ c, glowColor, glowRgb }: { c: Creation; glowColor: string; glowRgb: string }) {
+  if (c.output_type === "image" && (c.file_url || /^https?:/.test(c.content))) {
+    return (
+      <img src={c.file_url ?? c.content.trim()} alt={c.title}
+        draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+    );
+  }
+
+  if (c.output_type === "audio") {
+    let narratorSnippet = "";
+    let charCount = 0;
+    try {
+      const p = JSON.parse(c.content);
+      narratorSnippet = (p?.script?.narrator_text ?? "").slice(0, 38);
+      charCount = (p?.script?.dialogues ?? []).length;
+    } catch {}
+    return (
+      <div style={{
+        width: "100%", height: "100%", padding: "5px 5px 4px",
+        display: "flex", flexDirection: "column", justifyContent: "space-between",
+        background: `linear-gradient(160deg, rgba(${glowRgb},0.18) 0%, rgba(0,0,0,0.4) 100%)`,
+      }}>
+        <span style={{ fontSize: 9, lineHeight: 1 }}>🎙️</span>
+        {/* Animated EQ bars */}
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 1.5, height: 16, padding: "0 1px" }}>
+          {[60, 90, 45, 100, 70, 55, 80, 40, 95, 65].map((h, i) => (
+            <div key={i} style={{
+              flex: 1, borderRadius: 2,
+              background: glowColor,
+              animation: `eq-bar ${0.5 + (i % 4) * 0.15}s ease-in-out infinite alternate`,
+              animationDelay: `${i * 0.07}s`,
+              height: `${h}%`,
+              opacity: 0.8,
+            }} />
+          ))}
+        </div>
+        <p style={{
+          fontSize: 6, margin: 0, lineHeight: 1.3, color: "rgba(255,255,255,0.7)",
+          overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2,
+          WebkitBoxOrient: "vertical" as const,
+        }}>
+          {narratorSnippet || "Audio scene"}
+        </p>
+        {charCount > 0 && (
+          <span style={{ fontSize: 5.5, color: glowColor, fontWeight: 700 }}>{charCount} voice{charCount !== 1 ? "s" : ""}</span>
+        )}
+      </div>
+    );
+  }
+
+  if (c.output_type === "slides") {
+    let title = "";
+    let sections: string[] = [];
+    try {
+      const p = JSON.parse(c.content);
+      title = p?.title ?? "";
+      sections = (p?.sections ?? []).map((s: { title: string }) => s.title).slice(0, 4);
+    } catch {}
+    return (
+      <div style={{
+        width: "100%", height: "100%", padding: "5px 5px 4px",
+        display: "flex", flexDirection: "column", gap: 3,
+        background: `linear-gradient(160deg, rgba(${glowRgb},0.18) 0%, rgba(0,0,0,0.4) 100%)`,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+          <span style={{ fontSize: 8 }}>📊</span>
+          <span style={{ fontSize: 5.5, fontWeight: 800, color: glowColor, textTransform: "uppercase", letterSpacing: "0.04em" }}>Slides</span>
+        </div>
+        {title && (
+          <p style={{ fontSize: 6.5, fontWeight: 700, color: "rgba(255,255,255,0.9)", margin: 0, lineHeight: 1.2,
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {title}
+          </p>
+        )}
+        <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
+          {sections.map((s, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 2 }}>
+              <div style={{ width: 3, height: 3, borderRadius: "50%", background: glowColor, flexShrink: 0 }} />
+              <span style={{ fontSize: 5.5, color: "rgba(255,255,255,0.6)", overflow: "hidden",
+                textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.2 }}>{s}</span>
+            </div>
+          ))}
+        </div>
+        <span style={{ fontSize: 5.5, color: glowColor, fontWeight: 700 }}>{sections.length || "?"} sections</span>
+      </div>
+    );
+  }
+
+  if (c.output_type === "json") {
+    let preview = "";
+    try {
+      const parsed = JSON.parse(c.content);
+      const keys = Object.keys(parsed).slice(0, 3);
+      preview = keys.map(k => {
+        const v = parsed[k];
+        const val = typeof v === "string" ? `"${v.slice(0, 10)}"` : typeof v === "object" ? "{…}" : String(v);
+        return `${k}: ${val}`;
+      }).join("\n");
+    } catch { preview = c.content.slice(0, 60); }
+    return (
+      <div style={{
+        width: "100%", height: "100%", padding: "5px 5px 4px",
+        display: "flex", flexDirection: "column", gap: 3,
+        background: "linear-gradient(160deg, rgba(0,20,8,0.9) 0%, rgba(0,0,0,0.7) 100%)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+          <span style={{ fontSize: 8 }}>{ }</span>
+          <span style={{ fontSize: 5.5, fontWeight: 800, color: glowColor, fontFamily: "monospace" }}>JSON</span>
+        </div>
+        <pre style={{
+          fontSize: 5.5, margin: 0, lineHeight: 1.4,
+          color: "rgba(0,255,100,0.85)", fontFamily: "monospace",
+          overflow: "hidden", flex: 1,
+          whiteSpace: "pre-wrap", wordBreak: "break-all",
+        }}>{preview}</pre>
+      </div>
+    );
+  }
+
+  // text / video / fallback — show a text snippet
+  const snippet = c.content.replace(/__attach:[^_]+__/g, "").trim().slice(0, 90);
+  const isVideo = c.output_type === "video";
+  return (
+    <div style={{
+      width: "100%", height: "100%", padding: "5px 5px 4px",
+      display: "flex", flexDirection: "column", gap: 2,
+      background: `linear-gradient(160deg, rgba(${glowRgb},0.15) 0%, rgba(0,0,0,0.5) 100%)`,
+      position: "relative",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+        <span style={{ fontSize: 8 }}>{isVideo ? "🎬" : "📝"}</span>
+        <span style={{ fontSize: 5.5, fontWeight: 800, color: glowColor, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+          {isVideo ? "Video" : "Text"}
+        </span>
+      </div>
+      {/* Simulated text lines */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, overflow: "hidden" }}>
+        {[90, 75, 85, 60, 70].map((w, i) => (
+          <div key={i} style={{
+            height: 3, borderRadius: 2,
+            width: `${w}%`,
+            background: i === 0 ? `rgba(${glowRgb},0.7)` : "rgba(255,255,255,0.2)",
+          }} />
+        ))}
+      </div>
+      <p style={{
+        fontSize: 5.5, margin: 0, lineHeight: 1.3,
+        color: "rgba(255,255,255,0.55)",
+        overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2,
+        WebkitBoxOrient: "vertical" as const,
+      }}>
+        {snippet}
+      </p>
+      {/* Bottom fade */}
+      <div style={{
+        position: "absolute", bottom: 0, left: 0, right: 0, height: "25%",
+        background: "linear-gradient(to top, rgba(0,0,0,0.6), transparent)",
+        pointerEvents: "none",
+      }} />
+    </div>
+  );
+}
+
 // Simple list used for the output-type dot row and mobile pill selectors
 const OUTPUT_TYPES: { id: OutputType; label: string }[] = [
   { id: "image",  label: "Image"  },
@@ -107,11 +272,13 @@ interface Props {
   arenaId?:         number;
   arenaAccent?:     string;
   arenaAccentGlow?: string;
+  objectiveId?:     string | null;
 }
 
 export function CreationsRoom({
   profile, messages, isStreaming, onSend, onSave,
   arenaId = 1, arenaAccent = "#7C3AED", arenaAccentGlow = "rgba(124,58,237,0.35)",
+  objectiveId,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   sessionId: _sessionId, onNewChat: _onNewChat,
 }: Props) {
@@ -121,6 +288,9 @@ export function CreationsRoom({
   const [creations,        setCreations]        = useState<Creation[]>([]);
   const [injected,         setInjected]         = useState<Creation | null>(null);
   const [plusOpen,         setPlusOpen]         = useState(false);
+  const [isDragOver,       setIsDragOver]       = useState(false);
+  const [binDragOver,      setBinDragOver]      = useState(false);
+  const [deletingId,       setDeletingId]       = useState<string | null>(null);
 
   const scrollRefDesktop = useRef<HTMLDivElement>(null);   // desktop message list
   const scrollRefMobile  = useRef<HTMLDivElement>(null);   // mobile message list
@@ -129,21 +299,19 @@ export function CreationsRoom({
 
   const activeMeta = OUTPUT_META[selected] ?? OUTPUT_META.text;
 
-  useEffect(() => {
+  const refreshCreations = () => {
     fetch("/api/creations")
       .then(r => r.ok ? r.json() : { creations: [] })
       .then(data => setCreations(data.creations ?? []))
       .catch(() => {});
-  }, []);
+  };
 
   useEffect(() => {
-    if (messages.length > 0) {
-      fetch("/api/creations")
-        .then(r => r.ok ? r.json() : { creations: [] })
-        .then(data => setCreations(data.creations ?? []))
-        .catch(() => {});
-    }
-  }, [messages.length]);
+    refreshCreations();
+    const interval = setInterval(refreshCreations, 5000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Scroll both message containers (desktop + mobile) to the bottom after every update.
   // renderMessageList() is called twice in the JSX, so we need two separate refs.
@@ -184,6 +352,19 @@ export function CreationsRoom({
     setSelected(c.output_type === "json" ? "json" : c.output_type as OutputType);
     setPlusOpen(false);
     taRef.current?.focus({ preventScroll: true });
+  };
+
+  const deleteCreation = async (id: string) => {
+    setDeletingId(id);
+    setCreations(prev => prev.filter(c => c.id !== id));
+    try {
+      await fetch("/api/creations", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+    } catch {}
+    setDeletingId(null);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -299,15 +480,41 @@ export function CreationsRoom({
         )}
 
         {/* Input bar */}
-        <div style={{
+        <div
+          onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; setIsDragOver(true); }}
+          onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragOver(false); }}
+          onDrop={e => {
+            e.preventDefault();
+            setIsDragOver(false);
+            try {
+              const c = JSON.parse(e.dataTransfer.getData("application/creation")) as Creation;
+              if (c?.id) injectCreation(c);
+            } catch {}
+          }}
+          style={{
           display: "flex", alignItems: "center", gap: 6,
-          background: "rgba(10,5,50,0.65)",
-          border: `2px solid rgba(${activeMeta.glowRgb},0.8)`,
+          background: isDragOver ? `rgba(${activeMeta.glowRgb},0.12)` : "rgba(10,5,50,0.65)",
+          border: `2px solid ${isDragOver ? activeMeta.glowColor : `rgba(${activeMeta.glowRgb},0.8)`}`,
           borderRadius: 40,
           padding: mobile ? "6px 8px 6px 10px" : "7px 8px 7px 12px",
-          boxShadow: `0 0 24px rgba(${activeMeta.glowRgb},0.45)`,
+          boxShadow: isDragOver
+            ? `0 0 32px rgba(${activeMeta.glowRgb},0.7), inset 0 0 16px rgba(${activeMeta.glowRgb},0.1)`
+            : `0 0 24px rgba(${activeMeta.glowRgb},0.45)`,
           backdropFilter: "blur(16px)",
+          transition: "border-color 0.15s, box-shadow 0.15s, background 0.15s",
+          position: "relative",
         }}>
+          {isDragOver && (
+            <div style={{
+              position: "absolute", inset: 0, borderRadius: 40,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              pointerEvents: "none", zIndex: 2,
+            }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: activeMeta.glowColor, letterSpacing: "0.04em" }}>
+                Drop to add to prompt ✦
+              </span>
+            </div>
+          )}
           <button onClick={() => setPlusOpen(v => !v)} title="Add context or upload"
             style={{
               width: 30, height: 30, borderRadius: "50%", flexShrink: 0,
@@ -362,6 +569,12 @@ export function CreationsRoom({
 
   return (
     <div className="relative w-full h-full overflow-hidden" style={{ background: "#080814" }}>
+      <style>{`
+        @keyframes eq-bar {
+          0%   { transform: scaleY(0.3); opacity: 0.5; }
+          100% { transform: scaleY(1);   opacity: 1;   }
+        }
+      `}</style>
 
       {/* Background room */}
       <img src="/arena1/empty_room.png" alt="" aria-hidden draggable={false}
@@ -424,11 +637,16 @@ export function CreationsRoom({
                     return (
                       <button
                         key={c.id}
+                        draggable
                         onClick={() => injectCreation(c)}
-                        title={`Use "${c.title}"`}
+                        onDragStart={e => {
+                          e.dataTransfer.setData("application/creation", JSON.stringify(c));
+                          e.dataTransfer.effectAllowed = "copy";
+                        }}
+                        title={`Use "${c.title}" — click or drag to prompt`}
                         style={{
                           flex: 1, height: "75%",
-                          background: "none", border: "none", padding: 0, cursor: "pointer",
+                          background: "none", border: "none", padding: 0, cursor: "grab",
                           display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
                           transition: "transform 0.2s ease",
                         }}
@@ -443,17 +661,18 @@ export function CreationsRoom({
                           border: `1.5px solid rgba(${meta.glowRgb},0.5)`,
                           boxShadow: `0 0 10px rgba(${meta.glowRgb},0.3)`,
                           display: "flex", alignItems: "center", justifyContent: "center",
+                          position: "relative",
                         }}>
-                          {c.output_type === "image" && (c.file_url || /^https?:/.test(c.content)) ? (
-                            <img
-                              src={c.file_url ?? c.content.trim()} alt={c.title}
-                              style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                            />
-                          ) : (
-                            <span style={{ fontSize: 18 }}>
-                              {c.output_type === "audio" ? "🎙️" : c.output_type === "slides" ? "📊" : c.output_type === "image" ? "🖼️" : "📝"}
-                            </span>
-                          )}
+                          <ShelfThumbnail c={c} glowColor={meta.glowColor} glowRgb={meta.glowRgb} />
+                          {/* Drag hint overlay */}
+                          <div style={{
+                            position: "absolute", inset: 0,
+                            background: `rgba(${meta.glowRgb},0.0)`,
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            opacity: 0, transition: "opacity 0.2s",
+                          }}
+                            className="drag-hint"
+                          />
                         </div>
                         {/* Title */}
                         <p style={{
@@ -529,6 +748,66 @@ export function CreationsRoom({
         })}
       </div>
 
+      {/* ── Trash bin — drop a shelf card here to delete the creation ────── */}
+      <div
+        className="hidden lg:flex"
+        onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; setBinDragOver(true); }}
+        onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setBinDragOver(false); }}
+        onDrop={async e => {
+          e.preventDefault();
+          setBinDragOver(false);
+          try {
+            const c = JSON.parse(e.dataTransfer.getData("application/creation")) as Creation;
+            if (c?.id && c.id !== "local-upload") await deleteCreation(c.id);
+          } catch {}
+        }}
+        style={{
+          position: "absolute",
+          bottom: "5%", left: "2.5%",
+          width: "23vw", zIndex: 15,
+          alignItems: "flex-end", justifyContent: "center",
+          cursor: "copy",
+          transition: "transform 0.2s ease",
+          transform: binDragOver ? "scale(1.18) translateY(-6px)" : "scale(1)",
+        }}
+      >
+        <img
+          src="/arena1/bin.png"
+          alt="Delete"
+          draggable={false}
+          style={{
+            width: "100%", height: "auto", objectFit: "contain",
+            filter: binDragOver
+              ? "brightness(1.6) drop-shadow(0 0 14px rgba(255,80,80,0.9)) drop-shadow(0 0 32px rgba(255,80,80,0.5))"
+              : "brightness(0.75) saturate(0.7)",
+            transition: "filter 0.2s ease",
+          }}
+        />
+        {binDragOver && (
+          <div style={{
+            position: "absolute", bottom: "50%", left: "50%", transform: "translateX(-50%)",
+            background: "rgba(8,4,22,0.92)", border: "1px solid rgba(255,80,80,0.5)",
+            borderRadius: 10, padding: "4px 10px", whiteSpace: "nowrap",
+            fontSize: 10, fontWeight: 700, color: "rgba(255,120,120,1)",
+            boxShadow: "0 0 16px rgba(255,80,80,0.4)", backdropFilter: "blur(8px)",
+            pointerEvents: "none",
+          }}>
+            Drop to delete
+          </div>
+        )}
+        {deletingId && (
+          <div style={{
+            position: "absolute", bottom: "110%", left: "50%", transform: "translateX(-50%)",
+            background: "rgba(8,4,22,0.92)", border: "1px solid rgba(255,80,80,0.3)",
+            borderRadius: 10, padding: "4px 10px", whiteSpace: "nowrap",
+            fontSize: 10, fontWeight: 700, color: "rgba(255,120,120,0.7)",
+            pointerEvents: "none",
+          }}>
+            Deleting…
+          </div>
+        )}
+      </div>
+
       {/* ── Desktop chat panel — overlaid on the whiteboard ─────────────── */}
       <div className="hidden lg:flex flex-col"
         style={{
@@ -538,6 +817,11 @@ export function CreationsRoom({
           background: "transparent",
         }}
       >
+        {objectiveId && (
+          <div style={{ padding: "8px 12px 0", flexShrink: 0 }}>
+            <ObjectiveCard objectiveId={objectiveId} arenaAccent={arenaAccent} arenaAccentGlow={arenaAccentGlow} />
+          </div>
+        )}
         {renderMessageList(scrollRefDesktop)}
         <div style={{ padding: "8px 12px 12px", flexShrink: 0 }}>
           {/* Output-type dot row */}
@@ -561,6 +845,9 @@ export function CreationsRoom({
       <div className="lg:hidden absolute inset-0 z-30 flex flex-col"
         style={{ background: "rgba(8,8,20,0.97)", padding: "16px 14px 14px", gap: 10 }}>
         <div style={{ height: 2, flexShrink: 0, borderRadius: 2, marginBottom: 2, background: `linear-gradient(90deg, transparent, ${arenaAccent}80, ${arenaAccent}, ${arenaAccent}80, transparent)` }}/>
+        {objectiveId && (
+          <ObjectiveCard objectiveId={objectiveId} arenaAccent={arenaAccent} arenaAccentGlow={arenaAccentGlow} />
+        )}
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", flexShrink: 0 }}>
           {OUTPUT_TYPES.map(t => (
             <button key={t.id} onClick={() => setSelected(t.id)}

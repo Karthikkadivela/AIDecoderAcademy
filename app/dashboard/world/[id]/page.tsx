@@ -5,7 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { ArrowLeft, Zap, Lock } from "lucide-react";
 import { getArena } from "@/lib/arenas";
-import { getArenaObjectives, getCompletedObjectives, type Objective } from "@/lib/objectives";
+import { getArenaObjectives, getCompletedObjectives, isArenaUnlocked, type Objective } from "@/lib/objectives";
 import type { Profile } from "@/types";
 import Arena1HotspotMap from "@/components/worlds/Arena1HotspotMap";
 import Arena1CenterOverlay from "@/components/worlds/Arena1CenterOverlay";
@@ -40,8 +40,7 @@ export default function WorldPage() {
     setCompleted(getCompletedObjectives());
   }, []);
 
-  const level     = profile?.level ?? 1;
-  const unlocked  = arena.unlockLevel <= level;
+  const unlocked  = isArenaUnlocked(arenaId);
 
   const handleStartObjective = (obj: Objective) => {
     if (!unlocked) return;
@@ -161,10 +160,11 @@ export default function WorldPage() {
           style={{ paddingTop: "100px", paddingBottom: "20px" }}>
           <div className="w-full max-w-4xl grid grid-cols-1 sm:grid-cols-3 gap-4">
             {objectives.map((obj, i) => {
-              const done        = completed.has(obj.id);
-              const isLocked    = !unlocked;
-              const isLaunching = launching === obj.id;
-              const outMeta     = OUTPUT_LABELS[obj.outputType] ?? OUTPUT_LABELS.text;
+              const done           = completed.has(obj.id);
+              const prevDone       = i === 0 || completed.has(objectives[i - 1].id);
+              const isObjLocked    = !unlocked || !prevDone;
+              const isLaunching    = launching === obj.id;
+              const outMeta        = OUTPUT_LABELS[obj.outputType] ?? OUTPUT_LABELS.text;
 
               return (
                 <motion.div
@@ -174,18 +174,17 @@ export default function WorldPage() {
                   transition={{ delay: i * 0.12 + 0.2, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
                 >
                   <motion.button
-                    onClick={() => handleStartObjective(obj)}
-                    disabled={isLocked || isLaunching}
-                    whileHover={!isLocked ? { y: -4, scale: 1.02 } : {}}
-                    whileTap={!isLocked   ? { scale: 0.97 }         : {}}
-                    className="w-full text-left rounded-2xl overflow-hidden transition-all duration-200"
+                    onClick={() => !isObjLocked && handleStartObjective(obj)}
+                    disabled={isObjLocked || isLaunching}
+                    whileHover={!isObjLocked ? { y: -4, scale: 1.02 } : {}}
+                    whileTap={!isObjLocked   ? { scale: 0.97 }         : {}}
+                    className="w-full text-left rounded-2xl overflow-hidden transition-all duration-200 relative"
                     style={{
                       background:     done ? `${arena.accent}18` : "rgba(15,15,26,0.82)",
-                      border:         `1px solid ${done ? arena.accent + "60" : "rgba(255,255,255,0.1)"}`,
+                      border:         `1px solid ${done ? arena.accent + "60" : isObjLocked ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.1)"}`,
                       backdropFilter: "blur(20px)",
                       boxShadow:      done ? `0 0 24px ${arena.accentGlow}` : "0 8px 32px rgba(0,0,0,0.4)",
-                      cursor:         isLocked ? "not-allowed" : "pointer",
-                      opacity:        isLocked ? 0.5 : 1,
+                      cursor:         isObjLocked ? "not-allowed" : "pointer",
                     }}
                   >
                     <div className="h-0.5 w-full" style={{ background: done ? arena.accent : "rgba(255,255,255,0.08)" }}/>
@@ -203,8 +202,6 @@ export default function WorldPage() {
                           {done ? (
                             <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
                               style={{ background: arena.accent, color: "#08080F" }}>✓</div>
-                          ) : isLocked ? (
-                            <Lock size={14} className="text-white/25"/>
                           ) : (
                             <span className="text-[10px] font-mono text-white/30">
                               Mission {obj.order}
@@ -228,7 +225,7 @@ export default function WorldPage() {
                           +{obj.xpReward} XP
                         </div>
 
-                        {!isLocked && (
+                        {!isObjLocked && (
                           <div
                             className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-display font-extrabold transition-all duration-200"
                             style={done ? {
@@ -253,6 +250,16 @@ export default function WorldPage() {
                         )}
                       </div>
                     </div>
+                    {/* Transparent sequential lock overlay */}
+                    {isObjLocked && (
+                      <div className="absolute inset-0 rounded-2xl flex flex-col items-center justify-center gap-2"
+                        style={{ background: "rgba(4,2,14,0.65)", backdropFilter: "blur(2px)", zIndex: 10 }}>
+                        <Lock size={16} className="text-white/30"/>
+                        <p className="text-[10px] font-mono text-white/35 text-center px-4">
+                          {!unlocked ? `Complete Arena ${arenaId - 1} first` : "Complete the previous mission first"}
+                        </p>
+                      </div>
+                    )}
                   </motion.button>
                 </motion.div>
               );
@@ -275,7 +282,7 @@ export default function WorldPage() {
               {arena.name} is Locked
             </h2>
             <p className="text-white/50 text-sm mb-6">
-              Reach Level {arena.unlockLevel} ({arena.unlockXP} XP) to unlock this world.
+              Complete all objectives in Arena {arenaId - 1} to unlock this world.
             </p>
             <button
               onClick={() => router.push("/dashboard/playground")}

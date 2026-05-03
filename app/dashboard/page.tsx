@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ARENAS } from "@/lib/arenas";
-import { isArenaComplete } from "@/lib/objectives";
+import { isArenaComplete, isArenaUnlocked } from "@/lib/objectives";
 import type { Profile } from "@/types";
 
 // ── Panel definitions ──────────────────────────────────────────────────────
@@ -26,15 +26,15 @@ const PANELS: {
   zIndex:       number;
 }[] = [
   // ── CENTER ───────────────────────────────────────────────────────────────
-  // Video Vision — hero panel, wide cinematic ratio, top center
-  { arenaId: 6, src: "/panels/video_vision.png",  left: "33%", top: "5%",  width: "35%", aspect: "16/10",  rotateZ:  0, rotateY:   0, rotateX:  6, floatDelay: 0.0, floatRange: 10, zIndex: 10 },
+  // Video Fusion — hero panel, wide cinematic ratio, top center
+  { arenaId: 7, src: "/panels/video_vision.png",  left: "33%", top: "5%",  width: "35%", aspect: "16/10",  rotateZ:  0, rotateY:   0, rotateX:  6, floatDelay: 0.0, floatRange: 10, zIndex: 10 },
 
-  // ── LEFT COLUMN: audio · slide skate · script ────────────────────────────
+  // ── LEFT COLUMN: audio fusion · slide skate · script lab ─────────────────
   { arenaId: 5, src: "/panels/audio_fusion.png",  left:  "3%", top: "3%",  width: "42%", aspect: "16/10", rotateZ: -2, rotateY:  28, rotateX:  7, floatDelay: 0.6, floatRange: 12, zIndex: 11 },
-  { arenaId: 2, src: "/panels/slide_skate.png",   left:  "12%", top: "35%", width: "23%", aspect: "16/10", rotateZ: -2, rotateY:  22, rotateX:  0, floatDelay: 1.1, floatRange:  9, zIndex: 14 },
+  { arenaId: 6, src: "/panels/slide_skate.png",   left:  "12%", top: "35%", width: "23%", aspect: "16/10", rotateZ: -2, rotateY:  22, rotateX:  0, floatDelay: 1.1, floatRange:  9, zIndex: 14 },
   { arenaId: 3, src: "/panels/script.png",         left:  "12%", top: "58%", width: "30%", aspect: "16/10", rotateZ: -8, rotateY:  28, rotateX: 0, floatDelay: 1.7, floatRange:  8, zIndex: 32 },
 
-  // ── RIGHT COLUMN: ai explorer · prompt lab · pic drop ────────────────────
+  // ── RIGHT COLUMN: ai explorer · prompt lab · image module ────────────────
   { arenaId: 1, src: "/panels/ai_explorer.png",   left: "63%", top: "7%",  width: "30%", aspect: "16/10", rotateZ:  2, rotateY: -28, rotateX:  7, floatDelay: 0.4, floatRange: 12, zIndex: 11 },
   { arenaId: 2, src: "/panels/prompt_lab.png",    left: "64%", top: "35%", width: "27%", aspect: "16/10", rotateZ:  2, rotateY: -22, rotateX:  0, floatDelay: 0.9, floatRange:  9, zIndex: 14 },
   { arenaId: 4, src: "/panels/pic_drop.png",      left: "63%", top: "60%", width: "27%", aspect: "16/10", rotateZ:  8, rotateY: -28, rotateX: 0, floatDelay: 2.2, floatRange:  8, zIndex: 32 },
@@ -46,6 +46,7 @@ export default function HubPage() {
   const [hoveredArena, setHoveredArena] = useState<number | null>(null);
   const [transitioning, setTransitioning] = useState<number | null>(null);
   const [videoError,   setVideoError]   = useState(false);
+  const [lockedToast,  setLockedToast]  = useState<{ arenaId: number; x: number; y: number } | null>(null);
 
   useEffect(() => {
     fetch("/api/profile")
@@ -54,13 +55,16 @@ export default function HubPage() {
       .catch(() => {});
   }, []);
 
-  const handleArenaClick = useCallback((arenaId: number) => {
-    const arena = ARENAS.find(a => a.id === arenaId)!;
-    const level = profile?.level ?? 1;
-    if (arena.unlockLevel > level) return;
+  const handleArenaClick = useCallback((arenaId: number, e?: React.MouseEvent) => {
+    if (!isArenaUnlocked(arenaId)) {
+      if (e) setLockedToast({ arenaId, x: e.clientX, y: e.clientY });
+      setTimeout(() => setLockedToast(null), 2200);
+      return;
+    }
+    setLockedToast(null);
     setTransitioning(arenaId);
     setVideoError(false);
-  }, [profile]);
+  }, []);
 
   // Auto-navigate after 8s fallback
   useEffect(() => {
@@ -108,7 +112,6 @@ export default function HubPage() {
           key={panel.src ?? panel.arenaId}
           panel={panel}
           arena={ARENAS.find(a => a.id === panel.arenaId)!}
-          level={level}
           hovered={hoveredArena === panel.arenaId}
           onHover={setHoveredArena}
           onClick={handleArenaClick}
@@ -156,7 +159,6 @@ export default function HubPage() {
           key={panel.src ?? panel.arenaId}
           panel={panel}
           arena={ARENAS.find(a => a.id === panel.arenaId)!}
-          level={level}
           hovered={hoveredArena === panel.arenaId}
           onHover={setHoveredArena}
           onClick={handleArenaClick}
@@ -237,7 +239,7 @@ export default function HubPage() {
       <AnimatePresence>
         {hoveredArena && (() => {
           const a = ARENAS.find(x => x.id === hoveredArena)!;
-          const unlocked = a.unlockLevel <= level;
+          const unlocked = isArenaUnlocked(a.id);
           return (
             <motion.div
               key={hoveredArena}
@@ -262,12 +264,58 @@ export default function HubPage() {
                 <p className="text-xs text-white/50 mt-0.5">{a.tagline}</p>
                 {!unlocked && (
                   <p className="text-[10px] mt-1" style={{ color: a.accent }}>
-                    Unlocks at Level {a.unlockLevel} · {a.unlockXP} XP
+                    🔒 Complete Arena {a.id - 1} to unlock
                   </p>
                 )}
                 {unlocked && (
                   <p className="text-[10px] text-white/40 mt-1">Click to enter →</p>
                 )}
+              </div>
+            </motion.div>
+          );
+        })()}
+      </AnimatePresence>
+
+      {/* ── Locked arena toast ── */}
+      <AnimatePresence>
+        {lockedToast && (() => {
+          const a = ARENAS.find(x => x.id === lockedToast.arenaId)!;
+          return (
+            <motion.div
+              key="locked-toast"
+              initial={{ opacity: 0, scale: 0.85, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{    opacity: 0, scale: 0.85, y: 10 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              className="fixed pointer-events-none"
+              style={{
+                left: Math.min(lockedToast.x, window.innerWidth - 260),
+                top:  Math.max(lockedToast.y - 80, 20),
+                zIndex: 9000,
+              }}
+            >
+              <div
+                className="px-4 py-3 rounded-2xl backdrop-blur-2xl"
+                style={{
+                  background: "rgba(8,4,22,0.95)",
+                  border: `1px solid ${a.accent}50`,
+                  boxShadow: `0 0 32px ${a.accentGlow}, 0 8px 32px rgba(0,0,0,0.6)`,
+                  minWidth: "220px",
+                }}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-base">🔒</span>
+                  <p className="font-display font-extrabold text-sm text-white tracking-tight">
+                    {a.name} is locked
+                  </p>
+                </div>
+                <p className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.5)" }}>
+                  Complete all missions in{" "}
+                  <span style={{ color: a.accent, fontWeight: 700 }}>
+                    Arena {a.id - 1}
+                  </span>{" "}
+                  first to unlock this world.
+                </p>
               </div>
             </motion.div>
           );
@@ -344,16 +392,15 @@ interface PanelDef {
 }
 
 function PanelCard({
-  panel, arena, level, hovered, onHover, onClick,
+  panel, arena, hovered, onHover, onClick,
 }: {
   panel:   PanelDef;
   arena:   (typeof ARENAS)[0];
-  level:   number;
   hovered: boolean;
   onHover: (id: number | null) => void;
-  onClick: (id: number) => void;
+  onClick: (id: number, e: React.MouseEvent) => void;
 }) {
-  const unlocked  = arena.unlockLevel <= level;
+  const unlocked  = isArenaUnlocked(arena.id);
   const completed = typeof window !== "undefined" && isArenaComplete(arena.id);
 
   return (
@@ -382,12 +429,12 @@ function PanelCard({
       }}
       onMouseEnter={() => onHover(arena.id)}
       onMouseLeave={() => onHover(null)}
-      onClick={() => onClick(arena.id)}
+      onClick={(e) => onClick(arena.id, e)}
     >
       <motion.div
-        whileHover={unlocked ? { scale: 1.07 } : { scale: 1.02 }}
-        whileTap={unlocked   ? { scale: 0.96 } : {}}
-        style={{ cursor: unlocked ? "pointer" : "not-allowed" }}
+        whileHover={{ scale: 1.07 }}
+        whileTap={{ scale: 0.96 }}
+        style={{ cursor: "pointer" }}
         transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
       >
         {/*
@@ -410,11 +457,9 @@ function PanelCard({
               style={{
                 objectFit:     "cover",
                 objectPosition: "top center",
-                filter: unlocked
-                  ? hovered
-                    ? `brightness(1.25) drop-shadow(0 0 16px ${arena.accent})`
-                    : `brightness(1.05) drop-shadow(0 0 8px ${arena.accentGlow})`
-                  : "grayscale(1) brightness(0.35)",
+                filter: hovered
+                  ? `brightness(1.25) drop-shadow(0 0 16px ${arena.accent})`
+                  : `brightness(1.05) drop-shadow(0 0 8px ${arena.accentGlow})`,
                 transition: "filter 0.3s ease",
               }}
             />
@@ -430,16 +475,6 @@ function PanelCard({
             }}
           />
 
-          {/* Lock overlay */}
-          {!unlocked && (
-            <div
-              className="absolute inset-0 rounded-xl flex flex-col items-center justify-center gap-2"
-              style={{ background: "rgba(4,2,14,0.72)", backdropFilter: "blur(3px)" }}
-            >
-              <span className="text-2xl">🔒</span>
-              <p className="text-[10px] font-mono text-white/50">Level {arena.unlockLevel}</p>
-            </div>
-          )}
 
           {/* Completed badge */}
           {completed && unlocked && (

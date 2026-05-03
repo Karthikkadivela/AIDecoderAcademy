@@ -59,9 +59,11 @@ export async function POST(req: Request) {
       // img2img mode — user injected an existing image via creation picker
       console.log("[generate-image] img2img mode — source:", imageUrl.slice(0, 60));
       console.log("[generate-image] modification:", cleanPrompt.slice(0, 80));
-    } else if (conversationHistory?.trim()) {
-      // History-aware mode — let GPT read the transcript and write a proper image prompt
-      console.log("[generate-image] history-aware mode");
+    } else if (conversationHistory?.trim() && cleanPrompt.trim().split(/\s+/).length <= 6) {
+      // History-aware mode only for short/ambiguous prompts (≤6 words) like "another one" or "similar".
+      // For clear prompts the user's words are used directly — no GPT rewrite that could
+      // silently blend unrelated conversation context into the image subject.
+      console.log("[generate-image] history-aware mode (short prompt)");
       finalPrompt = await buildImagePrompt(conversationHistory, cleanPrompt);
       console.log("[generate-image] resolved prompt:", finalPrompt.slice(0, 80));
     } else {

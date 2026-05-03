@@ -1,17 +1,18 @@
 // ═══════════════════════════════════════════════════════
 // AI Decoder Academy — Arena Config
-// The single source of truth for all 6 arenas.
+// The single source of truth for all 7 arenas.
 // The playground reads this to skin itself per arena.
 // ═══════════════════════════════════════════════════════
 
-/** P1 dashboard “terrain” — one CSS motion layer per arena (`ArenaEnvironment`). */
+/** P1 dashboard "terrain" — one CSS motion layer per arena (`ArenaEnvironment`). */
 export type ArenaEnvironmentPreset =
-  | "nebula"     // AI Explorer — deep space drift
-  | "circuit"    // Prompt Lab — scrolling grid
-  | "ember"      // Story Forge — warm rising haze
-  | "canvas"     // Visual Studio — paint-field drift
-  | "soundwave"  // Sound Booth — lateral wave scan
-  | "cinema";    // Director's Suite — film vignette pulse
+  | "nebula"     // AI Explorer
+  | "circuit"    // Prompt Lab
+  | "ember"      // Script Lab
+  | "canvas"     // Image Module
+  | "soundwave"  // Audio Fusion
+  | "cinema"     // Slide Skate
+  | "video";     // Video Fusion
 
 export const ACTIVE_ARENA_CHANGED_EVENT = "ada-active-arena-changed";
 
@@ -90,12 +91,12 @@ export const ARENAS: ArenaConfig[] = [
   },
   {
     id:          3,
-    name:        "Story Forge",
+    name:        "Script Lab",
     role:        "Narrative Engineer",
     weekLabel:   "Week 3",
     unlockXP:    300,
     unlockLevel: 3,
-    emoji:       "📖",
+    emoji:       "📝",
     accent:      "#FF6B2B",
     accentDim:   "rgba(255,107,43,0.12)",
     accentGlow:  "rgba(255,107,43,0.3)",
@@ -104,19 +105,19 @@ export const ARENAS: ArenaConfig[] = [
     environmentPreset: "ember",
     bgPattern:   "dark warm background with faint ember particles and a firelit parchment texture",
     tutorPersona:"dramatic and inspiring — like a storyteller who sees narrative potential in everything",
-    welcomeMsg:  (name) => `The forge is lit, ${name}! 📖 You're now a Narrative Engineer. Every chapter becomes a story here. What will you create?`,
+    welcomeMsg:  (name) => `The lab is open, ${name}! 📝 You're now a Narrative Engineer. Every idea becomes a script here. What will you write?`,
     toolEmphasis: ["text", "slides"],
-    description: "Transform any topic into a gripping story. Build scenes, characters, and narrative arcs.",
-    tagline:     "Turn chapters into stories",
+    description: "Write scripts, stories, and dialogue with AI. Turn any idea into a full narrative.",
+    tagline:     "Write the story only you can tell",
   },
   {
     id:          4,
-    name:        "Visual Studio",
+    name:        "Image Module",
     role:        "Visual Architect",
     weekLabel:   "Week 4",
     unlockXP:    600,
     unlockLevel: 4,
-    emoji:       "🎨",
+    emoji:       "🖼️",
     accent:      "#00FF94",
     accentDim:   "rgba(0,255,148,0.1)",
     accentGlow:  "rgba(0,255,148,0.28)",
@@ -125,19 +126,19 @@ export const ARENAS: ArenaConfig[] = [
     environmentPreset: "canvas",
     bgPattern:   "dark canvas with faint paint splash texture and subtle grid lines",
     tutorPersona:"visual and enthusiastic — like an art director who thinks in images and composition",
-    welcomeMsg:  (name) => `Canvas unlocked, ${name}! 🎨 You're now a Visual Architect. Describe it — and watch it appear. What do you see in your mind?`,
+    welcomeMsg:  (name) => `Canvas unlocked, ${name}! 🖼️ You're now a Visual Architect. Describe it — and watch it appear. What do you see in your mind?`,
     toolEmphasis: ["image", "slides"],
-    description: "Generate AI visuals, design scenes, and build slide decks with stunning illustrations.",
+    description: "Generate AI images, design scenes, and build visual concepts with AI-powered tools.",
     tagline:     "See your ideas come to life",
   },
   {
     id:          5,
-    name:        "Sound Booth",
+    name:        "Audio Fusion",
     role:        "Voice Designer",
     weekLabel:   "Week 5",
     unlockXP:    1000,
     unlockLevel: 5,
-    emoji:       "🎙️",
+    emoji:       "🎵",
     accent:      "#FF2D78",
     accentDim:   "rgba(255,45,120,0.12)",
     accentGlow:  "rgba(255,45,120,0.3)",
@@ -146,19 +147,19 @@ export const ARENAS: ArenaConfig[] = [
     environmentPreset: "soundwave",
     bgPattern:   "dark studio with horizontal soundwave lines and acoustic panel texture",
     tutorPersona:"rhythmic and expressive — like a music producer who hears the audio in every word",
-    welcomeMsg:  (name) => `The booth is yours, ${name}! 🎙️ You're now a Voice Designer. Give your words a voice — rap, narrate, or perform. What sounds do you hear?`,
+    welcomeMsg:  (name) => `The booth is yours, ${name}! 🎵 You're now a Voice Designer. Fuse voices, music, and narration into something unforgettable. What do you hear?`,
     toolEmphasis: ["audio", "text"],
-    description: "Create character voices, narrations, raps, and audio scenes with AI-powered voices.",
+    description: "Fuse voices, narration, and AI audio to craft immersive sound experiences.",
     tagline:     "Give your words a voice",
   },
   {
     id:          6,
-    name:        "Director's Suite",
-    role:        "AI Learning Architect",
+    name:        "Slide Skate",
+    role:        "Presentation Architect",
     weekLabel:   "Week 6",
     unlockXP:    1500,
     unlockLevel: 6,
-    emoji:       "🎬",
+    emoji:       "🛹",
     accent:      "#C8FF00",
     accentDim:   "rgba(200,255,0,0.1)",
     accentGlow:  "rgba(200,255,0,0.3)",
@@ -166,16 +167,37 @@ export const ARENAS: ArenaConfig[] = [
     gradient:    "radial-gradient(ellipse at top, rgba(200,255,0,0.12) 0%, transparent 60%)",
     environmentPreset: "cinema",
     bgPattern:   "dark cinematic background with film grain texture and subtle clapperboard motif",
-    tutorPersona:"visionary and commanding — like a film director who sees the whole picture",
-    welcomeMsg:  (name) => `Lights. Camera. Action, ${name}! 🎬 You're now an AI Learning Architect. Every tool is unlocked. This is your director's suite — create your masterpiece.`,
+    tutorPersona:"energetic and slick — like a creative director who makes every slide land perfectly",
+    welcomeMsg:  (name) => `Skate to the stage, ${name}! 🛹 You're now a Presentation Architect. Build decks that move people. What story will your slides tell?`,
+    toolEmphasis: ["slides", "image", "text"],
+    description: "Build stunning AI-generated slide decks. Turn ideas into presentations that skate.",
+    tagline:     "Slide into the spotlight",
+  },
+  {
+    id:          7,
+    name:        "Video Fusion",
+    role:        "Video Director",
+    weekLabel:   "Week 7",
+    unlockXP:    2200,
+    unlockLevel: 7,
+    emoji:       "🎬",
+    accent:      "#FF6D00",
+    accentDim:   "rgba(255,109,0,0.12)",
+    accentGlow:  "rgba(255,109,0,0.3)",
+    surface:     "rgba(255,109,0,0.06)",
+    gradient:    "radial-gradient(ellipse at top right, rgba(255,109,0,0.18) 0%, transparent 65%)",
+    environmentPreset: "video",
+    bgPattern:   "dark film set with clapperboard motifs, camera light trails, and cinematic grain",
+    tutorPersona:"visionary and commanding — like a film director who sees every frame as art",
+    welcomeMsg:  (name) => `Lights. Camera. Action, ${name}! 🎬 You're now a Video Director. Every tool is yours. This is your final cut — make it legendary.`,
     toolEmphasis: ["image", "audio", "slides", "text"],
-    description: "The final arena. All tools unlocked. Design your complete learning film from script to screen.",
+    description: "The final arena. Combine every skill — script, image, audio, slides — into a video masterpiece.",
     tagline:     "Direct your masterpiece",
   },
 ];
 
 // XP thresholds per level
-export const XP_THRESHOLDS = [0, 100, 300, 600, 1000, 1500];
+export const XP_THRESHOLDS = [0, 100, 300, 600, 1000, 1500, 2200];
 
 // XP rewards per action
 export const XP_REWARDS: Record<string, number> = {

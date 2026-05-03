@@ -65,6 +65,7 @@ const PRESET_ROOT: Record<ArenaEnvironmentPreset, number> = {
   canvas:    415.3,
   soundwave: 493.88,
   cinema:    369.99,
+  video:     392,
 };
 
 /**

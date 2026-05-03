@@ -1,12 +1,13 @@
 import Link from "next/link";
 
 const ARENAS = [
-  { emoji: "🚀", name: "AI Explorer",     week: "Week 1", accent: "#7C3AED", dim: "rgba(124,58,237,0.15)",  glow: "rgba(124,58,237,0.4)"  },
-  { emoji: "⚡", name: "Prompt Lab",       week: "Week 2", accent: "#00D4FF", dim: "rgba(0,212,255,0.12)",   glow: "rgba(0,212,255,0.4)"   },
-  { emoji: "📖", name: "Story Forge",      week: "Week 3", accent: "#FF6B2B", dim: "rgba(255,107,43,0.14)",  glow: "rgba(255,107,43,0.4)"  },
-  { emoji: "🎨", name: "Visual Studio",    week: "Week 4", accent: "#00FF94", dim: "rgba(0,255,148,0.12)",   glow: "rgba(0,255,148,0.4)"   },
-  { emoji: "🎙️", name: "Sound Booth",      week: "Week 5", accent: "#FF2D78", dim: "rgba(255,45,120,0.14)",  glow: "rgba(255,45,120,0.4)"  },
-  { emoji: "🎬", name: "Director's Suite", week: "Week 6", accent: "#C8FF00", dim: "rgba(200,255,0,0.12)",   glow: "rgba(200,255,0,0.4)"   },
+  { emoji: "🚀", name: "AI Explorer",  week: "Week 1", accent: "#7C3AED", dim: "rgba(124,58,237,0.15)", glow: "rgba(124,58,237,0.4)" },
+  { emoji: "⚡", name: "Prompt Lab",   week: "Week 2", accent: "#00D4FF", dim: "rgba(0,212,255,0.12)",  glow: "rgba(0,212,255,0.4)"  },
+  { emoji: "📝", name: "Script Lab",   week: "Week 3", accent: "#FF6B2B", dim: "rgba(255,107,43,0.14)", glow: "rgba(255,107,43,0.4)" },
+  { emoji: "🖼️", name: "Image Module", week: "Week 4", accent: "#00FF94", dim: "rgba(0,255,148,0.12)",  glow: "rgba(0,255,148,0.4)"  },
+  { emoji: "🎵", name: "Audio Fusion", week: "Week 5", accent: "#FF2D78", dim: "rgba(255,45,120,0.14)", glow: "rgba(255,45,120,0.4)" },
+  { emoji: "🛹", name: "Slide Skate",  week: "Week 6", accent: "#C8FF00", dim: "rgba(200,255,0,0.12)",  glow: "rgba(200,255,0,0.4)"  },
+  { emoji: "🎬", name: "Video Fusion", week: "Week 7", accent: "#FF6D00", dim: "rgba(255,109,0,0.14)",  glow: "rgba(255,109,0,0.4)"  },
 ];
 
 const FEATURES = [
@@ -89,7 +90,7 @@ export default function LandingPage() {
         </h1>
 
         <p className="text-lg sm:text-xl text-white/55 max-w-2xl mx-auto mb-10 leading-relaxed">
-          Write stories, generate images, create audio scenes — unlock <strong className="text-white/80">6 immersive arenas</strong> as you level up through a 6-week AI curriculum.
+          Write stories, generate images, create audio scenes — unlock <strong className="text-white/80">7 immersive arenas</strong> as you level up through a 7-week AI curriculum.
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -117,36 +118,53 @@ export default function LandingPage() {
       {/* ── Arena cards ─────────────────────────────────────────────────── */}
       <section className="relative z-10 max-w-7xl mx-auto px-6 sm:px-10 pb-20">
         <div className="text-center mb-10">
-          <h2 className="font-display font-black text-2xl sm:text-3xl text-white mb-2">6 Worlds to explore</h2>
-          <p className="text-white/40 text-sm">Unlock each arena as you earn XP — new environment, new tools, new superpowers.</p>
+          <h2 className="font-display font-black text-2xl sm:text-3xl text-white mb-2">7 Worlds to explore</h2>
+          <p className="text-white/40 text-sm">Complete each arena's objectives to unlock the next — new environment, new tools, new superpowers.</p>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {ARENAS.map((a, i) => (
-            <div key={a.name}
-              className="relative rounded-2xl p-4 text-center border overflow-hidden group transition-all hover:-translate-y-1 hover:scale-[1.02]"
-              style={{
-                background: `linear-gradient(135deg, ${a.dim}, rgba(15,15,26,0.8))`,
-                borderColor: `${a.accent}30`,
-                boxShadow: `0 8px 32px -8px ${a.glow}`,
-              }}>
-              {/* Accent top stripe */}
-              <div className="absolute top-0 left-0 right-0 h-px"
-                style={{ background: `linear-gradient(90deg, transparent, ${a.accent}, transparent)` }}/>
-              {i > 0 && (
-                <div className="absolute top-2 right-2 text-[8px] font-mono font-bold px-1.5 py-0.5 rounded border border-white/10 text-white/30">
-                  🔒
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+          {ARENAS.map((a, i) => {
+            const locked = i > 0;
+            return (
+              <div key={a.name}
+                className="relative rounded-2xl p-4 text-center border overflow-hidden group transition-all hover:-translate-y-1 hover:scale-[1.02]"
+                style={{
+                  background: locked
+                    ? "rgba(10,8,22,0.6)"
+                    : `linear-gradient(135deg, ${a.dim}, rgba(15,15,26,0.8))`,
+                  borderColor: locked ? "rgba(255,255,255,0.06)" : `${a.accent}30`,
+                  boxShadow: locked ? "none" : `0 8px 32px -8px ${a.glow}`,
+                }}>
+                {/* Accent top stripe — hidden when locked */}
+                {!locked && (
+                  <div className="absolute top-0 left-0 right-0 h-px"
+                    style={{ background: `linear-gradient(90deg, transparent, ${a.accent}, transparent)` }}/>
+                )}
+
+                <div className="text-3xl mb-2 mt-1" style={{ filter: locked ? "grayscale(1) opacity(0.35)" : "none" }}>
+                  {a.emoji}
                 </div>
-              )}
-              <div className="text-3xl mb-2 mt-1" style={{ filter: i > 0 ? "grayscale(0.4)" : "none" }}>
-                {a.emoji}
+                <div className="font-display font-black text-[11px] leading-tight mb-0.5"
+                  style={{ color: locked ? "rgba(255,255,255,0.2)" : a.accent }}>
+                  {a.name}
+                </div>
+                <div className="text-[9px] font-mono text-white/20 uppercase tracking-wider">{a.week}</div>
+
+                {/* Transparent lock overlay */}
+                {locked && (
+                  <div className="absolute inset-0 rounded-2xl flex flex-col items-center justify-center gap-1"
+                    style={{ background: "rgba(6,4,18,0.55)", backdropFilter: "blur(1px)" }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                    <span className="text-[8px] font-mono text-white/20">
+                      {i === 1 ? "Complete Arena 1" : `Complete Week ${i}`}
+                    </span>
+                  </div>
+                )}
               </div>
-              <div className="font-display font-black text-[11px] leading-tight mb-0.5"
-                style={{ color: a.accent }}>
-                {a.name}
-              </div>
-              <div className="text-[9px] font-mono text-white/30 uppercase tracking-wider">{a.week}</div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 
