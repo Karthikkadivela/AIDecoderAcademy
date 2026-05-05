@@ -1,8 +1,6 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { cn } from "@/lib/utils";
 import { UserButton } from "@clerk/nextjs";
 import { ArenaEnvironment } from "@/components/dashboard/ArenaEnvironment";
 import { AidaAssistant } from "@/components/aida/AidaAssistant";
@@ -12,15 +10,8 @@ import { getArena, ACTIVE_ARENA_CHANGED_EVENT } from "@/lib/arenas";
 import { playArenaEnterSound } from "@/lib/gameAudio";
 import type { Profile } from "@/types";
 
-const NAV = [
-  { href: "/dashboard",            label: "Hub",           icon: "🌐" },
-  { href: "/dashboard/playground", label: "Playground",    icon: "🎮" },
-  { href: "/dashboard/progress",   label: "My Creations",  icon: "⭐" },
-  { href: "/dashboard/profile",    label: "Profile",       icon: "🧒" },
-];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [arenaOverride, setArenaOverride] = useState<number | null>(null);
   const [navVisible, setNavVisible] = useState(false);
@@ -126,28 +117,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </span>
           </Link>
 
-          {/* Nav links */}
-          <nav className="flex items-center gap-0.5 sm:gap-1">
-            {NAV.map((item) => {
-              const active = item.href === "/dashboard"
-                ? pathname === "/dashboard"
-                : pathname.startsWith(item.href);
-              return (
-                <Link key={item.href} href={item.href}
-                  className={cn(
-                    "flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 rounded-xl font-display font-bold text-sm transition-all duration-200",
-                    active ? "text-[#08080F]" : "text-white/50 hover:text-white hover:bg-white/[0.06]"
-                  )}
-                  style={active ? {
-                    background: arena.accent,
-                    boxShadow:  `0 0 20px ${arena.accentGlow}`,
-                  } : {}}>
-                  <span className="text-base">{item.icon}</span>
-                  <span className="hidden sm:block">{item.label}</span>
-                </Link>
-              );
-            })}
-          </nav>
+          {/* Centre spacer */}
+          <div className="flex-1" />
 
           {/* Right — XP + level + avatar */}
           <div className="flex items-center gap-3 flex-shrink-0">

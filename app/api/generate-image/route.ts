@@ -9,22 +9,53 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 export const runtime     = "nodejs";
 export const maxDuration = 120;
 
-// Extract existing image URL from creation context if present (manual creation picker injection)
-function extractImageUrl(prompt: string): { imageUrl: string | null; cleanPrompt: string } {
+// Extract existing image context (title + URL) from a creation context marker
+function extractImageContext(prompt: string): {
+  imageUrl:   string | null;
+  imageTitle: string | null;
+  cleanPrompt: string;
+} {
   const imgStart = prompt.indexOf('[Image titled "');
   const imgEnd   = imgStart > -1 ? prompt.indexOf(']', imgStart) : -1;
   const match    = imgStart > -1 && imgEnd > -1
-    ? prompt.slice(imgStart, imgEnd + 1).match(/\[Image titled "[^"]*": (https?:\/\/[^\]]+)\]/)
+    ? prompt.slice(imgStart, imgEnd + 1).match(/\[Image titled "([^"]+)": (https?:\/\/[^\]]+)\]/)
     : null;
   if (match) {
-    const imageUrl    = match[1].trim();
+    const imageTitle  = match[1].trim();
+    const imageUrl    = match[2].trim();
     const cleanPrompt = prompt.replace(match[0], "").trim();
-    return { imageUrl, cleanPrompt };
+    return { imageUrl, imageTitle, cleanPrompt };
   }
-  return { imageUrl: null, cleanPrompt: prompt };
+  return { imageUrl: null, imageTitle: null, cleanPrompt: prompt };
 }
 
-// Converts conversation history + user request into a vivid image prompt
+// Converts a modification request + original image title into a complete new image prompt.
+// Used when the user injects a saved image and wants content changes (e.g. "replace bear with lion").
+async function buildEditPrompt(originalTitle: string, modificationRequest: string): Promise<string> {
+  const res = await openai.chat.completions.create({
+    model:    "gpt-4o-mini",
+    messages: [
+      {
+        role:    "system",
+        content:
+          "You are a visual description writer for an AI image generator. " +
+          "The user has an existing image and wants to modify it. " +
+          "Write a complete, detailed image prompt for the NEW image — incorporate the original image's setting and style, but apply the requested changes. " +
+          "Output ONLY the image prompt — no explanation, no quotes, no extra text. Max 100 words.",
+      },
+      {
+        role:    "user",
+        content: `Original image title: "${originalTitle}"\n\nModification request: "${modificationRequest}"\n\nWrite a complete visual image prompt for the modified image.`,
+      },
+    ],
+    temperature: 0.7,
+    max_tokens:  180,
+  });
+  return res.choices[0]?.message?.content?.trim() ?? modificationRequest;
+}
+
+// Converts conversation history + user request into a vivid image prompt.
+// Only used for short/ambiguous prompts like "another one".
 async function buildImagePrompt(conversationHistory: string, userPrompt: string): Promise<string> {
   const res = await openai.chat.completions.create({
     model:    "gpt-4o-mini",
@@ -52,13 +83,18 @@ export async function POST(req: Request) {
     const { prompt, conversationHistory } = await req.json();
     if (!prompt?.trim()) return NextResponse.json({ error: "Prompt required" }, { status: 400 });
 
-    const { imageUrl, cleanPrompt } = extractImageUrl(prompt);
+    const { imageUrl, imageTitle, cleanPrompt } = extractImageContext(prompt);
     let finalPrompt = cleanPrompt;
 
-    if (imageUrl) {
-      // img2img mode — user injected an existing image via creation picker
-      console.log("[generate-image] img2img mode — source:", imageUrl.slice(0, 60));
-      console.log("[generate-image] modification:", cleanPrompt.slice(0, 80));
+    if (imageUrl && imageTitle) {
+      // User injected a saved image and wants to edit it.
+      // The redux/img2img model only creates stylistic variations — it cannot reliably
+      // do semantic edits like "replace bear with lion". So we use GPT to write a
+      // complete new prompt that incorporates the original image's context + the changes,
+      // then generate fresh with text-to-image.
+      console.log("[generate-image] image-edit mode — original:", imageTitle, "| instruction:", cleanPrompt.slice(0, 80));
+      finalPrompt = await buildEditPrompt(imageTitle, cleanPrompt);
+      console.log("[generate-image] resolved edit prompt:", finalPrompt.slice(0, 100));
     } else if (conversationHistory?.trim() && cleanPrompt.trim().split(/\s+/).length <= 6) {
       // History-aware mode only for short/ambiguous prompts (≤6 words) like "another one" or "similar".
       // For clear prompts the user's words are used directly — no GPT rewrite that could
@@ -70,7 +106,9 @@ export async function POST(req: Request) {
       console.log("[generate-image] direct mode:", cleanPrompt.slice(0, 80));
     }
 
-    const buffer = await generateImage(finalPrompt, "fal-flux2pro", true, imageUrl ?? undefined);
+    // Always use text-to-image (no img2img) — the redux variation model doesn't follow
+    // semantic edit instructions reliably.
+    const buffer = await generateImage(finalPrompt, "fal-flux2pro", true);
 
     const supabase  = createAdminClient();
     const filename  = `images/${userId}/${Date.now()}.png`;

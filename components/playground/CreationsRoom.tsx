@@ -291,6 +291,7 @@ export function CreationsRoom({
   const [isDragOver,       setIsDragOver]       = useState(false);
   const [binDragOver,      setBinDragOver]      = useState(false);
   const [deletingId,       setDeletingId]       = useState<string | null>(null);
+  const [pasteWarning,     setPasteWarning]     = useState<string | null>(null);
 
   const scrollRefDesktop = useRef<HTMLDivElement>(null);   // desktop message list
   const scrollRefMobile  = useRef<HTMLDivElement>(null);   // mobile message list
@@ -385,6 +386,79 @@ export function CreationsRoom({
       reader.readAsDataURL(file);
     }
     e.target.value = "";
+  };
+
+  // ── Clipboard paste (Ctrl+V / Cmd+V) ─────────────────────────────────────
+  const showPasteWarning = (msg: string) => {
+    setPasteWarning(msg);
+    setTimeout(() => setPasteWarning(null), 3000);
+  };
+
+  const getOutputTypeForFile = (file: File): OutputType | null => {
+    const t = file.type.toLowerCase();
+    if (t.startsWith("image/")) return "image";
+    if (t.startsWith("audio/")) return "audio";
+    if (
+      t === "application/pdf" ||
+      t === "application/msword" ||
+      t === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    ) return "text";
+    if (
+      t === "application/vnd.ms-powerpoint" ||
+      t === "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    ) return "slides";
+    // Also check by extension for cases where MIME is generic
+    const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+    if (["png","jpg","jpeg","gif","webp","svg","bmp","avif"].includes(ext)) return "image";
+    if (["mp3","wav","ogg","aac","m4a","flac"].includes(ext)) return "audio";
+    if (["pdf","doc","docx"].includes(ext)) return "text";
+    if (["ppt","pptx"].includes(ext)) return "slides";
+    return null;
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    // Scan items (not files) — covers screenshots, browser-copied images,
+    // and filesystem files. clipboardData.files is empty for screenshots/webpage images.
+    const items = Array.from(e.clipboardData.items);
+    const fileItem = items.find(item => item.kind === "file");
+
+    if (!fileItem) return; // no file in clipboard — let default text paste proceed
+
+    e.preventDefault();
+
+    const file = fileItem.getAsFile();
+    if (!file) return;
+
+    const outType = getOutputTypeForFile(file);
+
+    if (!outType) {
+      const label = file.name || file.type || "this file";
+      showPasteWarning(`⚠️ "${label}" can't be added — only images, audio, documents and slides are supported.`);
+      return;
+    }
+
+    // For screenshots / browser-copied images the File has no name — generate one
+    const rawName = file.name && file.name !== "image.png" ? file.name : null;
+    const title   = rawName
+      ? rawName.replace(/\.[^.]+$/, "")
+      : outType === "image"
+        ? `Screenshot ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+        : `Pasted ${outType} ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const fake: Creation = {
+        id:         "local-upload",
+        profile_id: "",
+        title,
+        type:        "chat",
+        output_type: outType,
+        content:     ev.target?.result as string,
+        tags: [], is_favourite: false, created_at: "", updated_at: "",
+      };
+      injectCreation(fake);
+    };
+    reader.readAsDataURL(file);
   };
 
   // ── Message list ─────────────────────────────────────────────────────────
@@ -535,6 +609,7 @@ export function CreationsRoom({
               t.style.height = Math.min(t.scrollHeight, 80) + "px";
             }}
             onKeyDown={onKey}
+            onPaste={handlePaste}
             placeholder="What do you want to create today?"
             rows={1}
             style={{
@@ -573,6 +648,10 @@ export function CreationsRoom({
         @keyframes eq-bar {
           0%   { transform: scaleY(0.3); opacity: 0.5; }
           100% { transform: scaleY(1);   opacity: 1;   }
+        }
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+          to   { opacity: 1; transform: translateX(-50%) translateY(0);   }
         }
       `}</style>
 
@@ -866,6 +945,21 @@ export function CreationsRoom({
         {renderInputRow(true)}
       </div>
 
+      {/* ── Paste warning toast ──────────────────────────────────────────────── */}
+      {pasteWarning && (
+        <div style={{
+          position: "absolute", bottom: 90, left: "50%", transform: "translateX(-50%)",
+          background: "rgba(20,10,40,0.97)", border: "1px solid rgba(255,80,80,0.4)",
+          borderRadius: 12, padding: "10px 18px",
+          color: "rgba(255,180,180,0.95)", fontSize: 12, fontWeight: 600,
+          boxShadow: "0 4px 24px rgba(255,50,50,0.2)",
+          backdropFilter: "blur(16px)", zIndex: 200,
+          whiteSpace: "nowrap", pointerEvents: "none",
+          animation: "fadeInUp 0.2s ease",
+        }}>
+          {pasteWarning}
+        </div>
+      )}
     </div>
   );
 }

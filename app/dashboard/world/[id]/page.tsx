@@ -45,11 +45,9 @@ export default function WorldPage() {
   const handleStartObjective = (obj: Objective) => {
     if (!unlocked) return;
     setLaunching(obj.id);
-    const params = new URLSearchParams({
-      outputType: obj.outputType,
-      prompt:     obj.starterPrompt,
-      objective:  obj.id,
-    });
+    // Only pass the objective ID — prompt and outputType are looked up
+    // in the playground from lib/objectives so they're never exposed in the URL.
+    const params = new URLSearchParams({ objective: obj.id });
     setTimeout(() => {
       router.push(`/dashboard/playground?${params.toString()}`);
     }, 400);
@@ -285,11 +283,11 @@ export default function WorldPage() {
               Complete all objectives in Arena {arenaId - 1} to unlock this world.
             </p>
             <button
-              onClick={() => router.push("/dashboard/playground")}
+              onClick={() => router.push("/dashboard")}
               className="px-6 py-3 rounded-xl font-display font-extrabold text-sm transition-all duration-200 active:scale-95"
               style={{ background: arena.accent, color: "#08080F", boxShadow: `0 0 20px ${arena.accentGlow}` }}
             >
-              Go to Playground →
+              ← Back to Hub
             </button>
           </div>
         </motion.div>
@@ -316,15 +314,13 @@ export default function WorldPage() {
             </p>
             <p className="text-xs text-white/40">All missions in {arena.name} done.</p>
           </div>
-          {arenaId < 6 && (
-            <button
-              onClick={() => router.push(`/dashboard/world/${arenaId + 1}`)}
-              className="ml-2 px-3 py-1.5 rounded-lg text-xs font-display font-bold transition-all active:scale-95"
-              style={{ background: arena.accent, color: "#08080F" }}
-            >
-              Next World →
-            </button>
-          )}
+          <button
+            onClick={() => router.push("/dashboard")}
+            className="ml-2 px-3 py-1.5 rounded-lg text-xs font-display font-bold transition-all active:scale-95"
+            style={{ background: arena.accent, color: "#08080F" }}
+          >
+            ← Back to Hub
+          </button>
         </motion.div>
       )}
     </div>

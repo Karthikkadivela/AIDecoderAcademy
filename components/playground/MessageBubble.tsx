@@ -357,37 +357,66 @@ export function MessageBubble({
             isUser ? (
               <div>
                 <p className="whitespace-pre-wrap">{message.content}</p>
-                {message.attachmentMeta && message.attachmentMeta.length > 0 && (
-                  <div className="flex gap-1 mt-2 flex-wrap">
-                    {message.attachmentMeta.map((item, i) => {
-                      const isFileType = ["image","audio","pdf","file"].includes(item);
-                      return (
-                        <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold"
-                          style={{ background: "rgba(255,255,255,0.18)", color: userTextColor }}>
-                          {item === "image" ? (
-                            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                              <rect x=".5" y=".5" width="9" height="9" rx="1" stroke="currentColor" strokeWidth="1"/>
-                              <circle cx="3" cy="3.5" r="1" fill="currentColor"/>
-                              <path d="M.5 7l2.5-2.5 2 2 1.5-1.5L9.5 7" stroke="currentColor" strokeWidth="1" strokeLinejoin="round"/>
-                            </svg>
-                          ) : item === "audio" ? (
-                            <div className="flex items-end gap-[1.5px]">
-                              {[2,3,2,4,2,3,2].map((h, j) => (
-                                <div key={j} className="w-[1.5px] rounded-full" style={{ height: `${h}px`, background: userTextColor }}/>
-                              ))}
-                            </div>
-                          ) : (
-                            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                              <path d="M6 1H2.5a1 1 0 00-1 1v6a1 1 0 001 1h5a1 1 0 001-1V3.5L6 1z" stroke="currentColor" strokeWidth="1"/>
-                              <path d="M6 1v2.5h2.5" stroke="currentColor" strokeWidth="1"/>
-                            </svg>
-                          )}
-                          {isFileType ? `${item} attached` : item}
-                        </span>
-                      );
-                    })}
-                  </div>
-                )}
+                {message.attachmentMeta && message.attachmentMeta.length > 0 && (() => {
+                  // Split into injected-image entries (img:url) and plain type badges
+                  const imgEntries  = message.attachmentMeta.filter(m => m.startsWith("img:"));
+                  const badgeEntries = message.attachmentMeta.filter(m => !m.startsWith("img:"));
+                  return (
+                    <div className="mt-2 flex flex-col gap-1.5">
+                      {/* Injected image thumbnails */}
+                      {imgEntries.length > 0 && (
+                        <div className="flex gap-2 flex-wrap">
+                          {imgEntries.map((item, i) => {
+                            const url = item.slice(4); // strip "img:"
+                            return (
+                              <div key={i} className="relative rounded-lg overflow-hidden flex-shrink-0"
+                                style={{ width: 72, height: 52, border: "1.5px solid rgba(255,255,255,0.25)" }}>
+                                <img src={url} alt="injected" draggable={false}
+                                  style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                <div className="absolute bottom-0 left-0 right-0 px-1 py-0.5 text-center"
+                                  style={{ background: "rgba(0,0,0,0.55)", fontSize: 7, fontWeight: 700, color: "rgba(255,255,255,0.8)" }}>
+                                  image
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {/* Plain type badges */}
+                      {badgeEntries.length > 0 && (
+                        <div className="flex gap-1 flex-wrap">
+                          {badgeEntries.map((item, i) => {
+                            const isFileType = ["image","audio","pdf","file"].includes(item);
+                            return (
+                              <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold"
+                                style={{ background: "rgba(255,255,255,0.18)", color: userTextColor }}>
+                                {item === "image" ? (
+                                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                                    <rect x=".5" y=".5" width="9" height="9" rx="1" stroke="currentColor" strokeWidth="1"/>
+                                    <circle cx="3" cy="3.5" r="1" fill="currentColor"/>
+                                    <path d="M.5 7l2.5-2.5 2 2 1.5-1.5L9.5 7" stroke="currentColor" strokeWidth="1" strokeLinejoin="round"/>
+                                  </svg>
+                                ) : item === "audio" ? (
+                                  <div className="flex items-end gap-[1.5px]">
+                                    {[2,3,2,4,2,3,2].map((h, j) => (
+                                      <div key={j} className="w-[1.5px] rounded-full" style={{ height: `${h}px`, background: userTextColor }}/>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                                    <path d="M6 1H2.5a1 1 0 00-1 1v6a1 1 0 001 1h5a1 1 0 001-1V3.5L6 1z" stroke="currentColor" strokeWidth="1"/>
+                                    <path d="M6 1v2.5h2.5" stroke="currentColor" strokeWidth="1"/>
+                                  </svg>
+                                )}
+                                {isFileType ? `${item} attached` : item}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             ) : (
               <div className="select-text cursor-text">

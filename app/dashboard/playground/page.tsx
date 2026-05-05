@@ -12,7 +12,7 @@ import { useChat }           from "@/components/playground/useChat";
 import { useXP, type XPResult } from "@/lib/useXP";
 import { getArena, type Badge } from "@/lib/arenas";
 import { usePlaygroundSession } from "@/lib/playgroundSessionContext";
-import { markObjectiveComplete } from "@/lib/objectives";
+import { markObjectiveComplete, getObjectiveById } from "@/lib/objectives";
 import type { Profile, PlaygroundMode, OutputType } from "@/types";
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -95,6 +95,14 @@ function PlaygroundInner() {
   // Arena room sends ?objective=<id> (e.g. "a1-3"). Free-play visits have no
   // ?objective= param so the teacher stays hidden.
   const activeObjectiveId = searchParams?.get("objective") ?? null;
+  // Look up prompt + outputType from local config — never exposed in the URL
+  const activeObjective = activeObjectiveId ? getObjectiveById(activeObjectiveId) : null;
+  // Derive which arena to go back to from the objective param (format "a{id}-{n}")
+  const backArenaId = (() => {
+    if (!activeObjectiveId) return null;
+    const m = activeObjectiveId.match(/^a(\d+)-/);
+    return m ? parseInt(m[1]) : null;
+  })();
 
   const [profile,        setProfile]        = useState<Profile | null>(null);
   const [mode]                               = useState<PlaygroundMode>("free");
@@ -153,7 +161,7 @@ function PlaygroundInner() {
     fetch("/api/profile")
       .then(r => r.ok ? r.json() : { profile: null })
       .then(({ profile }) => {
-        if (!profile) router.replace("/dashboard/profile");
+        if (!profile) router.replace("/dashboard");
         else setProfile(profile);
       });
   }, [router]);
@@ -176,21 +184,39 @@ function PlaygroundInner() {
     if (!text.trim() || isStreaming) return;
     setOutputType(outType);
 
-    const context = buildPreviousOutputContext(messages, outType, text);
+    // If the text starts with a creation context marker ([Type titled "...": ...]\n\n),
+    // split it out so the user bubble shows only their clean message.
+    const nnIdx         = text.indexOf("\n\n");
+    const contextPart   = nnIdx > -1 ? text.slice(0, nnIdx) : "";
+    const isCtxMarker   = contextPart.startsWith("[") && contextPart.endsWith("]");
+    const userText      = isCtxMarker ? text.slice(nnIdx + 2) : text;
+    const displayText   = isCtxMarker ? userText : undefined;
+
+    // If an image creation was injected, extract its URL for thumbnail display in the bubble.
+    const imgUrlMatch   = isCtxMarker
+      ? contextPart.match(/^\[Image titled "[^"]+": (https?:\/\/\S+)\]$/)
+      : null;
+    const injectedImgUrl = imgUrlMatch ? imgUrlMatch[1] : null;
+    const imgBubbleMeta  = injectedImgUrl ? [`img:${injectedImgUrl}`] : [];
+
+    // Skip auto-inject when user explicitly dragged a creation into the prompt —
+    // that would prepend a second [Image...] marker and extractImageUrl in the API
+    // would pick the wrong one (always takes the first match).
+    const context = isCtxMarker ? "" : buildPreviousOutputContext(messages, outType, userText);
     const enrichedText = context ? context + text : text;
     const hasContext = !!context;
 
     if (outType === "image") {
-      await sendImage(enrichedText, hasContext ? text : undefined, []);
+      await sendImage(enrichedText, displayText ?? (hasContext ? userText : undefined), imgBubbleMeta);
       awardXP("generate_image").then(handleXpResult);
     } else if (outType === "audio") {
-      await sendAudio(enrichedText, profile?.age_group ?? "11-13", hasContext ? text : undefined, []);
+      await sendAudio(enrichedText, profile?.age_group ?? "11-13", displayText ?? (hasContext ? userText : undefined), []);
       awardXP("generate_audio").then(handleXpResult);
     } else if (outType === "slides") {
-      await sendSlides(enrichedText, profile?.age_group ?? "11-13", hasContext ? text : undefined, []);
+      await sendSlides(enrichedText, profile?.age_group ?? "11-13", displayText ?? (hasContext ? userText : undefined), []);
       awardXP("generate_slides").then(handleXpResult);
     } else {
-      await sendMessage(enrichedText, outType, [], undefined, []);
+      await sendMessage(enrichedText, outType, [], undefined, displayText ? [] : []);
       awardXP("generate_text").then(handleXpResult);
     }
   };
@@ -232,8 +258,30 @@ function PlaygroundInner() {
     </div>
   );
 
+  // Arena the user came from — fallback to profile's active arena
+  const sourceArenaId = backArenaId ?? profile.active_arena ?? 1;
+
   return (
     <div className="relative w-full overflow-hidden" style={{ height: "100vh" }}>
+
+      {/* ── Back to Arena button ── */}
+      <button
+        onClick={() => router.push(`/dashboard/world/${sourceArenaId}`)}
+        className="absolute top-4 left-4 z-50 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-display font-bold transition-all active:scale-95"
+        style={{
+          background: "rgba(6,6,15,0.7)",
+          border: "1px solid rgba(255,255,255,0.1)",
+          backdropFilter: "blur(12px)",
+          color: "rgba(255,255,255,0.6)",
+        }}
+        onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#fff"}
+        onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.6)"}
+      >
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+          <path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        Arena {sourceArenaId}
+      </button>
 
       {/* Creation Room — full screen */}
       <CreationsRoom

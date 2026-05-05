@@ -50,7 +50,7 @@ export default function SignUpPage() {
   const [grade,        setGrade]        = useState("8");
 
   useEffect(() => {
-    if (isSignedIn && !verifying) router.replace("/dashboard/profile");
+    if (isSignedIn && !verifying) router.replace("/dashboard");
   }, [isSignedIn, router, verifying]);
 
   const passwordStrength =
@@ -112,7 +112,7 @@ export default function SignUpPage() {
         }).catch(() => {});
         await setActive({
           session: result.createdSessionId,
-          beforeEmit: () => router.replace("/dashboard/profile"),
+          beforeEmit: () => router.replace("/dashboard"),
         });
       }
     } catch (err: unknown) {
@@ -124,12 +124,12 @@ export default function SignUpPage() {
 
   const handleGoogle = async () => {
     if (!isLoaded) return;
-    if (isSignedIn) { router.replace("/dashboard/profile"); return; }
+    if (isSignedIn) { router.replace("/dashboard"); return; }
     try {
       await signUp.authenticateWithRedirect({
         strategy:            "oauth_google",
         redirectUrl:         "/auth/sso-callback",
-        redirectUrlComplete: "/dashboard/profile",
+        redirectUrlComplete: "/dashboard",
       });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Google sign-up failed.");

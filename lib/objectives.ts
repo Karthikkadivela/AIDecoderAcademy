@@ -375,6 +375,10 @@ export function toLmsId(id: string): string {
   return `l${m[1]}-${m[2].padStart(2, "0")}`;
 }
 
+export function getObjectiveById(id: string): Objective | undefined {
+  return OBJECTIVES.find(o => o.id === id);
+}
+
 export function getArenaObjectives(arenaId: number): Objective[] {
   return OBJECTIVES
     .filter(o => o.arenaId === arenaId)
