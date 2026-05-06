@@ -53,6 +53,19 @@ export default function SignUpPage() {
     if (isSignedIn && !verifying) router.replace("/dashboard");
   }, [isSignedIn, router, verifying]);
 
+  // Show loading dots while Clerk initialises (mirrors sign-in behaviour)
+  if (!isLoaded || (isSignedIn && !verifying)) {
+    return (
+      <div className="w-full max-w-md flex items-center justify-center py-20">
+        <div className="flex gap-2">
+          {[0,1,2].map(i => (
+            <div key={i} className="dot w-3 h-3 rounded-full" style={{ background: ACCENT }}/>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   const passwordStrength =
     password.length === 0 ? 0
     : password.length < 6 ? 1
@@ -86,7 +99,8 @@ export default function SignUpPage() {
       await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
       setVerifying(true);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      const clerkError = (err as { errors?: { message: string }[] })?.errors?.[0];
+      setError(clerkError?.message ?? "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -116,7 +130,8 @@ export default function SignUpPage() {
         });
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Invalid code.");
+      const clerkError = (err as { errors?: { message: string }[] })?.errors?.[0];
+      setError(clerkError?.message ?? "Invalid code. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -132,7 +147,8 @@ export default function SignUpPage() {
         redirectUrlComplete: "/dashboard",
       });
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Google sign-up failed.");
+      const clerkError = (err as { errors?: { message: string }[] })?.errors?.[0];
+      setError(clerkError?.message ?? "Google sign-up failed.");
     }
   };
 
