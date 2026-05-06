@@ -19,7 +19,7 @@ export default function SignInPage() {
   const [loading,      setLoading]      = useState(false);
 
   useEffect(() => {
-    if (isSignedIn) router.replace("/dashboard/playground");
+    if (isSignedIn) router.replace("/dashboard");
   }, [isSignedIn, router]);
 
   if (!isLoaded || isSignedIn) {
@@ -44,7 +44,7 @@ export default function SignInPage() {
       if (result.status === "complete") {
         await setActive({
           session: result.createdSessionId,
-          beforeEmit: () => router.replace("/dashboard/playground"),
+          beforeEmit: () => router.replace("/dashboard"),
         });
       }
     } catch (err: unknown) {

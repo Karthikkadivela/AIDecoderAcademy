@@ -108,11 +108,12 @@ export function useChat(profile: Profile | null, mode: PlaygroundMode) {
 
   const sendMessage = useCallback(
     async (
-      text:        string,
-      outputType:  OutputType   = "text",
-      attachments: Attachment[] = [],
-      forceSid?:   string,
-      bubbleMeta?: string[]
+      text:          string,
+      outputType:    OutputType   = "text",
+      attachments:   Attachment[] = [],
+      forceSid?:     string,
+      bubbleMeta?:   string[],
+      displayPrompt?: string,       // clean text shown in bubble (no context markers)
     ) => {
       if (!profile || isStreaming) return;
       const isInit = text === "__init__";
@@ -126,7 +127,9 @@ export function useChat(profile: Profile | null, mode: PlaygroundMode) {
       if (!isInit) {
         const attTypes = bubbleMeta ?? getAttachTypes(attachments);
         setMessages(prev => [...prev, {
-          id: crypto.randomUUID(), role: "user", content: text,
+          id: crypto.randomUUID(), role: "user",
+          // Show the clean text in the bubble; keep full text for the API call below
+          content: displayPrompt ?? text,
           outputType, attachments,
           attachmentMeta: attTypes.length > 0 ? attTypes : undefined,
           createdAt: new Date(),

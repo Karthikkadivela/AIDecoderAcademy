@@ -90,7 +90,7 @@ function OnboardingFlow() {
       }),
     });
     if (res.ok) {
-      router.replace("/dashboard/playground");
+      router.replace("/dashboard");
     } else {
       setSaving(false);
     }

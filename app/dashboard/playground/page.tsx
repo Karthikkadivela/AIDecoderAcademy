@@ -161,7 +161,7 @@ function PlaygroundInner() {
     fetch("/api/profile")
       .then(r => r.ok ? r.json() : { profile: null })
       .then(({ profile }) => {
-        if (!profile) router.replace("/dashboard");
+        if (!profile) router.replace("/dashboard/profile");
         else setProfile(profile);
       });
   }, [router]);
@@ -206,17 +206,23 @@ function PlaygroundInner() {
     const enrichedText = context ? context + text : text;
     const hasContext = !!context;
 
+    // Clean display text — the user's actual message without any injected context markers.
+    // Falls back to userText when there's auto-injected previous-output context.
+    const cleanDisplay = displayText ?? (hasContext ? userText : undefined);
+
     if (outType === "image") {
-      await sendImage(enrichedText, displayText ?? (hasContext ? userText : undefined), imgBubbleMeta);
+      await sendImage(enrichedText, cleanDisplay, imgBubbleMeta);
       awardXP("generate_image").then(handleXpResult);
     } else if (outType === "audio") {
-      await sendAudio(enrichedText, profile?.age_group ?? "11-13", displayText ?? (hasContext ? userText : undefined), []);
+      // Pass imgBubbleMeta so injected image thumbnail still shows in the bubble
+      await sendAudio(enrichedText, profile?.age_group ?? "11-13", cleanDisplay, imgBubbleMeta);
       awardXP("generate_audio").then(handleXpResult);
     } else if (outType === "slides") {
-      await sendSlides(enrichedText, profile?.age_group ?? "11-13", displayText ?? (hasContext ? userText : undefined), []);
+      await sendSlides(enrichedText, profile?.age_group ?? "11-13", cleanDisplay, imgBubbleMeta);
       awardXP("generate_slides").then(handleXpResult);
     } else {
-      await sendMessage(enrichedText, outType, [], undefined, displayText ? [] : []);
+      // Pass displayPrompt (6th arg) so the bubble shows the clean text, not the context marker
+      await sendMessage(enrichedText, outType, [], undefined, imgBubbleMeta.length ? imgBubbleMeta : undefined, cleanDisplay);
       awardXP("generate_text").then(handleXpResult);
     }
   };

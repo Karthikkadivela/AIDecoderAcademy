@@ -236,9 +236,14 @@ const OUTPUT_TYPES: { id: OutputType; label: string }[] = [
 // ── Context formatter ────────────────────────────────────────────────────────
 function buildCreationContext(c: Creation): string {
   if (c.output_type === "image") {
+    // Prefer the server URL (file_url); fall back to local data-URL while still uploading
     return `[Image titled "${c.title}": ${c.file_url ?? c.content.trim()}]\n\n`;
   }
   if (c.output_type === "audio") {
+    // Uploaded audio file — pass the URL directly
+    if (c.file_url && !c.content.startsWith("{")) {
+      return `[Audio titled "${c.title}": ${c.file_url}]\n\n`;
+    }
     try {
       const p = JSON.parse(c.content);
       const narrator  = p?.script?.narrator_text ?? "";
@@ -256,6 +261,11 @@ function buildCreationContext(c: Creation): string {
         .join(" | ");
       return `[Slides titled "${c.title}": ${sections}]\n\n`;
     } catch { return ""; }
+  }
+  // "text" output_type — could be a saved text creation OR an uploaded document (PDF/DOC)
+  // If a server URL exists, it's an uploaded document → send the URL so the API can fetch it
+  if (c.output_type === "text" && c.file_url) {
+    return `[Document titled "${c.title}": ${c.file_url}]\n\n`;
   }
   return `[${c.output_type} titled "${c.title}": ${c.content.slice(0, 300)}]\n\n`;
 }
@@ -286,12 +296,14 @@ export function CreationsRoom({
   const [selectedShelfType, setSelectedShelfType] = useState<OutputType | null>(null);
   const [input,            setInput]            = useState("");
   const [creations,        setCreations]        = useState<Creation[]>([]);
-  const [injected,         setInjected]         = useState<Creation | null>(null);
+  const [injected,         setInjected]         = useState<Creation[]>([]);
   const [plusOpen,         setPlusOpen]         = useState(false);
   const [isDragOver,       setIsDragOver]       = useState(false);
   const [binDragOver,      setBinDragOver]      = useState(false);
   const [deletingId,       setDeletingId]       = useState<string | null>(null);
   const [pasteWarning,     setPasteWarning]     = useState<string | null>(null);
+  // Track which injected item IDs are still uploading to the server
+  const [uploadingIds,     setUploadingIds]     = useState<Set<string>>(new Set());
 
   const scrollRefDesktop = useRef<HTMLDivElement>(null);   // desktop message list
   const scrollRefMobile  = useRef<HTMLDivElement>(null);   // mobile message list
@@ -299,6 +311,32 @@ export function CreationsRoom({
   const fileRef   = useRef<HTMLInputElement>(null);
 
   const activeMeta = OUTPUT_META[selected] ?? OUTPUT_META.text;
+
+  const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // 5 MB — matches server limit
+
+  // Upload a File object to Supabase temp storage via /api/upload-temp.
+  // Returns the public URL on success, or null if the upload fails (in which
+  // case we fall back to the local data-URL already stored in `content`).
+  const uploadFileToServer = async (file: File, itemId: string): Promise<string | null> => {
+    setUploadingIds(prev => new Set(prev).add(itemId));
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res  = await fetch("/api/upload-temp", { method: "POST", body: form });
+      if (!res.ok) { console.warn("[upload-temp] failed:", await res.text()); return null; }
+      const { url } = await res.json() as { url: string };
+      // Swap local data-URL → server URL on the injected chip
+      setInjected(prev => prev.map(item =>
+        item.id === itemId ? { ...item, file_url: url } : item,
+      ));
+      return url;
+    } catch (err) {
+      console.error("[upload-temp]", err);
+      return null;
+    } finally {
+      setUploadingIds(prev => { const s = new Set(prev); s.delete(itemId); return s; });
+    }
+  };
 
   const refreshCreations = () => {
     fetch("/api/creations")
@@ -330,11 +368,13 @@ export function CreationsRoom({
   const send = () => {
     const t = input.trim();
     if (!t || isStreaming) return;
-    const ctx     = injected ? buildCreationContext(injected) : "";
-    const outType = injected ? injected.output_type : selected;
+    // Build context from all injected items (image, doc, saved creations etc.)
+    const ctx     = injected.map(buildCreationContext).join("");
+    // Output type is ALWAYS what the user selected — injected items are context only
+    const outType = selected;
     onSend(ctx + t, outType);
     setInput("");
-    setInjected(null);
+    setInjected([]);
     setPlusOpen(false);
     if (taRef.current) {
       taRef.current.style.height = "auto";
@@ -349,8 +389,13 @@ export function CreationsRoom({
   const canSend = input.trim().length > 0 && !isStreaming;
 
   const injectCreation = (c: Creation) => {
-    setInjected(c);
-    setSelected(c.output_type === "json" ? "json" : c.output_type as OutputType);
+    setInjected(prev => {
+      // Replace any existing item with the same id; otherwise append
+      const exists = prev.some(p => p.id === c.id);
+      return exists ? prev.map(p => p.id === c.id ? c : p) : [...prev, c];
+    });
+    // Do NOT override the output type selector — the user's chosen output type
+    // is always the intent. The injected item is context/reference material only.
     setPlusOpen(false);
     taRef.current?.focus({ preventScroll: true });
   };
@@ -369,22 +414,32 @@ export function CreationsRoom({
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.type.startsWith("image/")) {
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
+    files.forEach(file => {
+      if (file.size > MAX_UPLOAD_BYTES) {
+        showPasteWarning(`⚠️ "${file.name}" is too large — max 5 MB.`);
+        return;
+      }
+      const outType: OutputType = getOutputTypeForFile(file) ?? "text";
+      const itemId = `local-upload-${file.name}-${Date.now()}`;
       const reader = new FileReader();
       reader.onload = ev => {
         const fake: Creation = {
-          id: "local-upload", profile_id: "",
+          id: itemId,
+          profile_id: "",
           title: file.name.replace(/\.[^.]+$/, ""),
-          type: "chat", output_type: "image",
+          type: "chat", output_type: outType,
+          // Store data-URL as fallback while server upload is in progress
           content: ev.target?.result as string,
           tags: [], is_favourite: false, created_at: "", updated_at: "",
         };
         injectCreation(fake);
+        // Kick off background upload — updates file_url on the chip when done
+        uploadFileToServer(file, itemId);
       };
       reader.readAsDataURL(file);
-    }
+    });
     e.target.value = "";
   };
 
@@ -437,6 +492,11 @@ export function CreationsRoom({
       return;
     }
 
+    if (file.size > MAX_UPLOAD_BYTES) {
+      showPasteWarning(`⚠️ File is too large — max 5 MB.`);
+      return;
+    }
+
     // For screenshots / browser-copied images the File has no name — generate one
     const rawName = file.name && file.name !== "image.png" ? file.name : null;
     const title   = rawName
@@ -445,18 +505,22 @@ export function CreationsRoom({
         ? `Screenshot ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
         : `Pasted ${outType} ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
 
+    const itemId = `local-paste-${Date.now()}`;
     const reader = new FileReader();
     reader.onload = ev => {
       const fake: Creation = {
-        id:         "local-upload",
+        id:         itemId,
         profile_id: "",
         title,
         type:        "chat",
         output_type: outType,
+        // Store data-URL as fallback while server upload is in progress
         content:     ev.target?.result as string,
         tags: [], is_favourite: false, created_at: "", updated_at: "",
       };
       injectCreation(fake);
+      // Kick off background upload — updates file_url on the chip when done
+      uploadFileToServer(file, itemId);
     };
     reader.readAsDataURL(file);
   };
@@ -497,23 +561,38 @@ export function CreationsRoom({
   // ── Input row ─────────────────────────────────────────────────────────────
   const renderInputRow = (mobile = false) => (
     <div style={{ flexShrink: 0 }}>
-      {injected && (
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, padding: "0 4px" }}>
-          <div style={{
-            display: "flex", alignItems: "center", gap: 6,
-            padding: "4px 10px 4px 8px", borderRadius: 20,
-            background: `rgba(${OUTPUT_META[injected.output_type]?.glowRgb ?? "200,160,255"},0.2)`,
-            border: `1px solid rgba(${OUTPUT_META[injected.output_type]?.glowRgb ?? "200,160,255"},0.5)`,
-            fontSize: 11, fontWeight: 600,
-            color: OUTPUT_META[injected.output_type]?.glowColor ?? "#c8a0ff",
-            maxWidth: "70%",
-          }}>
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{injected.title}</span>
-          </div>
-          <button onClick={() => setInjected(null)}
-            style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.4)", fontSize: 14, lineHeight: 1, padding: "0 2px" }}>
-            ×
-          </button>
+      {injected.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 6, padding: "0 4px" }}>
+          {injected.map((item, i) => {
+            const isUploading = uploadingIds.has(item.id);
+            return (
+            <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <div style={{
+                display: "flex", alignItems: "center", gap: 5,
+                padding: "3px 8px 3px 7px", borderRadius: 20,
+                background: isUploading
+                  ? "rgba(255,255,255,0.07)"
+                  : `rgba(${OUTPUT_META[item.output_type]?.glowRgb ?? "200,160,255"},0.2)`,
+                border: `1px solid ${isUploading ? "rgba(255,255,255,0.2)" : `rgba(${OUTPUT_META[item.output_type]?.glowRgb ?? "200,160,255"},0.5)`}`,
+                fontSize: 10, fontWeight: 600,
+                color: isUploading ? "rgba(255,255,255,0.4)" : (OUTPUT_META[item.output_type]?.glowColor ?? "#c8a0ff"),
+                maxWidth: 180,
+                transition: "all 0.3s ease",
+              }}>
+                <span style={{ fontSize: 9, opacity: 0.7 }}>
+                  {isUploading ? "⏳" : item.output_type === "image" ? "🖼️" : item.output_type === "audio" ? "🎵" : item.output_type === "slides" ? "📊" : "📄"}
+                </span>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {isUploading ? `Uploading ${item.title}…` : item.title}
+                </span>
+              </div>
+              <button onClick={() => setInjected(prev => prev.filter((_, j) => j !== i))}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.4)", fontSize: 14, lineHeight: 1, padding: "0 1px" }}>
+                ×
+              </button>
+            </div>
+            );
+          })}
         </div>
       )}
 
@@ -528,27 +607,53 @@ export function CreationsRoom({
             display: "flex", flexDirection: "column", gap: 10,
           }}>
             <div style={{ display: "flex", alignItems: "center" }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Upload Image</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Upload Files</span>
               <button onClick={() => setPlusOpen(false)}
                 style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.3)", fontSize: 18, lineHeight: 1 }}>
                 ×
               </button>
             </div>
-            <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFileUpload}/>
+
+            {/* Screenshots — multiple */}
+            <input ref={fileRef} type="file" multiple
+              accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
+              style={{ display: "none" }} onChange={handleFileUpload}/>
             <button onClick={() => fileRef.current?.click()}
               style={{
-                width: "100%", padding: "20px 0", borderRadius: 12, cursor: "pointer",
+                width: "100%", padding: "14px 0", borderRadius: 12, cursor: "pointer",
                 border: `2px dashed ${arenaAccent}60`,
                 background: `${arenaAccent}0a`, color: "rgba(255,255,255,0.6)",
                 fontSize: 13, fontWeight: 600, transition: "all 0.2s",
-                display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
               }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = `${arenaAccent}18`; (e.currentTarget as HTMLElement).style.borderColor = arenaAccent; }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = `${arenaAccent}0a`; (e.currentTarget as HTMLElement).style.borderColor = `${arenaAccent}60`; }}
             >
-              <span style={{ fontSize: 28 }}>📁</span>
-              <span>Click to upload an image</span>
-              <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>PNG, JPG, WEBP supported</span>
+              <span style={{ fontSize: 24 }}>🖼️</span>
+              <span>Upload screenshots</span>
+              <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>PNG, JPG, WEBP — select multiple</span>
+            </button>
+
+            {/* Worksheet document */}
+            <input type="file"
+              accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              style={{ display: "none" }}
+              id="doc-upload-input"
+              onChange={handleFileUpload}/>
+            <button onClick={() => (document.getElementById("doc-upload-input") as HTMLInputElement)?.click()}
+              style={{
+                width: "100%", padding: "14px 0", borderRadius: 12, cursor: "pointer",
+                border: `2px dashed ${arenaAccent}60`,
+                background: `${arenaAccent}0a`, color: "rgba(255,255,255,0.6)",
+                fontSize: 13, fontWeight: 600, transition: "all 0.2s",
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = `${arenaAccent}18`; (e.currentTarget as HTMLElement).style.borderColor = arenaAccent; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = `${arenaAccent}0a`; (e.currentTarget as HTMLElement).style.borderColor = `${arenaAccent}60`; }}
+            >
+              <span style={{ fontSize: 24 }}>📄</span>
+              <span>Upload worksheet</span>
+              <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>PDF, DOC, DOCX</span>
             </button>
           </div>
         )}

@@ -35,6 +35,47 @@ function requestsSingleCharacter(prompt: string): boolean {
   return SINGLE_CHARACTER_KEYWORDS.some(kw => lower.includes(kw));
 }
 
+// Extract a named context block like [Image titled "X": url] or [Document titled "X": url]
+function extractContextBlock(prompt: string, label: string): { ref: string | null; promptWithout: string } {
+  const marker = `[${label} titled "`;
+  const start  = prompt.indexOf(marker);
+  if (start === -1) return { ref: null, promptWithout: prompt };
+  const afterTitle = prompt.indexOf('": ', start);
+  if (afterTitle === -1) return { ref: null, promptWithout: prompt };
+  const urlStart = afterTitle + 3;
+  const closingBracket = prompt.indexOf(']', urlStart);
+  if (closingBracket === -1) return { ref: null, promptWithout: prompt };
+  const ref       = prompt.slice(urlStart, closingBracket).trim();
+  const fullMatch = prompt.slice(start, closingBracket + 1);
+  const promptWithout = prompt.replace(fullMatch, "").trim();
+  return { ref, promptWithout };
+}
+
+function extractImageContext(prompt: string): { imageRef: string | null; promptWithoutImage: string } {
+  const { ref, promptWithout } = extractContextBlock(prompt, "Image");
+  return { imageRef: ref, promptWithoutImage: promptWithout };
+}
+
+async function describeImageForContext(imageRef: string): Promise<string> {
+  try {
+    const res = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{
+        role: "user",
+        content: [
+          { type: "image_url", image_url: { url: imageRef, detail: "low" } as { url: string; detail: "low" } },
+          { type: "text", text: "Describe what is in this image in 2-3 sentences. Focus on the subject matter, key concepts, and any text visible. Be concise." },
+        ],
+      }],
+      max_tokens: 150,
+    });
+    return res.choices[0]?.message?.content?.trim() ?? "";
+  } catch (err) {
+    console.error("[generate-audio] image describe failed:", err);
+    return "";
+  }
+}
+
 // Extract existing audio script from creation context if present
 function extractExistingScript(prompt: string): {
   existingScript: SceneInput | null;
@@ -202,9 +243,30 @@ export async function POST(req: Request) {
     const { prompt, ageGroup = "11-13", conversationHistory } = await req.json();
     if (!prompt?.trim()) return NextResponse.json({ error: "Prompt required" }, { status: 400 });
 
+    // Detect injected image and enrich prompt with a vision description
+    const { imageRef, promptWithoutImage } = extractImageContext(prompt);
+    let promptForAudio = promptWithoutImage;
+    if (imageRef) {
+      console.log("[generate-audio] image context detected — describing via vision");
+      const imageDesc = await describeImageForContext(imageRef);
+      if (imageDesc) {
+        promptForAudio = `[Context from uploaded image: ${imageDesc}]\n\n${promptForAudio}`;
+        console.log("[generate-audio] image description injected:", imageDesc.slice(0, 80));
+      }
+    }
+
+    // Detect injected document (PDF/DOC) and note it as context
+    const { ref: docRef, promptWithout: promptAfterDoc } = extractContextBlock(promptForAudio, "Document");
+    if (docRef) {
+      const docTitleMatch = prompt.match(/\[Document titled "([^"]+)":/);
+      const docTitle = docTitleMatch ? docTitleMatch[1] : "Uploaded document";
+      promptForAudio = `[Context: the student has uploaded a document titled "${docTitle}" — base the audio on this document's topic]\n\n${promptAfterDoc}`;
+      console.log("[generate-audio] document context injected:", docTitle);
+    }
+
     // Pre-flight safety
     if (isEnabled("USE_NEW_AIDA_PROMPTS")) {
-      const verdict = await moderateContent(prompt);
+      const verdict = await moderateContent(promptForAudio);
       if (!verdict.allow) {
         return NextResponse.json({ error: verdict.suggestedReply }, { status: 200 });
       }
@@ -212,7 +274,7 @@ export async function POST(req: Request) {
 
     // New podcast routing path — only when flag is on AND no existing script
     // (modification mode keeps using legacy path).
-    if (isEnabled("USE_NEW_AIDA_PROMPTS") && !prompt.includes('[Audio titled "')) {
+    if (isEnabled("USE_NEW_AIDA_PROMPTS") && !promptForAudio.includes('[Audio titled "')) {
       const intent = await classifyAudioRequest(prompt);
       if (intent === "multi_character") {
         try {
@@ -232,7 +294,7 @@ export async function POST(req: Request) {
             created_at:   "",
             updated_at:   "",
           } as Profile;
-          const episode = await generatePodcastEpisode({ topic: prompt, profile: minimalProfile });
+          const episode = await generatePodcastEpisode({ topic: promptForAudio, profile: minimalProfile });
           console.log(`[generate-audio] podcast episode generated, voices=${episode.voiceCast.length}`);
           return NextResponse.json({
             url:        episode.mp3Url,
@@ -251,7 +313,7 @@ export async function POST(req: Request) {
       }
     }
 
-    const { existingScript, cleanPrompt } = extractExistingScript(prompt);
+    const { existingScript, cleanPrompt } = extractExistingScript(promptForAudio);
     // If student explicitly asks for one person, override multi-char detection
     const isMultiChar = requestsSingleCharacter(cleanPrompt)
       ? false
