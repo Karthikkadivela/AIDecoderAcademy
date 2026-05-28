@@ -14,7 +14,7 @@ import { XPFlash }           from "@/components/gamification/XPFlash";
 import { useChat }           from "@/components/playground/useChat";
 import { useXP, type XPResult } from "@/lib/useXP";
 import { getArena, type Badge } from "@/lib/arenas";
-import { markObjectiveComplete, getObjectiveById } from "@/lib/objectives";
+import { markObjectiveComplete, getObjectiveById, normalizeObjectiveId } from "@/lib/objectives";
 import type { Profile, PlaygroundMode, OutputType } from "@/types";
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -96,10 +96,11 @@ function PlaygroundInner() {
   // Validator Teacher: only present when student arrived via an objective.
   // Arena room sends ?objective=<id> (e.g. "a1-3"). Free-play visits have no
   // ?objective= param so the teacher stays hidden.
-  const activeObjectiveId = searchParams?.get("objective") ?? null;
+  const rawObjectiveId = searchParams?.get("objective") ?? null;
+  const activeObjectiveId = rawObjectiveId ? normalizeObjectiveId(rawObjectiveId) : null;
   // Look up prompt + outputType from local config — never exposed in the URL
   const activeObjective = activeObjectiveId ? getObjectiveById(activeObjectiveId) : null;
-  // Derive which arena to go back to from the objective param (format "a{id}-{n}")
+  // Derive which arena to go back to from the objective param (format "a{id}-{n}" or "l{id}-{nn}")
   const backArenaId = (() => {
     if (!activeObjectiveId) return null;
     const m = activeObjectiveId.match(/^a(\d+)-/);

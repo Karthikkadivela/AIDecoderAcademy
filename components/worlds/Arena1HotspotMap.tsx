@@ -7,24 +7,19 @@ import { isObjectiveEnabled, type Objective } from "@/lib/objectives";
 
 // Percentage positions [left%, top%] — top-left corner of each invisible card hit-area
 const HOTSPOT_POSITIONS: Record<number, [number, number]> = {
-  // ── LEFT WALL — col 1 (01,03,05,07) and col 2 (02,04,06,08) ──
-  1:  [8,  10],   // col 1, row 1
-  2:  [25, 12],   // col 2, row 1
-  3:  [8,  28],   // col 1, row 2
-  4:  [25, 30],   // col 2, row 2
-  5:  [8,  47],   // col 1, row 3
-  6:  [25, 47],   // col 2, row 3
-  7:  [8,  63],   // col 1, row 4
-  8:  [25, 61],   // col 2, row 4
+  // ── LEFT COLUMN — missions 01–05 ──
+  1:  [8,  10],
+  2:  [8,  26],
+  3:  [8,  42],
+  4:  [8,  58],
+  5:  [8,  74],
 
-  // ── RIGHT WALL — col 1 (09,11,13,15) and col 2 (10,12,14) ──
-  9:  [72, 12],   // col 1, row 1
-  10: [87, 10],   // col 2, row 1
-  11: [72, 30],   // col 1, row 2
-  12: [88, 29],   // col 2, row 2
-  13: [72, 46],   // col 1, row 3
-  14: [88, 46],   // col 2, row 3
-  15: [72, 62],   // col 1, row 4 (no col 2)
+  // ── RIGHT COLUMN — missions 06–10 ──
+  6:  [72, 10],
+  7:  [72, 26],
+  8:  [72, 42],
+  9:  [72, 58],
+  10: [72, 74],
 };
 
 const OUTPUT_COLORS: Record<string, string> = {
@@ -36,15 +31,16 @@ const OUTPUT_COLORS: Record<string, string> = {
 };
 
 function getTooltipStyle(left: number, top: number): React.CSSProperties {
-  const showBelow   = top < 44;
-  const anchorRight = left > 65;
-  const anchorLeft  = left < 35;
+  const showBelow = top < 44;
+  const anchorRight = left > 75;
+  const anchorLeft = left < 22;
+  const x = Math.min(Math.max(left, 8), 92);
 
   const hAlign = anchorRight
-    ? { right: 0 }
+    ? { left: `${x}%`, transform: "translateX(-100%)" }
     : anchorLeft
-    ? { left: 0 }
-    : { left: "50%", transform: "translateX(-50%)" };
+    ? { left: `${x}%`, transform: "translateX(0)" }
+    : { left: `${x}%`, transform: "translateX(-50%)" };
 
   return {
     position:      "absolute",
@@ -58,15 +54,16 @@ function getTooltipStyle(left: number, top: number): React.CSSProperties {
 }
 
 function getArrowStyle(left: number, top: number, accent: string): React.CSSProperties {
-  const showBelow   = top < 44;
-  const anchorRight = left > 65;
-  const anchorLeft  = left < 35;
+  const showBelow = top < 44;
+  const anchorRight = left > 75;
+  const anchorLeft = left < 22;
+  const x = Math.min(Math.max(left, 8), 92);
 
   const hPos = anchorRight
-    ? { right: 14, left: "auto" }
+    ? { left: `${x}%`, transform: "translateX(-100%)" }
     : anchorLeft
-    ? { left: 14, right: "auto" }
-    : { left: "50%", transform: "translateX(-50%)" };
+    ? { left: `${x}%`, transform: "translateX(0)" }
+    : { left: `${x}%`, transform: "translateX(-50%)" };
 
   return {
     position: "absolute",
@@ -124,11 +121,11 @@ export default function Arena1HotspotMap({ objectives, completed, onObjectiveCli
               aria-label={obj.title}
               aria-disabled={!enabled}
               style={{
-                width:      "clamp(56px, 5.5vw, 90px)",
-                height:     "clamp(64px, 12vh, 110px)",
+                width:      "clamp(90px, 8vw, 150px)",
+                height:     "clamp(90px, 12vh, 150px)",
                 background: "transparent",
                 border:     "none",
-                borderRadius: 6,
+                borderRadius: 10,
                 cursor:     enabled ? "pointer" : "not-allowed",
                 padding:    0,
               }}

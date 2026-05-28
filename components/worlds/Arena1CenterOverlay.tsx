@@ -16,6 +16,7 @@ const TIPS = [
 interface Props {
   objectives: Objective[];
   completed:  Set<string>;
+  selectedObjective?: Objective | null;
   profile:    { xp?: number; streak_days?: number; display_name?: string } | null;
   onStartNext: (obj: Objective) => void;
 }
@@ -23,6 +24,7 @@ interface Props {
 export default function Arena1CenterOverlay({
   objectives,
   completed,
+  selectedObjective = null,
   profile,
   onStartNext,
 }: Props) {
@@ -30,13 +32,14 @@ export default function Arena1CenterOverlay({
   const doneCount = objectives.filter(o => completed.has(o.id)).length;
   const pct       = total > 0 ? Math.round((doneCount / total) * 100) : 0;
 
-  // Only point the "Next Mission" CTA at objectives that are actually
-  // playable today (OBJ 6, OBJ 10). Otherwise the kid clicks a locked tile
-  // through the central card.
+  // The center card should show the clicked objective when possible.
+  // Otherwise it still defaults to the next enabled mission.
   const nextObj = useMemo(
     () => objectives.find(o => !completed.has(o.id) && isObjectiveEnabled(o.id)) ?? null,
     [objectives, completed]
   );
+  const activeObj = selectedObjective ?? nextObj;
+  const isSelected = selectedObjective ? selectedObjective.id === activeObj?.id : false;
 
   const tipIndex  = doneCount % TIPS.length;
   const tip       = TIPS[tipIndex];
@@ -172,12 +175,12 @@ export default function Arena1CenterOverlay({
           ))}
         </div>
 
-        {/* Next mission CTA */}
-        {nextObj && (
+        {/* Selected or next mission CTA */}
+        {activeObj && (
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.97 }}
-            onClick={() => onStartNext(nextObj)}
+            onClick={() => onStartNext(activeObj)}
             style={{
               width:        "100%",
               background:   "rgba(30,95,255,0.08)",
@@ -192,13 +195,13 @@ export default function Arena1CenterOverlay({
               textAlign:    "left",
             }}
           >
-            <span style={{ fontSize: 16, flexShrink: 0 }}>{nextObj.emoji}</span>
+            <span style={{ fontSize: 16, flexShrink: 0 }}>{activeObj.emoji}</span>
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontSize: 9, color: "#1E5FFF", fontFamily: "monospace", marginBottom: 2, fontWeight: 700 }}>
-                NEXT MISSION #{nextObj.order}
+                {isSelected ? `START MISSION #${activeObj.order}` : `NEXT MISSION #${activeObj.order}`}
               </p>
               <p style={{ fontSize: 11, fontWeight: 700, color: "#0a0a2e", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {nextObj.title}
+                {activeObj.title}
               </p>
             </div>
             <div
@@ -231,7 +234,7 @@ export default function Arena1CenterOverlay({
           >
             <p style={{ fontSize: 14 }}>🎉</p>
             <p style={{ fontSize: 12, fontWeight: 800, color: "#00A85A" }}>Arena Complete!</p>
-            <p style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>All 15 missions done. Legendary.</p>
+            <p style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>All {total} missions done. Legendary.</p>
           </div>
         )}
 

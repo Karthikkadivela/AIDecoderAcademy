@@ -245,21 +245,6 @@ export function ClassroomArena({ chapter, onBack }: Props) {
         <ChevronLeft className="w-3.5 h-3.5" /> Back
       </button>
 
-      {/* ── Chapter title — bigger, centered top ─────────────────────────────── */}
-      <div className="absolute flex flex-col items-center"
-        style={{ top:10, left:"50%", transform:"translateX(-50%)", zIndex:25 }}>
-        <div className="px-5 py-2 rounded-2xl"
-          style={{ background:"rgba(0,0,0,0.55)", backdropFilter:"blur(12px)",
-            border:"1px solid rgba(255,255,255,0.15)" }}>
-          <p className="font-display font-black text-base whitespace-nowrap"
-            style={{ color:"#fff", letterSpacing:"0.01em" }}>
-            {chapter.chapter_title}
-          </p>
-          <p className="text-[11px] font-mono text-center mt-0.5" style={{ color:"rgba(255,255,255,0.45)" }}>
-            CBSE Class 10 · Science
-          </p>
-        </div>
-      </div>
 
       {/* ── Toolbar hotspot: Notes (invisible clickable zone) ────────────────── */}
       <div
@@ -498,7 +483,20 @@ export function ClassroomArena({ chapter, onBack }: Props) {
         }
       `}</style>
       <div className="absolute flex flex-col classroom-chat"
-        style={{ left:"36%", top:"10%", width:"60%", height:"70%", zIndex:15 }}>
+        style={{ left:"36%", top:"7%", width:"60%", height:"70%", zIndex:15 }}>
+
+        {/* Chapter title banner — full-width inside chatbox */}
+        <div className="flex-shrink-0 w-full text-center px-4 py-2"
+          style={{ background:"rgba(0,0,0,0.45)", backdropFilter:"blur(12px)",
+            borderBottom:"1px solid rgba(255,255,255,0.1)", borderRadius:"12px 12px 0 0" }}>
+          <p className="font-display font-black text-sm whitespace-nowrap"
+            style={{ color:"#fff", letterSpacing:"0.01em" }}>
+            {chapter.chapter_title}
+          </p>
+          <p className="text-[10px] font-mono mt-0.5" style={{ color:"rgba(255,255,255,0.45)" }}>
+            CBSE Class 10 · Science
+          </p>
+        </div>
 
         {/* Message list — no background, messages float on the whiteboard */}
         <div className="flex-1 min-h-0 overflow-y-auto"
