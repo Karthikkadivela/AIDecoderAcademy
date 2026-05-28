@@ -27,6 +27,7 @@ export default function WorldPage() {
   const [profile,    setProfile]    = useState<Profile | null>(null);
   const [completed,  setCompleted]  = useState<Set<string>>(new Set());
   const [launching,  setLaunching]  = useState<string | null>(null);
+  const [selectedObjective, setSelectedObjective] = useState<Objective | null>(null);
   // Arena 1: refined on image load so hotspot % positions stay aligned to image content
   const [arena1Aspect, setArena1Aspect] = useState(1.6);
 
@@ -44,6 +45,7 @@ export default function WorldPage() {
 
   const handleStartObjective = (obj: Objective) => {
     if (!unlocked) return;
+    setSelectedObjective(obj);
     setLaunching(obj.id);
     // Only pass the objective ID — prompt and outputType are looked up
     // in the playground from lib/objectives so they're never exposed in the URL.
@@ -112,6 +114,7 @@ export default function WorldPage() {
               <Arena1CenterOverlay
                 objectives={objectives}
                 completed={completed}
+                selectedObjective={selectedObjective}
                 profile={profile}
                 onStartNext={handleStartObjective}
               />

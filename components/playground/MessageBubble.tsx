@@ -192,14 +192,30 @@ function ActionFooter({ onSave, content, outputType, accent, accentGlow }: {
         <button
           onClick={handleDownload}
           title={outputType === "image" ? "Download image" : `Download .${outputType}`}
-          className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-display font-semibold border transition-all duration-200 active:scale-95 hover:border-[#94A8C8]/70 hover:text-[#C8DBF0]"
-          style={ghostBtn(false)}
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-display font-semibold border transition-all duration-200 active:scale-95"
+          style={{
+            background:  "rgba(148,168,200,0.10)",
+            borderColor: "rgba(148,168,200,0.35)",
+            color:       "#94A8C8",
+          }}
+          onMouseEnter={e => {
+            (e.currentTarget as HTMLElement).style.background  = "#00C27A";
+            (e.currentTarget as HTMLElement).style.borderColor = "#00C27A";
+            (e.currentTarget as HTMLElement).style.color       = "#08080F";
+            (e.currentTarget as HTMLElement).style.boxShadow   = "0 0 14px rgba(0,194,122,0.45)";
+          }}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLElement).style.background  = "rgba(148,168,200,0.10)";
+            (e.currentTarget as HTMLElement).style.borderColor = "rgba(148,168,200,0.35)";
+            (e.currentTarget as HTMLElement).style.color       = "#94A8C8";
+            (e.currentTarget as HTMLElement).style.boxShadow   = "none";
+          }}
         >
           <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
             <path d="M6 1v7M3.5 5.5L6 8l2.5-2.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
             <path d="M1 9.5v1A1.5 1.5 0 002.5 12h7a1.5 1.5 0 001.5-1.5v-1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
           </svg>
-          {outputType === "image" ? "Download" : "Download"}
+          Download
         </button>
       )}
 
