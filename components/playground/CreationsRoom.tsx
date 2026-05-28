@@ -606,7 +606,7 @@ export function CreationsRoom({
             return (
             <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
               <div style={{
-                display: "flex", alignItems: "center", gap: 5,
+                display: "flex", alignItems: "center", gap: 8,
                 padding: "3px 8px 3px 7px", borderRadius: 20,
                 background: isUploading
                   ? "rgba(255,255,255,0.07)"
@@ -614,12 +614,19 @@ export function CreationsRoom({
                 border: `1px solid ${isUploading ? "rgba(255,255,255,0.2)" : `rgba(${OUTPUT_META[item.output_type]?.glowRgb ?? "200,160,255"},0.5)`}`,
                 fontSize: 10, fontWeight: 600,
                 color: isUploading ? "rgba(255,255,255,0.4)" : (OUTPUT_META[item.output_type]?.glowColor ?? "#c8a0ff"),
-                maxWidth: 180,
+                maxWidth: 280,
                 transition: "all 0.3s ease",
               }}>
-                <span style={{ fontSize: 9, opacity: 0.7 }}>
-                  {isUploading ? "⏳" : item.output_type === "image" ? "🖼️" : item.output_type === "audio" ? "🎵" : item.output_type === "slides" ? "📊" : "📄"}
-                </span>
+                {item.output_type === "image" && (item.file_url || /^https?:/.test(item.content)) ? (
+                  <img src={item.file_url ?? item.content.trim()} alt={item.title}
+                    draggable={false}
+                    style={{ width: 44, height: 34, objectFit: "cover", borderRadius: 8, flexShrink: 0 }} />
+                ) : (
+                  <span style={{ fontSize: 9, opacity: 0.7 }}>
+                    {isUploading ? "⏳" : item.output_type === "audio" ? "🎵" : item.output_type === "slides" ? "📊" : "📄"}
+                  </span>
+                )}
+
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {isUploading ? `Uploading ${item.title}…` : item.title}
                 </span>
