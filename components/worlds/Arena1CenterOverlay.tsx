@@ -39,7 +39,8 @@ export default function Arena1CenterOverlay({
     [objectives, completed]
   );
   const activeObj = selectedObjective ?? nextObj;
-  const isSelected = selectedObjective ? selectedObjective.id === activeObj?.id : false;
+  // True when the user explicitly clicked a tile — shows "START", else "NEXT"
+  const isSelected = selectedObjective != null;
 
   const tipIndex  = doneCount % TIPS.length;
   const tip       = TIPS[tipIndex];
@@ -50,19 +51,23 @@ export default function Arena1CenterOverlay({
   const firstName = profile?.display_name?.split(" ")[0] ?? "Creator";
 
   return (
+    /* Outer div owns the absolute centering — keeps translate(-50%,-50%) safe
+       from Framer Motion's transform pipeline which would otherwise drop it. */
+    <div
+      style={{
+        position:  "absolute",
+        left:      "50%",
+        top:       "62%",
+        transform: "translate(-50%, -50%)",
+        width:     "clamp(240px, 26vw, 340px)",
+        zIndex:    80,
+        pointerEvents: "none",
+      }}
+    >
     <motion.div
       initial={{ opacity: 0, scale: 0.94, y: 8 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1], delay: 0.3 }}
-      style={{
-        position:  "absolute",
-        left:      "41%",
-        top:       "29%",
-        transform: "translate(-50%, -50%)",
-        width:     "clamp(260px, 22vw, 340px)",
-        zIndex:    35,
-        pointerEvents: "none",
-      }}
     >
       <div
         style={{
@@ -256,5 +261,6 @@ export default function Arena1CenterOverlay({
         </div>
       </div>
     </motion.div>
+    </div>
   );
 }
