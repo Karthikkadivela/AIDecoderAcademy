@@ -1,0 +1,23 @@
+{
+  "name": "AI Decoder Academy",
+  "short_name": "AI Decoder",
+  "description": "A safe AI-powered learning playground for curious minds.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#08080F",
+  "theme_color": "#7C3AED",
+  "icons": [
+    {
+      "src": "/lms-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/lms-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

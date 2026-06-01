@@ -49,6 +49,12 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "AI Decoder Academy",
   description: "A safe AI-powered learning playground for curious minds.",
+  manifest: "/manifest.json",
+  icons: {
+    icon: "/lms-icon.png",
+    shortcut: "/lms-icon.png",
+    apple: "/lms-icon.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
