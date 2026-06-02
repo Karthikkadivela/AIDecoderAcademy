@@ -3,6 +3,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { FlashcardDeck, parseFlashcards } from "./FlashcardDeck";
 import type { FlashCard } from "./FlashcardDeck";
+import { AudioOverviewOverlay } from "./AudioOverviewOverlay";
+import { PodcastLoading, type LoadProgress } from "./PodcastLoading";
+import { PodcastPlayer, type PodcastResult } from "./PodcastPlayer";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, Play, X } from "lucide-react";
 import { MessageBubble } from "@/components/playground/MessageBubble";
@@ -50,8 +53,8 @@ const TILES = [
   { key:"mindmap",    label:"Mind Map",         active:false, top:"33%" },
   { key:"comic",      label:"Comic Creations",  active:false, top:"44%" },
   { key:"explainer",  label:"Explainer Videos", active:false, top:"55%" },
-  { key:"audio",      label:"Audio Overview",   active:false, top:"66%" },
-  { key:"podcast",    label:"Audio Podcast",    active:false, top:"77%" },
+  { key:"audio",      label:"Audio Overview",   active:true,  top:"66%" },
+  { key:"podcast",    label:"Audio Podcast",    active:true,  top:"77%" },
 ] as const;
 
 const TILE_PROMPTS: Record<string, (t: string) => string> = {
@@ -75,6 +78,11 @@ export function ClassroomArena({ chapter, onBack }: Props) {
   const [playingVideo,   setPlayingVideo]   = useState<VideoItem | null>(null);
   const [flashcardCards, setFlashcardCards] = useState<FlashCard[] | null>(null);
   const [flashcardRaw,   setFlashcardRaw]   = useState("");
+  const [overview,        setOverview]        = useState<{ audioUrl: string; script: string; title: string } | null>(null);
+  const [overviewLoading, setOverviewLoading] = useState(false);
+  const [podcastProgress, setPodcastProgress] = useState<LoadProgress | null>(null);
+  const [podcast,         setPodcast]         = useState<PodcastResult | null>(null);
+  const [overviewError,   setOverviewError]   = useState<string | null>(null);
   const bottomRef           = useRef<HTMLDivElement>(null);
   const taRef               = useRef<HTMLTextAreaElement>(null);
   const pendingFlashcardRef = useRef(false);
@@ -196,6 +204,80 @@ export function ClassroomArena({ chapter, onBack }: Props) {
     if (taRef.current) taRef.current.style.height = "auto";
     await sendMessage(t);
   }, [profile, isStreaming, sendMessage]);
+
+  // Persist generated audio (overview/podcast) to creations. The creations
+  // schema only allows type ∈ story|code|art|quiz|chat|mixed (no "audio") and
+  // has no file_url column, so we save as type:"chat" + output_type:"audio"
+  // with the playable URL embedded in content JSON. type:"chat" also matches
+  // the ?type=chat mount-reload filter, so saved audio reloads on return.
+  const saveAudioCreation = useCallback((title: string, content: string, kind: "audio" | "podcast") => {
+    const tempId = crypto.randomUUID();
+    const preview = kind === "podcast" ? "Podcast episode" : "Audio overview";
+    setSavedItems(prev => [
+      { id: tempId, title, preview, content, tags: ["classroom", chapter.chapter_title, kind], createdAt: Date.now() },
+      ...prev,
+    ].slice(0, 10));
+    fetch("/api/creations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title, type: "chat", output_type: "audio", content,
+        tags: ["classroom", chapter.chapter_title, kind],
+      }),
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.creation?.id) {
+          setSavedItems(prev => prev.map(item => item.id === tempId ? { ...item, id: data.creation.id } : item));
+        }
+      })
+      .catch(() => {});
+  }, [chapter.chapter_title]);
+
+  const runOverview = useCallback(async (focus?: string) => {
+    setOverviewError(null);
+    setOverviewLoading(true);
+    try {
+      const r = await fetch("/api/classroom/audio-overview", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chapterTitle: chapter.chapter_title, focus }),
+      });
+      if (!r.ok) { setOverviewError("Couldn't make your overview — please try again."); return; }
+      const data = await r.json();
+      setOverview(data);
+      saveAudioCreation(data.title, JSON.stringify({ audioUrl: data.audioUrl, script: data.script }), "audio");
+    } catch {
+      setOverviewError("Couldn't make your overview — please try again.");
+    } finally { setOverviewLoading(false); }
+  }, [chapter.chapter_title, saveAudioCreation]);
+
+  const runPodcast = useCallback(async (topic: string) => {
+    setPodcastProgress({ stage: "persona" });
+    try {
+      const r = await fetch("/api/classroom/podcast", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic, chapterTitle: chapter.chapter_title }),
+      });
+      if (!r.body) { setPodcastProgress({ stage: "error", message: "No response" }); return; }
+      const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = "";
+      while (true) {
+        const { done, value } = await reader.read(); if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const frames = buf.split("\n\n"); buf = frames.pop() ?? "";
+        for (const f of frames) {
+          const line = f.trim(); if (!line.startsWith("data:")) continue;
+          const evt = JSON.parse(line.slice(5).trim());
+          if (evt.stage === "done") {
+            setPodcast(evt as PodcastResult); setPodcastProgress(null);
+            saveAudioCreation(evt.title, JSON.stringify({ audioUrl: evt.audioUrl, transcript: evt.transcript, persona: evt.persona }), "podcast");
+          }
+          else setPodcastProgress(evt as LoadProgress);
+        }
+      }
+    } catch (e) {
+      setPodcastProgress({ stage: "error", message: (e as Error).message });
+    }
+  }, [chapter.chapter_title, saveAudioCreation]);
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); }
@@ -334,6 +416,24 @@ export function ClassroomArena({ chapter, onBack }: Props) {
         onClick={() => setMode("videos")}
         className="absolute"
         style={{ left:0, top:"45%", width:"13%", height:"8.5%", zIndex:20, cursor:"pointer" }}
+      />
+
+      {/* ── Toolbar hotspot: Audio Overview (invisible clickable zone) ───────── */}
+      <div
+        onClick={() => {
+          const t = input.trim();
+          if (t) { runOverview(t); setInput(""); }
+          else { runOverview(); }
+        }}
+        className="absolute"
+        style={{ left:0, top:"66%", width:"13%", height:"8.5%", zIndex:20, cursor:"pointer" }}
+      />
+
+      {/* ── Toolbar hotspot: Audio Podcast (invisible clickable zone) ────────── */}
+      <div
+        onClick={() => { runPodcast(input.trim() || chapter.chapter_title); setInput(""); }}
+        className="absolute"
+        style={{ left:0, top:"77%", width:"13%", height:"8.5%", zIndex:20, cursor:"pointer" }}
       />
 
       {/* ── My Creations / Videos panel — overlaid on left wall panel ─────────── */}
@@ -638,7 +738,7 @@ export function ClassroomArena({ chapter, onBack }: Props) {
                 t.style.height = Math.min(t.scrollHeight, 80) + "px";
               }}
               onKeyDown={handleKey}
-              placeholder="Ask anything about this chapter…"
+              placeholder={`Explain ${chapter.chapter_title} as an audio overview — or type your own topic`}
               rows={1}
               disabled={!profile}
               style={{ flex:1, resize:"none", border:"none", outline:"none",
@@ -733,6 +833,24 @@ export function ClassroomArena({ chapter, onBack }: Props) {
           />
         )}
       </AnimatePresence>
+
+      {/* ── Audio Overview / Podcast overlays ───────────────────────────────── */}
+      {overviewLoading && (
+        <div className="absolute inset-0 z-30 grid place-items-center" style={{ background: "rgba(8,8,15,0.55)", backdropFilter: "blur(8px)" }}>
+          <span className="text-white">Recording your overview…</span>
+        </div>
+      )}
+      {overview && <AudioOverviewOverlay audioUrl={overview.audioUrl} script={overview.script} title={overview.title} onClose={() => setOverview(null)} />}
+      {overviewError && (
+        <div className="absolute inset-0 z-30 grid place-items-center" style={{ background: "rgba(8,8,15,0.55)", backdropFilter: "blur(8px)" }}>
+          <div className="text-center text-white">
+            <p>{overviewError}</p>
+            <button onClick={() => setOverviewError(null)} className="mt-3 px-4 py-2 rounded-lg text-sm" style={{ background: "#2563eb" }}>Close</button>
+          </div>
+        </div>
+      )}
+      {podcastProgress && <PodcastLoading progress={podcastProgress} />}
+      {podcast && <PodcastPlayer result={podcast} onClose={() => setPodcast(null)} />}
 
       {/* ── Saved item viewer modal ─────────────────────────────────────────── */}
       <AnimatePresence>
