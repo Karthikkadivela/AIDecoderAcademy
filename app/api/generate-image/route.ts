@@ -137,24 +137,16 @@ export async function POST(req: Request) {
 
     if (imageUrl && imageTitle) {
       // User has an existing image and wants to edit it.
-      // Strategy (May 2026, post-avatar-bug fix):
-      //   1. Vision-augmented prompt rewrite — gpt-4o-mini LOOKS at the source image
-      //      so it can preserve identity (face, clothing, palette, composition) while
-      //      applying the modification. Pure title-text rewriting drifted badly.
-      //   2. fal redux img2img — pass the original URL as `image_url` so visual
-      //      continuity carries through at the diffusion step too. lib/imageGenerator.ts
-      //      already handles the redux endpoint when imageUrl is provided (line ~150).
-      console.log("[generate-image] vision-edit mode — original:", imageTitle, "| instruction:", cleanPrompt.slice(0, 80));
-      try {
-        finalPrompt = await buildEditPromptWithVision(imageUrl, imageTitle, cleanPrompt);
-      } catch (visionErr) {
-        // Fall back to the text-only edit prompt if the vision call fails
-        // (network glitch, image fetch denied, etc.) so the student still gets
-        // an image instead of an error.
-        console.warn("[generate-image] vision call failed — falling back to text-only edit prompt:", (visionErr as Error).message);
-        finalPrompt = await buildEditPrompt(imageTitle, cleanPrompt);
-      }
-      console.log("[generate-image] resolved edit prompt:", finalPrompt.slice(0, 100));
+      // Strategy (Jun 2026): flux-pro/kontext is an instruction-based editor —
+      // it preserves subject identity natively AND applies the edit from a
+      // DIRECT instruction. So we pass the user's instruction straight through
+      // ("change the hair to blue") rather than re-describing the whole scene.
+      // The old vision-rewrite into a 130-word scene description was a redux-era
+      // workaround for identity drift; with Kontext it actually hurts, because
+      // Kontext follows instructions, not full re-descriptions. lib/imageGenerator.ts
+      // routes through the kontext endpoint when imageUrl is provided.
+      finalPrompt = cleanPrompt;
+      console.log("[generate-image] kontext edit mode — instruction:", cleanPrompt.slice(0, 100));
     } else if (conversationHistory?.trim() && cleanPrompt.trim().split(/\s+/).length <= 6) {
       // History-aware mode only for short/ambiguous prompts (≤6 words) like "another one" or "similar".
       // For clear prompts the user's words are used directly — no GPT rewrite that could

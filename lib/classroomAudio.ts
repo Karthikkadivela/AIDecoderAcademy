@@ -14,6 +14,12 @@ const DEFAULT_SETTINGS = { stability: 0.45, similarity_boost: 0.8, style: 0.35 }
 
 // Synthesize ONE line to a complete MP3 buffer (non-streaming endpoint).
 export async function synthLine(text: string, voice: VoiceSpec): Promise<Buffer> {
+  // Fail loudly with a clear server-side message rather than letting an
+  // undefined key reach ElevenLabs and bounce back as an opaque 401 that the
+  // student sees only as "couldn't make your audio".
+  if (!ELEVEN_KEY) {
+    throw new Error("ELEVENLABS_API_KEY is not set — classroom audio cannot be generated.");
+  }
   const res = await fetch(
     `https://api.elevenlabs.io/v1/text-to-speech/${voice.voiceId}`,
     {

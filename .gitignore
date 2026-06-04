@@ -30,5 +30,13 @@ ruvector.db
 dev.log
 scripts/demo-accounts.json
 
-# Playwright test profile (local only)
+# Playwright — test tooling, artifacts, auth state (all local only)
+playwright.config.ts
+tests/
+playwright-report/
+test-results/
 .pw-brave-profile/
+
+# Local dev noise
+.dev-server.log
+INTERN_SESSION_SCRIPT.md

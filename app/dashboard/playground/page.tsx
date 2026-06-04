@@ -36,7 +36,7 @@ function mergeProfileFromXp(p: Profile, r: XPResult): Profile {
 // Only treat user's message as a modification request if it uses words that clearly
 // refer back to something already generated. Without this guard, every second image/
 // audio/slides request was silently treated as an edit of the previous one.
-const MODIFICATION_RE = /\b(make|change|modify|update|adjust|redo|edit|alter|improve|transform|add|remove|darker|lighter|brighter|different version|another version|same but|like (this|that) but|keep|instead|instead of|rewrite|regenerate|tweak|refine|revise|continue|extend|expand|shorten|simplify|translate)\b/i;
+const MODIFICATION_RE = /\b(make|change|modify|update|adjust|redo|recreate|remake|redesign|edit|alter|improve|transform|add|remove|darker|lighter|brighter|different version|another version|same but|like (this|that) but|keep|instead|instead of|rewrite|regenerate|tweak|refine|revise|continue|extend|expand|shorten|simplify|translate)\b/i;
 
 function isModificationRequest(text: string): boolean {
   return MODIFICATION_RE.test(text);

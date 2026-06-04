@@ -105,11 +105,16 @@ const FAL_CONFIGS: Record<string, { endpoint: string; fallback?: string; payload
     },
   },
   "fal-img2img": {
-    endpoint: "fal-ai/flux-pro/v1.1/redux",
+    // Kontext is an INSTRUCTION-based editor: it applies edits like
+    // "change the hair to blue" while preserving subject identity in-context.
+    // Previously this used flux-pro/v1.1/redux — a variation model that
+    // preserved identity but ignored the text instruction, so specific edits
+    // (recolor, add/remove element) silently never applied. Kontext fixes that.
+    // Note: Kontext takes the source via image_url + a direct instruction
+    // prompt; it has no image_size / num_inference_steps / strength knobs.
+    endpoint: "fal-ai/flux-pro/kontext",
     payload: {
-      image_size: "landscape_16_9",
       output_format: "png",
-      num_inference_steps: 28,
     },
   },
   "fal-juggernaut": {
@@ -165,9 +170,11 @@ async function generateFal(prompt: string, model: ImageModel, imageUrl?: string)
     try {
       const body: Record<string, unknown> = { prompt: clean, ...activePayload };
       if (imageUrl) {
-        // flux-pro/v1.1/redux uses image_url for the reference image
+        // flux-pro/kontext: source image goes in image_url, the edit
+        // instruction is the prompt. No `strength` — Kontext has no
+        // denoising knob; identity preservation + edit application are
+        // handled by the model in-context.
         body.image_url = imageUrl;
-        body.strength  = 0.8; // how much to follow the prompt vs preserve original
       }
       resp = await fetch(`https://queue.fal.run/${endpoint}`, {
         method: "POST", headers,

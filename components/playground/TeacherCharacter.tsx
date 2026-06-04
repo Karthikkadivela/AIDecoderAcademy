@@ -31,6 +31,44 @@ interface Props {
 // which is the desired behaviour — every fresh page load re-greets the student.
 const _autoOpenedObjectives = new Set<string>();
 
+const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+
+// POST /api/aida/validate with transparent retry on cold-start timeouts.
+// The route runs two sequential OpenAI calls inside one serverless function;
+// the first (cold) hit on Vercel free-tier can be killed by the function time
+// cap, surfacing as a network error or a 5xx/timeout status. A warm retry then
+// succeeds. We retry up to `maxAttempts` with linear backoff. We do NOT retry
+// 4xx (except 408 timeout) — those are deterministic client errors that a retry
+// won't fix. Returns the parsed result, or null when every attempt failed.
+async function postValidateWithRetry(
+  body: string,
+  maxAttempts = 3,
+): Promise<ValidationResult | null> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const res = await fetch("/api/aida/validate", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+      });
+      if (res.ok) {
+        return (await res.json()) as ValidationResult;
+      }
+      // 4xx other than 408 (request timeout) are deterministic — bail now.
+      if (res.status >= 400 && res.status < 500 && res.status !== 408) {
+        console.error("[validate] non-retryable status:", res.status);
+        return null;
+      }
+      console.warn(`[validate] attempt ${attempt}/${maxAttempts} failed (${res.status}) — retrying`);
+    } catch (err) {
+      // Network error / aborted-by-platform timeout — retryable.
+      console.warn(`[validate] attempt ${attempt}/${maxAttempts} threw — retrying`, err);
+    }
+    if (attempt < maxAttempts) await sleep(400 * attempt);
+  }
+  return null;
+}
+
 export function TeacherCharacter({ objectiveId, messages, profile, onObjectiveCompleted }: Props) {
   const [open, setOpen] = useState(false);
   const [hint, setHint] = useState(true); // "💬 Talk to teacher" badge fades after first interaction
@@ -167,26 +205,31 @@ export function TeacherCharacter({ objectiveId, messages, profile, onObjectiveCo
         outputType: m.outputType,
       }));
 
-    // 1. Run the validator
-    const vRes = await fetch("/api/aida/validate", {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        lmsId,
-        fallbackTitle: objective?.title,
-        fallbackTask:  objective?.description,
-        messages:      cleanMessages,
-        profile: {
-          display_name: profile?.display_name ?? "Student",
-          age_group:    profile?.age_group    ?? "11-13",
-        },
-      }),
+    // 1. Run the validator.
+    //
+    // The validator route is a cold-start-heavy serverless function (it makes
+    // two sequential OpenAI calls). On Vercel's free tier the FIRST, cold
+    // invocation can exceed the function time cap and get killed — which is why
+    // the student saw "validate does nothing the first time, works the second."
+    // We retry transparently: by the time the retry fires the lambda is warm
+    // and completes within budget, so the student never has to click twice.
+    // Bounded at 3 attempts with a short backoff so a genuinely-down backend
+    // still fails fast instead of hanging the panel.
+    const vBody = JSON.stringify({
+      lmsId,
+      fallbackTitle: objective?.title,
+      fallbackTask:  objective?.description,
+      messages:      cleanMessages,
+      profile: {
+        display_name: profile?.display_name ?? "Student",
+        age_group:    profile?.age_group    ?? "11-13",
+      },
     });
-    if (!vRes.ok) {
-      console.error("[TeacherCharacter] validate http error:", vRes.status);
+    const result = await postValidateWithRetry(vBody);
+    if (!result) {
+      console.error("[TeacherCharacter] validate failed after retries");
       return null;
     }
-    const result = await vRes.json() as ValidationResult;
 
     // 2. Log the attempt
     const aRes = await fetch("/api/objective-attempts", {

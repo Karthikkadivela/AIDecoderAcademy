@@ -100,8 +100,30 @@ export async function POST(req: Request) {
 
     const serialised = serializeMessages(body.messages);
 
-    // Defensive moderation on the submitted student work
-    const verdict = await moderateContent(serialised);
+    const userPrompt = `STUDENT'S WORK IN THE PLAYGROUND:\n${serialised}\n\nGrade the work now. Return only the JSON object.`;
+
+    // Run moderation and grading CONCURRENTLY rather than sequentially.
+    // Previously these were two back-to-back awaits, so the route's wall-clock
+    // was moderation + completion — enough for a cold serverless invocation to
+    // blow past Vercel's free-tier function cap and get killed (the "validate
+    // does nothing the first time" bug). Overlapping them removes one full
+    // OpenAI round-trip from the critical path. The flagged-content refusal
+    // still wins below, so safety behaviour is unchanged; we just discard the
+    // grading result on the rare occasion the submission is flagged.
+    const [verdict, completion] = await Promise.all([
+      moderateContent(serialised),
+      openai.chat.completions.create({
+        model:           "gpt-4o-mini",
+        response_format: { type: "json_object" },
+        temperature:     0.3,
+        max_tokens:      600,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user",   content: userPrompt },
+        ],
+      }),
+    ]);
+
     if (!verdict.allow) {
       console.warn("[validate] flagged submission, refusing to grade:", verdict.reason);
       return new Response(
@@ -117,19 +139,6 @@ export async function POST(req: Request) {
         { headers: { "Content-Type": "application/json" } }
       );
     }
-
-    const userPrompt = `STUDENT'S WORK IN THE PLAYGROUND:\n${serialised}\n\nGrade the work now. Return only the JSON object.`;
-
-    const completion = await openai.chat.completions.create({
-      model:           "gpt-4o-mini",
-      response_format: { type: "json_object" },
-      temperature:     0.3,
-      max_tokens:      600,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user",   content: userPrompt },
-      ],
-    });
 
     const raw = completion.choices[0]?.message?.content ?? "";
     let parsed: ValidatorJSON;
