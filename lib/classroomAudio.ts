@@ -34,6 +34,72 @@ export async function synthLine(text: string, voice: VoiceSpec): Promise<Buffer>
   return Buffer.from(await res.arrayBuffer());
 }
 
+export interface WordTiming { text: string; start: number; end: number; }
+
+export interface CharAlignment {
+  characters: string[];
+  character_start_times_seconds: number[];
+  character_end_times_seconds: number[];
+}
+
+/** Group ElevenLabs character alignment into word timings.
+ *  Whitespace chars are boundaries, never words. */
+export function groupCharsToWords(a: CharAlignment): WordTiming[] {
+  const words: WordTiming[] = [];
+  let buf = "";
+  let start = 0;
+  let end = 0;
+  const flush = () => {
+    if (buf.length > 0) { words.push({ text: buf, start, end }); buf = ""; }
+  };
+  for (let i = 0; i < a.characters.length; i++) {
+    const ch = a.characters[i];
+    if (/\s/.test(ch)) { flush(); continue; }
+    if (buf.length === 0) start = a.character_start_times_seconds[i];
+    buf += ch;
+    end = a.character_end_times_seconds[i];
+  }
+  flush();
+  return words;
+}
+
+/** Synthesize one line via ElevenLabs /with-timestamps.
+ *  Returns the MP3 buffer + per-word timings. */
+export async function synthLineWithTimestamps(
+  text: string,
+  voice: VoiceSpec,
+): Promise<{ mp3: Buffer; words: WordTiming[] }> {
+  if (!ELEVEN_KEY) {
+    throw new Error("ELEVENLABS_API_KEY is not set — classroom audio cannot be generated.");
+  }
+  const res = await fetch(
+    `https://api.elevenlabs.io/v1/text-to-speech/${voice.voiceId}/with-timestamps`,
+    {
+      method: "POST",
+      headers: {
+        "xi-api-key": ELEVEN_KEY,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        text,
+        model_id: "eleven_multilingual_v2",
+        voice_settings: voice.settings ?? DEFAULT_SETTINGS,
+      }),
+    },
+  );
+  if (!res.ok) {
+    throw new Error(`ElevenLabs with-timestamps ${res.status}: ${await res.text().catch(() => "")}`);
+  }
+  const json = (await res.json()) as {
+    audio_base64: string;
+    alignment: CharAlignment | null;
+  };
+  const mp3 = Buffer.from(json.audio_base64, "base64");
+  const words = json.alignment ? groupCharsToWords(json.alignment) : [];
+  return { mp3, words };
+}
+
 // Concatenate MP3 buffers. MP3 frames are independently decodable, so naive
 // concatenation plays correctly in browsers for our purposes.
 export function mergeMp3(parts: Buffer[]): Buffer {
