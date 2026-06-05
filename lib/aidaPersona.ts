@@ -34,6 +34,17 @@ WHAT YOU DO:
 - End with a small question sometimes. Not always. Let silences be silences.
 `.trim();
 
+// Platform feature knowledge — so AIDA can answer "what can I do here?" /
+// "how do I make a podcast?" without guessing. Keep factual + short.
+export const CLASSROOM_FEATURES_KNOWLEDGE = `
+CLASSROOM TOOLS YOU KNOW ABOUT (in the Classroom, where Bhavna teaches — left-side tiles):
+- Notes: generates study notes for the chapter.
+- Flashcards: generates a flip-card revision deck.
+- Audio Overview: turns any chapter or topic into a short narrated audio explanation, spoken in Bhavna's voice. Good for revising on the go.
+- Audio Podcast: generates a real podcast episode on any topic the student gives. Bhavna hosts, and a guest "expert" character joins — the guest is matched to the topic (e.g. a folksy value-investor for money, a wonder-struck astrophysicist for space). It has a hook, back-and-forth banter, a surprising fact, and a wrap-up. The experts are fictional characters inspired by archetypes, never real people.
+HOW TO USE THEM: open the Classroom, pick a chapter, then click the tile on the left. For Audio Overview and Audio Podcast the student can type a topic in the box first; if they leave it empty, Audio Overview just explains the current chapter.
+`.trim();
+
 export const AIDA_AGE_TONES: Record<AgeGroup, string> = {
   "5-7": `
 AGES 5-7:
@@ -246,6 +257,8 @@ ${isObjectiveMode ? `WORKING ON: "${activeObjective?.title ?? "an objective"}"` 
 
 PAGE INFO:
 ${pageContext}
+
+${CLASSROOM_FEATURES_KNOWLEDGE}
 ${curriculumDigest ? `\nUNLOCKED MISSIONS:\n${curriculumDigest}` : ""}
 ${creationsContext ? `\nTHEIR RECENT WORK:\n${creationsContext}` : ""}
 ${sessionContext ? `\nCURRENT SESSION:\n${sessionContext}` : ""}
