@@ -105,14 +105,13 @@ const FAL_CONFIGS: Record<string, { endpoint: string; fallback?: string; payload
     },
   },
   "fal-img2img": {
-    // Kontext is an INSTRUCTION-based editor: it applies edits like
-    // "change the hair to blue" while preserving subject identity in-context.
-    // Previously this used flux-pro/v1.1/redux — a variation model that
-    // preserved identity but ignored the text instruction, so specific edits
-    // (recolor, add/remove element) silently never applied. Kontext fixes that.
-    // Note: Kontext takes the source via image_url + a direct instruction
-    // prompt; it has no image_size / num_inference_steps / strength knobs.
-    endpoint: "fal-ai/flux-pro/kontext",
+    // Qwen-Image-Edit-2509 is an INSTRUCTION-based editor: it applies edits like
+    // "change the hair to blue" while preserving subject identity, and it holds
+    // the flux-pro/v1.1 create style well (verified in a bake-off vs redux,
+    // kontext, seededt). History: redux ignored instructions; kontext applied
+    // them but the look drifted; qwen-image-edit-2509 keeps the flux look + obeys.
+    // Source image goes in image_urls[] (NOT image_url); instruction is the prompt.
+    endpoint: "fal-ai/qwen-image-edit-2509",
     payload: {
       output_format: "png",
     },
@@ -170,11 +169,12 @@ async function generateFal(prompt: string, model: ImageModel, imageUrl?: string)
     try {
       const body: Record<string, unknown> = { prompt: clean, ...activePayload };
       if (imageUrl) {
-        // flux-pro/kontext: source image goes in image_url, the edit
-        // instruction is the prompt. No `strength` — Kontext has no
-        // denoising knob; identity preservation + edit application are
-        // handled by the model in-context.
-        body.image_url = imageUrl;
+        // qwen-image-edit-2509: source image goes in image_urls[], the edit
+        // instruction is the prompt. Qwen applies edits faithfully but will
+        // drift on vague prompts, so we append an explicit preservation clause
+        // so it changes ONLY what the instruction asks and keeps the flux look.
+        body.image_urls = [imageUrl];
+        body.prompt = `${clean}. Keep the same character, art style, pose, framing, glasses/accessories, clothing, and background — change ONLY what the instruction asks.`;
       }
       resp = await fetch(`https://queue.fal.run/${endpoint}`, {
         method: "POST", headers,

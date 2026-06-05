@@ -40,3 +40,6 @@ test-results/
 # Local dev noise
 .dev-server.log
 INTERN_SESSION_SCRIPT.md
+
+# Local model bake-off / experiment outputs (not part of the app)
+/test/
