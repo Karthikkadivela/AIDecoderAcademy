@@ -40,3 +40,14 @@ scripts/demo-accounts.json
 
 # Local model bake-off / experiment outputs (not part of the app)
 /test/
+
+# E2E / Playwright — test code + artifacts + auth state (local only)
+tests/
+playwright.config.ts
+playwright-report/
+test-results/
+.pw-brave-profile/
+
+# Local dev noise
+.dev-server.log
+INTERN_SESSION_SCRIPT.md
