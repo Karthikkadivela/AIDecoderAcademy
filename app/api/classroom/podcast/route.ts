@@ -1,12 +1,11 @@
 import { auth } from "@clerk/nextjs/server";
 import OpenAI from "openai";
-import { synthLine, mergeMp3, uploadAudio } from "@/lib/classroomAudio";
-import { matchPersona, buildDynamicPersona, HOST_VOICE } from "@/lib/podcastPersonas";
+import { matchPersona, buildDynamicPersona } from "@/lib/podcastPersonas";
+import { synthesizeEpisode, type Turn } from "@/lib/podcastEpisode";
 
 export const maxDuration = 300;
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-interface Turn { speaker: "host" | "guest"; text: string; }
 
 export async function POST(req: Request) {
   const { userId } = await auth();
@@ -21,7 +20,7 @@ export async function POST(req: Request) {
       try {
         // 1. Persona
         const persona = matchPersona(subject) ?? buildDynamicPersona(subject);
-        send({ stage: "persona", persona: { name: persona.name, archetype: persona.archetype } });
+        send({ stage: "persona", persona: { id: persona.id, name: persona.name, archetype: persona.archetype } });
 
         // 2. Script
         const sys =
@@ -40,23 +39,25 @@ export async function POST(req: Request) {
         if (!turns.length) throw new Error("empty script");
         send({ stage: "script", total: turns.length });
 
-        // 3. TTS (parallel batches of 4 to cut wall-clock, preserve order)
-        const buffers: Buffer[] = new Array(turns.length);
-        let done = 0;
-        const BATCH = 4;
-        for (let i = 0; i < turns.length; i += BATCH) {
-          const slice = turns.slice(i, i + BATCH);
-          await Promise.all(slice.map(async (t, j) => {
-            const voice = t.speaker === "host" ? HOST_VOICE : persona.voice;
-            buffers[i + j] = await synthLine(t.text, voice);
-            send({ stage: "tts", done: ++done, total: turns.length });
-          }));
-        }
+        // 3. TTS + merge via synthesizeEpisode (per-line progress for the loader)
+        send({ stage: "tts", done: 0, total: turns.length });
+        const ep = await synthesizeEpisode(
+          turns as Turn[],
+          persona,
+          userId,
+          (done, total) => send({ stage: "tts", done, total }),
+        );
+        send({ stage: "tts", done: turns.length, total: turns.length });
 
-        // 4. Merge + upload
-        const audioUrl = await uploadAudio(mergeMp3(buffers), `podcast/${userId}/${Date.now()}.mp3`);
-        send({ stage: "done", audioUrl, transcript: turns, persona: { name: persona.name, archetype: persona.archetype },
-               title: `Podcast: ${subject}` });
+        // 4. Done
+        send({
+          stage: "done",
+          title: `Podcast: ${subject}`,
+          persona: { id: persona.id, name: persona.name, archetype: persona.archetype },
+          transcript: turns,
+          audioUrl: ep.audioUrl,
+          segments: ep.segments,
+        });
         controller.close();
       } catch (e) {
         send({ stage: "error", message: (e as Error).message });

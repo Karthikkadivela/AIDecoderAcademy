@@ -5,7 +5,7 @@ import { FlashcardDeck, parseFlashcards } from "./FlashcardDeck";
 import type { FlashCard } from "./FlashcardDeck";
 import { AudioOverviewMessage, type AudioOverviewPayload } from "./AudioOverviewMessage";
 import { PodcastLoading, type LoadProgress } from "./PodcastLoading";
-import { PodcastPlayer, type PodcastResult } from "./PodcastPlayer";
+import { PodcastStage, type PodcastStageResult } from "./PodcastStage";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, Play, X } from "lucide-react";
 import { MessageBubble } from "@/components/playground/MessageBubble";
@@ -83,7 +83,7 @@ export function ClassroomArena({ chapter, onBack }: Props) {
   const [flashcardRaw,   setFlashcardRaw]   = useState("");
   const [audioOverviewMode, setAudioOverviewMode] = useState(false);
   const [podcastProgress, setPodcastProgress] = useState<LoadProgress | null>(null);
-  const [podcast,         setPodcast]         = useState<PodcastResult | null>(null);
+  const [podcast,         setPodcast]         = useState<PodcastStageResult | null>(null);
   const bottomRef           = useRef<HTMLDivElement>(null);
   const taRef               = useRef<HTMLTextAreaElement>(null);
   const pendingFlashcardRef = useRef(false);
@@ -299,7 +299,7 @@ export function ClassroomArena({ chapter, onBack }: Props) {
           const line = f.trim(); if (!line.startsWith("data:")) continue;
           const evt = JSON.parse(line.slice(5).trim());
           if (evt.stage === "done") {
-            setPodcast(evt as PodcastResult); setPodcastProgress(null);
+            setPodcast(evt as PodcastStageResult); setPodcastProgress(null);
             saveAudioCreation(evt.title, JSON.stringify({ audioUrl: evt.audioUrl, transcript: evt.transcript, persona: evt.persona }), "podcast");
           }
           else setPodcastProgress(evt as LoadProgress);
@@ -936,7 +936,7 @@ export function ClassroomArena({ chapter, onBack }: Props) {
       {/* ── Audio Overview now renders as an in-chat message (AudioOverviewMessage).
              Podcast overlays remain below. ──────────────────────────────────── */}
       {podcastProgress && <PodcastLoading progress={podcastProgress} />}
-      {podcast && <PodcastPlayer result={podcast} onClose={() => setPodcast(null)} />}
+      {podcast && <PodcastStage result={podcast} onClose={() => setPodcast(null)} />}
 
       {/* ── Saved item viewer modal ─────────────────────────────────────────── */}
       <AnimatePresence>
