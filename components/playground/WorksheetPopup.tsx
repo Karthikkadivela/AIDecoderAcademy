@@ -303,12 +303,24 @@ export function WorksheetPopup({
         }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json?.prompt) {
+      if (!res.ok) {
         throw new Error(json?.error ?? `Prompt builder failed (HTTP ${res.status})`);
       }
-      const fresh = String(json.prompt).trim();
-      setGeneratedPrompt(fresh);
-      persist({ generatedPrompt: fresh });
+      // Normalize to a prompts[] (new shape: {prompts}; old fallback: {prompt}).
+      const prompts = Array.isArray(json?.prompts) && json.prompts.length
+        ? json.prompts
+        : json?.prompt
+          ? [{ label: "Your prompt", prompt: String(json.prompt), why: "" }]
+          : [];
+      if (!prompts.length) {
+        throw new Error("No prompt was produced — try filling a bit more of the worksheet.");
+      }
+      // Hand the pack to AIDA's panel (she renders the copyable Prompt Pack)
+      // and close the worksheet so AIDA is visible.
+      window.dispatchEvent(new CustomEvent("aida-open-prompt-pack", {
+        detail: { prompts, attachment: typeof json?.attachment === "string" ? json.attachment : "" },
+      }));
+      onClose();
     } catch (e) {
       setPromptError((e as Error).message);
     } finally {

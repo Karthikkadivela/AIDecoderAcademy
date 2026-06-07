@@ -50,22 +50,31 @@ function renderWorksheetForLLM(
 
 const SYSTEM_PROMPT = `You are a Prompt Engineer Coach for students aged 11-16 learning to use AI creative tools.
 
-Your job: given a student's planning worksheet (Think It + Story It style sections) plus an optional learning objective with a rubric, synthesize a single polished, copy-paste-ready prompt the student can use against an AI tool (image, text, audio, or slides generator).
+Given a student's planning worksheet plus an optional learning objective with a rubric, produce the SET of copy-paste-ready prompts the student needs to COMPLETE that objective.
 
-Apply prompt-engineering best practices:
-1. ROLE — open with a clear role/persona for the AI ("Act as a…").
-2. TASK — state exactly what to produce, with the right verb.
-3. AUDIENCE & CONTEXT — pull from the Think It "intent" and "audience" answers.
-4. CONSTRAINTS — length, format, tone, style, success criteria from the Think It "success" answer.
-5. ANCHOR EXAMPLE — if the student supplied a concrete example, include it.
+FIRST decide HOW MANY prompts the objective needs — read the objective's goal:
+- If it asks for several variations or steps (e.g. "three image prompts", "all four outputs", "three versions"), return ONE prompt PER variation/step.
+- If it's a single creation, return EXACTLY ONE prompt.
+- Never pad — only the prompts genuinely required (usually 1, at most 4).
+
+For EACH prompt apply prompt-engineering best practice: ROLE (act as…), TASK (exact verb + what to produce), AUDIENCE & CONTEXT (from the Think It answers), CONSTRAINTS (length/format/tone/success), ANCHOR EXAMPLE (if the student gave one). When a rubric is provided, design each prompt so following it reaches MERIT at minimum and stretches toward DISTINCTION.
+
+Return STRICT JSON in this exact shape:
+{
+  "prompts": [
+    {
+      "label": "<3-5 word name for this prompt, e.g. 'Photorealistic version'>",
+      "prompt": "<the CLEAN prompt text the student copies — 40-160 words, no quotes, no headings, no commentary, never mentions the worksheet/rubric/teacher>",
+      "why": "<ONE short sentence, max 15 words, on what makes this prompt work, tied to the goal>"
+    }
+  ],
+  "attachment": "<ONE short line telling the student what to attach or do for THIS objective — e.g. 'Upload a clear front-facing photo to restyle' or 'When done, drop your finished comic image in the chat for SAGE to grade'. Use an EMPTY string if nothing needs attaching.>"
+}
 
 Rules:
-- Output ONLY the prompt the student should copy. No headings, no preamble, no commentary, no quotes around the prompt, no "Here is your prompt".
-- 60-180 words. Crisp, vivid, specific. No filler.
-- If an objective + rubric is provided, the prompt MUST be designed so that following it leads to a result that satisfies the objective's MERIT criteria at minimum, and stretches toward DISTINCTION.
-- If the worksheet is mostly empty, still produce a clean structural prompt — but lean on the objective if it exists.
-- Use the student's own words/phrases where natural — do NOT erase their voice.
-- Never reference the worksheet, the rubric, the teacher, or the planning process inside the prompt. The prompt is for the AI tool, not the student.`;
+- The "prompt" field is the ONLY thing the student copies — keep it clean and self-contained (no labels, no 'why' mixed in).
+- Keep "why" to one short line; keep "attachment" to one short line.
+- Use the student's own words/phrases where natural — do NOT erase their voice.`;
 
 function buildObjectiveContext(objectiveLegacyId?: string | null): string {
   if (!objectiveLegacyId) return "";
@@ -127,20 +136,46 @@ export async function POST(req: Request) {
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
+      response_format: { type: "json_object" },
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user",   content: userMessage },
       ],
       temperature: 0.6,
-      max_tokens:  500,
+      max_tokens:  900,
     });
 
-    const prompt = completion.choices[0]?.message?.content?.trim();
-    if (!prompt) {
+    const raw = completion.choices[0]?.message?.content?.trim();
+    if (!raw) {
       return NextResponse.json({ error: "Empty response from prompt builder." }, { status: 502 });
     }
 
-    return NextResponse.json({ prompt });
+    let parsed: { prompts?: unknown; attachment?: unknown };
+    try { parsed = JSON.parse(raw); }
+    catch { return NextResponse.json({ error: "Prompt builder returned malformed output." }, { status: 502 }); }
+
+    // Normalize + guard the shape so the client always gets a clean array.
+    const prompts = Array.isArray(parsed.prompts)
+      ? parsed.prompts
+          .map((p) => {
+            const o = (p ?? {}) as Record<string, unknown>;
+            const prompt = typeof o.prompt === "string" ? o.prompt.trim() : "";
+            const label  = typeof o.label  === "string" && o.label.trim() ? o.label.trim() : "Your prompt";
+            const why    = typeof o.why    === "string" ? o.why.trim() : "";
+            return prompt ? { label, prompt, why } : null;
+          })
+          .filter((p): p is { label: string; prompt: string; why: string } => p !== null)
+          .slice(0, 4)
+      : [];
+
+    if (prompts.length === 0) {
+      return NextResponse.json({ error: "Prompt builder produced no usable prompts." }, { status: 502 });
+    }
+
+    const attachment = typeof parsed.attachment === "string" ? parsed.attachment.trim() : "";
+
+    // Back-compat: keep `prompt` (first one) for any existing caller.
+    return NextResponse.json({ prompts, attachment, prompt: prompts[0].prompt });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[build-prompt]", msg);
