@@ -25,7 +25,7 @@ const GOLD = "#C8A84B";
 // ── Subject tiles configuration ───────────────────────────────────────────────
 const LEFT_SUBJECTS = [
   { id: "mathematics", src: "/classroom/mathematics.png", name: "Mathematics",  hasData: true  },
-  { id: "physics",     src: "/classroom/physics.png",     name: "Physics",      hasData: false },
+  { id: "kannada",     src: "/classroom/kannada.png",     name: "Kannada",      hasData: true  },
   { id: "chemistry",   src: "/classroom/chemistry.png",   name: "Chemistry",    hasData: true  },
   { id: "english",     src: "/classroom/english.png",     name: "English",      hasData: false },
 ] as const;
@@ -189,20 +189,95 @@ function LeaderboardPanel() {
 }
 
 // ── Subject tile ──────────────────────────────────────────────────────────────
-function SubjectTile({ src, name, hasData, onClick }: {
-  src: string; name: string; hasData: boolean; onClick: (subject: string) => void;
+function SubjectTile({ src, name, hasData, cardMode, number, subtitle, bgSize, bgColor, onClick }: {
+  src: string; name: string; hasData: boolean;
+  cardMode?: boolean; number?: string; subtitle?: string; bgSize?: string; bgColor?: string;
+  onClick: (subject: string) => void;
 }) {
+  // Card-mode: white card layout matching Mathematics/Chemistry style
+  if (cardMode) {
+    return (
+      <motion.div
+        className="cl-img relative overflow-hidden"
+        style={{
+          width: "100%",
+          background: "rgba(255,255,255,0.96)",
+          border: "1.5px solid rgba(200,200,220,0.5)",
+          borderRadius: 12,
+          boxShadow: "0 4px 20px rgba(15,28,77,0.10)",
+          cursor: hasData ? "pointer" : "not-allowed",
+          display: "flex", alignItems: "stretch",
+        }}
+        whileHover={hasData ? { scale:1.02 } : {}}
+        whileTap={hasData ? { scale:0.98 } : {}}
+        transition={{ duration:0.18, ease:[0.16,1,0.3,1] }}
+        onClick={hasData ? () => onClick(name) : undefined}
+      >
+        {/* Left — number badge + title + subtitle */}
+        <div style={{ flex: 1, padding: "clamp(8px,1.2vw,16px) clamp(8px,1.2vw,14px)", display:"flex", flexDirection:"column", justifyContent:"center", gap:4 }}>
+          {number && (
+            <div style={{
+              display:"inline-flex", alignItems:"center", justifyContent:"center",
+              width:"clamp(24px,2.8vw,36px)", height:"clamp(24px,2.8vw,36px)",
+              borderRadius:6, background:"#7C3AED", marginBottom:4,
+              boxShadow:"0 0 10px rgba(124,58,237,0.4)",
+            }}>
+              <span style={{ color:"#fff", fontWeight:900, fontSize:"clamp(10px,1.2vw,14px)" }}>{number}</span>
+            </div>
+          )}
+          <span style={{
+            color:"#1a1a2e", fontWeight:900,
+            fontSize:"clamp(12px,1.4vw,18px)", letterSpacing:"0.04em", textTransform:"uppercase",
+            fontFamily:"var(--font-dm-sans,'DM Sans',sans-serif)", lineHeight:1.1,
+          }}>{name}</span>
+          {subtitle && (
+            <span style={{ color:"rgba(15,28,77,0.55)", fontSize:"clamp(8px,0.85vw,11px)", lineHeight:1.4, marginTop:2 }}>
+              {subtitle}
+            </span>
+          )}
+        </div>
+        {/* Right — subject image */}
+        <div style={{ width:"42%", flexShrink:0, position:"relative", overflow:"hidden" }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={src} alt={name} draggable={false}
+            style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover", objectPosition:"center" }} />
+        </div>
+        {/* Lock overlay */}
+        {!hasData && (
+          <>
+            <div aria-hidden className="absolute inset-0"
+              style={{ backdropFilter:"blur(1.5px) saturate(85%)", background:"rgba(8,16,32,0.08)", pointerEvents:"none" }} />
+            <div aria-hidden className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="flex items-center justify-center rounded-full"
+                style={{ width:40, height:40, background:"linear-gradient(180deg,#0B1A2F,#050E1F)",
+                  border:"1.5px solid rgba(125,211,252,0.65)",
+                  boxShadow:"0 0 18px rgba(0,212,255,0.5), inset 0 0 10px rgba(0,212,255,0.18)" }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <rect x="5" y="11" width="14" height="10" rx="2" stroke="#E8F4FF" strokeWidth="1.8"/>
+                  <path d="M8 11V8a4 4 0 1 1 8 0v3" stroke="#E8F4FF" strokeWidth="1.8" strokeLinecap="round"/>
+                </svg>
+              </div>
+            </div>
+          </>
+        )}
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div
       className="cl-img relative"
-      style={{ width:"100%", backgroundImage:`url(${src})`, backgroundSize:"cover",
-        backgroundPosition:"center", cursor: hasData ? "pointer" : "not-allowed" }}
+      style={{ width:"100%", backgroundColor: bgColor ?? "transparent",
+        backgroundImage:`url(${src})`, backgroundSize: bgSize ?? "cover",
+        backgroundPosition:"center", backgroundRepeat:"no-repeat",
+        cursor: hasData ? "pointer" : "not-allowed" }}
       whileHover={hasData ? { scale:1.02 } : {}}
       whileTap={hasData ? { scale:0.98 } : {}}
       transition={{ duration:0.18, ease:[0.16,1,0.3,1] }}
       onClick={hasData ? () => onClick(name) : undefined}
     >
-      {/* Locked overlay — always visible, mirrors arena lock style */}
+
+      {/* Locked overlay */}
       {!hasData && (
         <>
           <div aria-hidden className="absolute inset-0"
