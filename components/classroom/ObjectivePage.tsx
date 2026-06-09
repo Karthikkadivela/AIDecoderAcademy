@@ -71,26 +71,33 @@ function LockedCard() {
   );
 }
 
-// ── Card zone positions — measured from pixel analysis of both PNG backgrounds
-// Left MCQ column:  left 2%–26%  (x = 1.8%–25.4% in PNG)
-// Right Board column: left 53%–76% (x = 53.2%–75.6% in PNG)
-// Card top rows (badge top): L1=14%, L2=36%, L3=50%, L4=63%, L5=76%
-// Card heights:              L1=21%,  L2=13%, L3=13%, L4=12%, L5=11%
+// ── Card zone positions — pixel-exact from PNG gap analysis
+// Gaps (0% white): 21-23%, 36-37%, 50%, 63-64%, 75%
+// Left MCQ:   x = 1.8%–25.4% → left 2%, width 24%
+// Right Board: x = 53.2%–75.6% → left 53%, width 23%
+//
+//  Card   | top  | height | covers
+//  -------|------|--------|--------
+//  L1     | 14%  |  21%   | 14–35%  (badge 14–21% + content 24–35%)
+//  L2     | 38%  |  12%   | 38–50%  (gap is 36–37%, card starts at 38%)
+//  L3     | 51%  |  12%   | 51–63%  (gap is 50%, card starts at 51%)
+//  L4     | 65%  |  10%   | 65–75%  (gap is 63–64%, card starts at 65%)
+//  L5     | 76%  |  13%   | 76–89%  (gap is 75%, card extends to ~89%)
 
 const MCQ_CARDS = [
   { level: 1, locked: false, top: "14%", height: "21%", color: "#2563eb" },
-  { level: 2, locked: true,  top: "36%", height: "13%", color: "#2563eb" },
-  { level: 3, locked: true,  top: "50%", height: "13%", color: "#2563eb" },
-  { level: 4, locked: true,  top: "63%", height: "12%", color: "#2563eb" },
-  { level: 5, locked: true,  top: "76%", height: "11%", color: "#2563eb" },
+  { level: 2, locked: true,  top: "38%", height: "12%", color: "#2563eb" },
+  { level: 3, locked: true,  top: "51%", height: "12%", color: "#2563eb" },
+  { level: 4, locked: true,  top: "65%", height: "10%", color: "#2563eb" },
+  { level: 5, locked: true,  top: "76%", height: "13%", color: "#2563eb" },
 ] as const;
 
 const BOARD_CARDS = [
   { level: 1, locked: false, top: "14%", height: "21%", color: "#7C3AED" },
-  { level: 2, locked: true,  top: "36%", height: "13%", color: "#7C3AED" },
-  { level: 3, locked: true,  top: "50%", height: "13%", color: "#7C3AED" },
-  { level: 4, locked: true,  top: "63%", height: "12%", color: "#7C3AED" },
-  { level: 5, locked: true,  top: "76%", height: "11%", color: "#7C3AED" },
+  { level: 2, locked: true,  top: "38%", height: "12%", color: "#7C3AED" },
+  { level: 3, locked: true,  top: "51%", height: "12%", color: "#7C3AED" },
+  { level: 4, locked: true,  top: "65%", height: "10%", color: "#7C3AED" },
+  { level: 5, locked: true,  top: "76%", height: "13%", color: "#7C3AED" },
 ] as const;
 
 // ── Main component ────────────────────────────────────────────────────────────
