@@ -181,13 +181,11 @@ export function KannadaChapterMapPage({ onChapterSelect, onBack }: Props) {
     <div className="relative overflow-hidden"
       style={{ height:"100dvh", fontFamily:"var(--font-dm-sans,'DM Sans',sans-serif)" }}>
 
-      {/* Background — reuse chapter background with purple Kannada tint */}
+      {/* Background image — full viewport */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/classroom/chapter/background.png" alt="" aria-hidden draggable={false}
         className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
         style={{ zIndex:0 }} />
-      <div className="absolute inset-0 pointer-events-none"
-        style={{ background:"rgba(124,58,237,0.18)", zIndex:1 }} />
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <header className="relative flex items-center px-6 py-3.5 gap-4 flex-shrink-0"
@@ -222,7 +220,12 @@ export function KannadaChapterMapPage({ onChapterSelect, onBack }: Props) {
       </header>
 
       {/* ── Body ───────────────────────────────────────────────────────────── */}
-      <div className="relative" style={{ height:"calc(100dvh - 57px)", zIndex:10 }}>
+      <div className="relative overflow-hidden" style={{ height:"calc(100dvh - 57px)", zIndex:10 }}>
+
+        {/* Purple Kannada tint — scoped inside body, contained by overflow:hidden */}
+        <div className="absolute pointer-events-none"
+          style={{ top:0, left:0, right:0, bottom:0, width:"100%", height:"100%",
+            background:"rgba(124,58,237,0.18)", zIndex:0 }} />
 
         {/* SVG connector lines */}
         <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex:2 }}

@@ -64,7 +64,7 @@ function Hotspot({ onClick, color, label }: {
 // ── Locked card overlay ───────────────────────────────────────────────────────
 function LockedCard() {
   return (
-    <div className="absolute inset-0 rounded-2xl flex items-center justify-center"
+    <div className="absolute inset-0 flex items-center justify-center"
       style={{ backdropFilter: "blur(1px) saturate(85%)", background: "rgba(8,16,32,0.08)" }}>
       <Lock size={34} />
     </div>
@@ -85,19 +85,19 @@ function LockedCard() {
 //  L5     | 76%  |  13%   | 76–89%  (gap is 75%, card extends to ~89%)
 
 const MCQ_CARDS = [
-  { level: 1, locked: false, top: "14%", height: "21%", color: "#2563eb" },
-  { level: 2, locked: true,  top: "38%", height: "12%", color: "#2563eb" },
-  { level: 3, locked: true,  top: "51%", height: "12%", color: "#2563eb" },
-  { level: 4, locked: true,  top: "65%", height: "10%", color: "#2563eb" },
-  { level: 5, locked: true,  top: "76%", height: "13%", color: "#2563eb" },
+  { level: 1, locked: false, top: "25%",  height: "12%", color: "#2563eb" },
+  { level: 2, locked: true,  top: "38.5%",height: "11%", color: "#2563eb" },
+  { level: 3, locked: true,  top: "51.5%",height: "11%", color: "#2563eb" },
+  { level: 4, locked: true,  top: "65.5%",height: "9%",  color: "#2563eb" },
+  { level: 5, locked: true,  top: "76.5%",height: "12%", color: "#2563eb" },
 ] as const;
 
 const BOARD_CARDS = [
-  { level: 1, locked: false, top: "14%", height: "21%", color: "#7C3AED" },
-  { level: 2, locked: true,  top: "38%", height: "12%", color: "#7C3AED" },
-  { level: 3, locked: true,  top: "51%", height: "12%", color: "#7C3AED" },
-  { level: 4, locked: true,  top: "65%", height: "10%", color: "#7C3AED" },
-  { level: 5, locked: true,  top: "76%", height: "13%", color: "#7C3AED" },
+  { level: 1, locked: false, top: "25%",  height: "12%", color: "#7C3AED" },
+  { level: 2, locked: true,  top: "38.5%",height: "11%", color: "#7C3AED" },
+  { level: 3, locked: true,  top: "51.5%",height: "11%", color: "#7C3AED" },
+  { level: 4, locked: true,  top: "65.5%",height: "9%",  color: "#7C3AED" },
+  { level: 5, locked: true,  top: "76.5%",height: "12%", color: "#7C3AED" },
 ] as const;
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -136,11 +136,12 @@ export function ObjectivePage({ chapter, onSelectTest, onBack, onEnterArena, onC
       </button>
 
       {/* ── Interactive card zones ────────────────────────────────────────────── */}
-      {/* Left MCQ column — x=2%–26% matching PNG card column (1.8%–25.4%) */}
+      {/* Left MCQ column — x=2%–25% matching PNG card column (1.8%–25.4%) */}
       {MCQ_CARDS.map(card => (
         <div key={`mcq-${card.level}`}
-          className="absolute"
-          style={{ top: card.top, left: "2%", width: "24%", height: card.height, zIndex: 10 }}>
+          className="absolute overflow-hidden"
+          style={{ top: card.top, left: "2%", width: "23%", height: card.height,
+            zIndex: 10, borderRadius: 14, clipPath: "inset(0 round 14px)" }}>
           {card.locked
             ? <LockedCard />
             : <Hotspot onClick={() => onSelectTest("mcq")} color={card.color} label="MCQ" />
@@ -151,8 +152,9 @@ export function ObjectivePage({ chapter, onSelectTest, onBack, onEnterArena, onC
       {/* Right Board column — x=53%–76% matching PNG card column (53.2%–75.6%) */}
       {BOARD_CARDS.map(card => (
         <div key={`board-${card.level}`}
-          className="absolute"
-          style={{ top: card.top, left: "53%", width: "23%", height: card.height, zIndex: 10 }}>
+          className="absolute overflow-hidden"
+          style={{ top: card.top, left: "53%", width: "23%", height: card.height,
+            zIndex: 10, borderRadius: 14, clipPath: "inset(0 round 14px)" }}>
           {card.locked
             ? <LockedCard />
             : <Hotspot onClick={() => onSelectTest("written")} color={card.color} label="Board" />
