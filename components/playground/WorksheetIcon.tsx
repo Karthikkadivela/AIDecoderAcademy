@@ -58,43 +58,57 @@ export function WorksheetIcon({ onClick, arenaAccent, arenaAccentGlow, hasDraft 
   if (hidden) return null;
 
   return (
-    <motion.button
-      type="button"
-      onClick={onClick}
+    // Outer wrapper handles positioning + float animation only.
+    // pointer-events: none so the transparent PNG edges don't swallow
+    // clicks on background elements (e.g. Director Suite hex).
+    <motion.div
       className="fixed z-[100] flex items-end justify-center"
       style={{
-        // ↓ horizontal: right of viewport, plus AIDA's width, plus tight gap = sits left of AIDA
-        //   Keep the FIRST percentage in this calc identical to AIDA's `right`
-        //   in AidaAssistant.tsx (currently 62%). Change the final `+ Xpx` to
-        //   tune the gap between worksheet and AIDA.
         right:  "calc(53% + clamp(173px, 14.4vw, 269px) + 4px)",
-        bottom: "20px",                                    // ← matches AIDA's bottom
-        width:  "clamp(260px, 21.6vw, 404px)",             // ← SIZE knob: width  (2× original)
-        height: "clamp(260px, 21.6vw, 404px)",             // ← SIZE knob: height (keep equal to width)
-        background: "transparent",
-        border:     "none",
-        padding:    0,
-        cursor:     "pointer",
-        filter:     `drop-shadow(0 0 18px ${arenaAccentGlow})`,
+        bottom: "20px",
+        width:  "clamp(260px, 21.6vw, 404px)",
+        height: "clamp(260px, 21.6vw, 404px)",
+        pointerEvents: "none",
+        filter: `drop-shadow(0 0 18px ${arenaAccentGlow})`,
       }}
-      whileHover={{ y: -3, scale: 1.04 }}
-      whileTap={{ scale: 0.96 }}
       animate={{ y: [0, -2, 0] }}
       transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
-      aria-label="Open worksheet"
     >
-      <img
-        src="/worksheet-on-floor.png"
-        alt=""
-        draggable={false}
-        style={{ width: "100%", height: "100%", objectFit: "contain" }}
-      />
-      {hasDraft && (
-        <span
-          className="absolute top-2 right-2 w-3 h-3 rounded-full"
-          style={{ background: arenaAccent, boxShadow: `0 0 10px ${arenaAccentGlow}` }}
+      {/* Inner button covers only the visible ~72% centre of the sprite,
+          eliminating the transparent left/right margins as click traps. */}
+      <motion.button
+        type="button"
+        onClick={onClick}
+        style={{
+          pointerEvents: "auto",
+          background: "transparent",
+          border:     "none",
+          padding:    0,
+          cursor:     "pointer",
+          width:      "72%",
+          height:     "100%",
+          position:   "relative",
+          display:    "flex",
+          alignItems: "flex-end",
+          justifyContent: "center",
+        }}
+        whileHover={{ y: -3, scale: 1.04 }}
+        whileTap={{ scale: 0.96 }}
+        aria-label="Open worksheet"
+      >
+        <img
+          src="/worksheet-on-floor.png"
+          alt=""
+          draggable={false}
+          style={{ width: "100%", height: "100%", objectFit: "contain" }}
         />
-      )}
-    </motion.button>
+        {hasDraft && (
+          <span
+            className="absolute top-2 right-2 w-3 h-3 rounded-full"
+            style={{ background: arenaAccent, boxShadow: `0 0 10px ${arenaAccentGlow}` }}
+          />
+        )}
+      </motion.button>
+    </motion.div>
   );
 }
