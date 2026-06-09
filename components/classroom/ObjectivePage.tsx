@@ -71,26 +71,26 @@ function LockedCard() {
   );
 }
 
-// ── Card zone helper — wraps a positioned card area ───────────────────────────
-// All positions are % of the full-page image (1440×900 reference)
-// Left MCQ column:  left 2.5%–27%, rows at 20% / 31.5% / 43% / 54.5% / 66%
-// Right Board column: left 54%–79%, same row tops
-// Each card height ~10%
+// ── Card zone positions — measured from pixel analysis of both PNG backgrounds
+// Left MCQ column:  left 2%–26%  (x = 1.8%–25.4% in PNG)
+// Right Board column: left 53%–76% (x = 53.2%–75.6% in PNG)
+// Card top rows (badge top): L1=14%, L2=36%, L3=50%, L4=63%, L5=76%
+// Card heights:              L1=21%,  L2=13%, L3=13%, L4=12%, L5=11%
 
 const MCQ_CARDS = [
-  { level: 1, locked: false, top: "24%",   color: "#2563eb" },
-  { level: 2, locked: true,  top: "38%", color: "#2563eb" },
-  { level: 3, locked: true,  top: "52%",   color: "#2563eb" },
-  { level: 4, locked: true,  top: "65%", color: "#2563eb" },
-  { level: 5, locked: true,  top: "79%",   color: "#2563eb" },
+  { level: 1, locked: false, top: "14%", height: "21%", color: "#2563eb" },
+  { level: 2, locked: true,  top: "36%", height: "13%", color: "#2563eb" },
+  { level: 3, locked: true,  top: "50%", height: "13%", color: "#2563eb" },
+  { level: 4, locked: true,  top: "63%", height: "12%", color: "#2563eb" },
+  { level: 5, locked: true,  top: "76%", height: "11%", color: "#2563eb" },
 ] as const;
 
 const BOARD_CARDS = [
-  { level: 1, locked: false, top: "24%",   color: "#7C3AED" },
-  { level: 2, locked: true,  top: "38%", color: "#7C3AED" },
-  { level: 3, locked: true,  top: "52%",   color: "#7C3AED" },
-  { level: 4, locked: true,  top: "65%", color: "#7C3AED" },
-  { level: 5, locked: true,  top: "79%",   color: "#7C3AED" },
+  { level: 1, locked: false, top: "14%", height: "21%", color: "#7C3AED" },
+  { level: 2, locked: true,  top: "36%", height: "13%", color: "#7C3AED" },
+  { level: 3, locked: true,  top: "50%", height: "13%", color: "#7C3AED" },
+  { level: 4, locked: true,  top: "63%", height: "12%", color: "#7C3AED" },
+  { level: 5, locked: true,  top: "76%", height: "11%", color: "#7C3AED" },
 ] as const;
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -129,11 +129,11 @@ export function ObjectivePage({ chapter, onSelectTest, onBack, onEnterArena, onC
       </button>
 
       {/* ── Interactive card zones ────────────────────────────────────────────── */}
-      {/* Left MCQ column — left: 2.5%, width: 24.5% */}
+      {/* Left MCQ column — x=2%–26% matching PNG card column (1.8%–25.4%) */}
       {MCQ_CARDS.map(card => (
         <div key={`mcq-${card.level}`}
           className="absolute"
-          style={{ top: card.top, left: "3%", width: "22%", height: "10%", zIndex: 10 }}>
+          style={{ top: card.top, left: "2%", width: "24%", height: card.height, zIndex: 10 }}>
           {card.locked
             ? <LockedCard />
             : <Hotspot onClick={() => onSelectTest("mcq")} color={card.color} label="MCQ" />
@@ -141,11 +141,11 @@ export function ObjectivePage({ chapter, onSelectTest, onBack, onEnterArena, onC
         </div>
       ))}
 
-      {/* Right Board column — left: 54%, width: 24.5% */}
+      {/* Right Board column — x=53%–76% matching PNG card column (53.2%–75.6%) */}
       {BOARD_CARDS.map(card => (
         <div key={`board-${card.level}`}
           className="absolute"
-          style={{ top: card.top, left: "55%", width: "21%", height: "10%", zIndex: 10 }}>
+          style={{ top: card.top, left: "53%", width: "23%", height: card.height, zIndex: 10 }}>
           {card.locked
             ? <LockedCard />
             : <Hotspot onClick={() => onSelectTest("written")} color={card.color} label="Board" />
@@ -153,11 +153,11 @@ export function ObjectivePage({ chapter, onSelectTest, onBack, onEnterArena, onC
         </div>
       ))}
 
-      {/* "Enter Classroom" button — center circle */}
+      {/* "Enter Classroom" button — covers bottom action area of center circle */}
       <motion.button
         onClick={() => onEnterArena ? onEnterArena() : router.push("/dashboard/playground")}
         className="absolute rounded-2xl"
-        style={{ top: "64%", left: "33%", width: "14%", height: "6%", zIndex: 10, cursor: "pointer" }}
+        style={{ top: "63%", left: "30%", width: "18%", height: "8%", zIndex: 10, cursor: "pointer" }}
         whileHover={{ background: "rgba(124,58,237,0.18)", boxShadow: "0 0 24px rgba(124,58,237,0.4)" }}
         transition={{ duration: 0.15 }}
       />

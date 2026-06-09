@@ -541,16 +541,13 @@ export default function ClassroomPage() {
       : activeSubject === "kannada" ? "kannada-chapters"
       : "chapters";
     return (
-      <>
-        <ObjectivePage
-          chapter={selectedChapter}
-          onSelectTest={(type) => loadPaper(selectedChapter, type)}
-          onBack={() => setView(chapterMapView)}
-          onEnterArena={() => setView("arena")}
-          onCorrectNotes={() => setView("correct-notes")}
-        />
-        {teacher}
-      </>
+      <ObjectivePage
+        chapter={selectedChapter}
+        onSelectTest={(type) => loadPaper(selectedChapter, type)}
+        onBack={() => setView(chapterMapView)}
+        onEnterArena={() => setView("arena")}
+        onCorrectNotes={() => setView("correct-notes")}
+      />
     );
   }
 
