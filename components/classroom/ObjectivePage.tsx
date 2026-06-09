@@ -174,7 +174,7 @@ export function ObjectivePage({ chapter, onSelectTest, onBack, onEnterArena, onC
         onClick={() => onCorrectNotes?.()}
         className="absolute flex items-center justify-center gap-1.5 rounded-2xl text-[11px] font-black"
         style={{
-          top: "69%", left: "29%", width: "20%", height: "5%", zIndex: 10,
+          top: "72%", left: "29%", width: "20%", height: "5%", zIndex: 10,
           cursor: "pointer", color: "#fff",
           background: "linear-gradient(135deg, #06B6D4cc, #0891B2cc)",
           backdropFilter: "blur(8px)",
