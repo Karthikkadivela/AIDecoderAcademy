@@ -106,6 +106,8 @@ export function ObjectivePage({ chapter, onSelectTest, onBack, onEnterArena, onC
       <img
         src={chapter.subject === "Mathematics"
           ? "/classroom/objectives/objectives_mathematics.png"
+          : chapter.subject === "Kannada"
+          ? "/classroom/objectives/objectives_kannada.png"
           : "/classroom/objectives/objectives_chemistry.png"}
         alt="Chapter Objectives"
         draggable={false}
