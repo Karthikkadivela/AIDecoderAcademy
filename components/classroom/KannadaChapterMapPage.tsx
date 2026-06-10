@@ -24,29 +24,28 @@ const PODIUM_META = [
   { rank:3, ring:"#CD7F32", glow:"rgba(205,127,50,0.35)",  platform:18, avatar:26, label:"🥉" },
 ];
 
-// ── Chapter tiles: pentagon layout, same geometry as Chemistry & Math ──────────
+// ── Chapter tiles: pentagon layout scaled to fit all viewport sizes ───────────
 const TILES = [
-  { key:"ch1", src:"/classroom/KANNADA/KANNADA 1.png", num:1, locked:false,
-    style:{ top:"calc(50% - 362px)", left:"calc(47% - 150px)" } },
-  { key:"ch2", src:"/classroom/KANNADA/KANNADA 2.png", num:2, locked:true,
-    style:{ top:"calc(50% - 162px)", left:"calc(47% + 131px)" } },
-  { key:"ch3", src:"/classroom/KANNADA/KANNADA 3.png", num:3, locked:true,
-    style:{ top:"calc(50% + 163px)", left:"calc(47% + 25px)" } },
-  { key:"ch4", src:"/classroom/KANNADA/KANNADA 4.png", num:4, locked:true,
-    style:{ top:"calc(50% + 163px)", left:"calc(47% - 315px)" } },
-  { key:"ch5", src:"/classroom/KANNADA/KANNADA 5.png", num:5, locked:true,
-    style:{ top:"calc(50% - 162px)", left:"calc(47% - 421px)" } },
+  { key:"ch1", src:"/classroom/KANNADA/KANNADA%201.png", num:1, locked:false,
+    style:{ top:"calc(50% - 250px)", left:"calc(47% - 150px)" } },
+  { key:"ch2", src:"/classroom/KANNADA/KANNADA%202.png", num:2, locked:true,
+    style:{ top:"calc(50% - 110px)", left:"calc(47% + 131px)" } },
+  { key:"ch3", src:"/classroom/KANNADA/KANNADA%203.png", num:3, locked:true,
+    style:{ top:"calc(50% + 100px)", left:"calc(47% + 25px)" } },
+  { key:"ch4", src:"/classroom/KANNADA/KANNADA%204.png", num:4, locked:true,
+    style:{ top:"calc(50% + 100px)", left:"calc(47% - 315px)" } },
+  { key:"ch5", src:"/classroom/KANNADA/KANNADA%205.png", num:5, locked:true,
+    style:{ top:"calc(50% - 110px)", left:"calc(47% - 421px)" } },
 ] as const;
 
 const CONNECTORS = [
-  { id:"c1", x1:47, y1:50, x2:47,  y2:11 },
-  { id:"c2", x1:47, y1:50, x2:66,  y2:38 },
-  { id:"c3", x1:47, y1:50, x2:59,  y2:82 },
-  { id:"c4", x1:47, y1:50, x2:35,  y2:82 },
-  { id:"c5", x1:47, y1:50, x2:28,  y2:38 },
+  { id:"c1", x1:47, y1:50, x2:47, y2:22 },
+  { id:"c2", x1:47, y1:50, x2:65, y2:43 },
+  { id:"c3", x1:47, y1:50, x2:58, y2:74 },
+  { id:"c4", x1:47, y1:50, x2:36, y2:74 },
+  { id:"c5", x1:47, y1:50, x2:29, y2:43 },
 ];
 
-// ── Lock medallion (identical to Chemistry & Math) ────────────────────────────
 function LockMedallion() {
   return (
     <div className="absolute inset-0 flex items-center justify-center rounded-2xl"
@@ -65,7 +64,6 @@ function LockMedallion() {
   );
 }
 
-// ── Leaderboard components ────────────────────────────────────────────────────
 function PodiumSpot({ entry, meta }: { entry:LeaderboardEntry; meta:typeof PODIUM_META[0] }) {
   const isMe = entry.is_current_user;
   const accent = ARENA_ACCENTS[entry.active_arena] ?? "#7C3AED";
@@ -147,7 +145,6 @@ function ProgressRing({ pct, color }: { pct:number; color:string }) {
   );
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
 export function KannadaChapterMapPage({ onChapterSelect, onBack }: Props) {
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [lbData,   setLbData]   = useState<{top10:LeaderboardEntry[]}|null>(null);
@@ -184,15 +181,13 @@ export function KannadaChapterMapPage({ onChapterSelect, onBack }: Props) {
     <div className="relative overflow-hidden"
       style={{ height:"100dvh", fontFamily:"var(--font-dm-sans,'DM Sans',sans-serif)" }}>
 
-      {/* Background */}
+      {/* Background image — full viewport */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/classroom/KANNADA/background.png" alt="" aria-hidden draggable={false}
+      <img src="/classroom/chapter/background.png" alt="" aria-hidden draggable={false}
         className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
         style={{ zIndex:0 }} />
-      <div className="absolute inset-0 pointer-events-none"
-        style={{ background:"rgba(220,215,255,0.15)", zIndex:1 }} />
 
-      {/* ── Header ───────────────────────────────────────────────────────────── */}
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
       <header className="relative flex items-center px-6 py-3.5 gap-4 flex-shrink-0"
         style={{ zIndex:20, background:"rgba(255,255,255,0.9)", backdropFilter:"blur(20px)",
           borderBottom:"1px solid rgba(255,255,255,0.6)",
@@ -224,10 +219,15 @@ export function KannadaChapterMapPage({ onChapterSelect, onBack }: Props) {
         </div>
       </header>
 
-      {/* ── Body ─────────────────────────────────────────────────────────────── */}
-      <div className="relative" style={{ height:"calc(100dvh - 57px)", zIndex:10 }}>
+      {/* ── Body ───────────────────────────────────────────────────────────── */}
+      <div className="relative overflow-hidden" style={{ height:"calc(100dvh - 57px)", zIndex:10 }}>
 
-        {/* SVG connector lines — drawn behind tiles */}
+        {/* Purple Kannada tint — scoped inside body, contained by overflow:hidden */}
+        <div className="absolute pointer-events-none"
+          style={{ top:0, left:0, right:0, bottom:0, width:"100%", height:"100%",
+            background:"rgba(124,58,237,0.18)", zIndex:0 }} />
+
+        {/* SVG connector lines */}
         <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex:2 }}
           viewBox="0 0 100 100" preserveAspectRatio="none">
           {CONNECTORS.map(c => (
@@ -262,7 +262,7 @@ export function KannadaChapterMapPage({ onChapterSelect, onBack }: Props) {
           </div>
         </motion.div>
 
-        {/* ── Chapter tiles ─────────────────────────────────────────────────── */}
+        {/* Chapter tiles */}
         {TILES.map((tile, i) => (
           <motion.div key={tile.key}
             className="absolute"
@@ -273,23 +273,24 @@ export function KannadaChapterMapPage({ onChapterSelect, onBack }: Props) {
             whileTap={!tile.locked ? { scale:0.97 } : {}}
             onClick={() => handleClick(tile.num, tile.locked)}
           >
-            {/* overflow-hidden wrapper ensures LockMedallion stays inside rounded corners */}
-            <div className="relative rounded-2xl overflow-hidden"
+            <div className="relative rounded-xl overflow-hidden"
               style={{
+                height: 130,
                 boxShadow: tile.locked
                   ? "0 4px 16px rgba(15,28,77,0.12)"
-                  : "0 6px 28px rgba(15,28,77,0.18), 0 0 0 2px rgba(124,58,237,0.3)",
+                  : "0 6px 28px rgba(15,28,77,0.18), 0 0 0 2px rgba(124,58,237,0.35)",
               }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={tile.src} alt={`Kannada Chapter ${tile.num}`}
-                className="w-full h-auto select-none block"
+              <img src={tile.src} alt={tile.key}
+                className="w-full h-full select-none"
+                style={{ objectFit:"cover", objectPosition:"center" }}
                 draggable={false} />
               {tile.locked && <LockMedallion />}
             </div>
           </motion.div>
         ))}
 
-        {/* ── Subject Progress card — top-left ────────────────────────────── */}
+        {/* Progress card — top-left */}
         <motion.div initial={{ opacity:0, x:-20 }} animate={{ opacity:1, x:0 }}
           transition={{ duration:0.45 }}
           className="absolute rounded-2xl p-4"
@@ -319,7 +320,7 @@ export function KannadaChapterMapPage({ onChapterSelect, onBack }: Props) {
           </div>
         </motion.div>
 
-        {/* ── Leaderboard panel — top-right ───────────────────────────────── */}
+        {/* Leaderboard panel — top-right */}
         <motion.div initial={{ opacity:0, x:20 }} animate={{ opacity:1, x:0 }}
           transition={{ duration:0.45 }}
           style={{ position:"absolute", top:80, right:20, height:"60%", width:320, zIndex:5,
@@ -332,8 +333,7 @@ export function KannadaChapterMapPage({ onChapterSelect, onBack }: Props) {
             style={{ background:"linear-gradient(135deg,rgba(124,58,237,0.10),rgba(0,212,255,0.05))",
               borderBottom:"1px solid rgba(0,0,0,0.06)" }}>
             <span style={{ fontSize:16 }}>🏆</span>
-            <span className="font-black tracking-tight flex-1"
-              style={{ fontSize:13, color:"#1a1a2e", fontFamily:"var(--font-space-grotesk,'Space Grotesk',sans-serif)" }}>
+            <span className="font-black tracking-tight flex-1" style={{ fontSize:13, color:"#1a1a2e" }}>
               Leaderboard
             </span>
           </div>
