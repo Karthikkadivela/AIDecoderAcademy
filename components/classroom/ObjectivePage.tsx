@@ -37,8 +37,8 @@ function Hotspot({ onClick, color, label }: {
     <motion.button
       onClick={onClick}
       className="absolute w-full h-full rounded-2xl flex items-end justify-start p-2"
-      style={{ cursor: "pointer", background: "transparent" }}
-      whileHover={{ background: `${color}18` }}
+      style={{ cursor: "pointer", background: `${color}18` }}
+      whileHover={{ background: `${color}30` }}
       transition={{ duration: 0.15 }}
     >
       {/* Hover glow ring */}
@@ -62,10 +62,10 @@ function Hotspot({ onClick, color, label }: {
 }
 
 // ── Locked card overlay ───────────────────────────────────────────────────────
-function LockedCard() {
+function LockedCard({ color }: { color: string }) {
   return (
     <div className="absolute inset-0 flex items-center justify-center"
-      style={{ backdropFilter: "blur(1px) saturate(85%)", background: "rgba(8,16,32,0.08)" }}>
+      style={{ backdropFilter: "blur(1px) saturate(85%)", background: `${color}18` }}>
       <Lock size={34} />
     </div>
   );
@@ -143,7 +143,7 @@ export function ObjectivePage({ chapter, onSelectTest, onBack, onEnterArena, onC
           style={{ top: card.top, left: "2%", width: "23%", height: card.height,
             zIndex: 10, borderRadius: 14, clipPath: "inset(0 round 14px)" }}>
           {card.locked
-            ? <LockedCard />
+            ? <LockedCard color={card.color} />
             : <Hotspot onClick={() => onSelectTest("mcq")} color={card.color} label="MCQ" />
           }
         </div>
@@ -156,7 +156,7 @@ export function ObjectivePage({ chapter, onSelectTest, onBack, onEnterArena, onC
           style={{ top: card.top, left: "53%", width: "23%", height: card.height,
             zIndex: 10, borderRadius: 14, clipPath: "inset(0 round 14px)" }}>
           {card.locked
-            ? <LockedCard />
+            ? <LockedCard color={card.color} />
             : <Hotspot onClick={() => onSelectTest("written")} color={card.color} label="Board" />
           }
         </div>
