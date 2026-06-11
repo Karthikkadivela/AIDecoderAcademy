@@ -13,7 +13,8 @@ import { ScoreReport }      from "@/components/classroom/ScoreReport";
 import { WrittenTest, type WrittenResult } from "@/components/classroom/WrittenTest";
 import { WrittenScoreReport } from "@/components/classroom/WrittenScoreReport";
 import { ProctoringGuard }  from "@/components/classroom/ProctoringGuard";
-import { MathChapterMapPage } from "@/components/classroom/MathChapterMapPage";
+import { MathChapterMapPage }    from "@/components/classroom/MathChapterMapPage";
+import { PhysicsChapterMapPage } from "@/components/classroom/PhysicsChapterMapPage";
 import { TeacherCharacter } from "@/components/classroom/TeacherCharacter";
 import { NotesUpload }      from "@/components/classroom/NotesUpload";
 import { CorrectionReport } from "@/components/classroom/CorrectionReport";
@@ -25,7 +26,7 @@ const GOLD = "#C8A84B";
 // ── Subject tiles configuration ───────────────────────────────────────────────
 const LEFT_SUBJECTS = [
   { id: "mathematics", src: "/classroom/mathematics.png", name: "Mathematics",  hasData: true  },
-  { id: "physics",     src: "/classroom/physics.png",     name: "Physics",      hasData: false },
+  { id: "physics",     src: "/classroom/physics.png",     name: "Physics",      hasData: true  },
   { id: "chemistry",   src: "/classroom/chemistry.png",   name: "Chemistry",    hasData: true  },
   { id: "english",     src: "/classroom/english.png",     name: "English",      hasData: false },
 ] as const;
@@ -320,7 +321,7 @@ function ClassroomLanding({ profile, onEnter }: { profile: Profile|null; onEnter
 }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
-type View = "landing" | "chapters" | "math-chapters" | "objective" | "arena" | "pick" | "select-type" | "loading"
+type View = "landing" | "chapters" | "math-chapters" | "physics-chapters" | "objective" | "arena" | "pick" | "select-type" | "loading"
           | "mcq-test" | "written-test" | "mcq-result" | "written-result"
           | "correct-notes" | "notes-result";
 
@@ -411,7 +412,11 @@ export default function ClassroomPage() {
       <>
         <ClassroomLanding profile={profile} onEnter={(subjectId) => {
           setActiveSubject(subjectId);
-          setView(subjectId === "mathematics" ? "math-chapters" : "chapters");
+          setView(
+            subjectId === "mathematics" ? "math-chapters" :
+            subjectId === "physics"     ? "physics-chapters" :
+            "chapters"
+          );
         }} />
         {teacher}
       </>
@@ -444,9 +449,25 @@ export default function ClassroomPage() {
     );
   }
 
+  // ── Physics chapter map — full viewport ──────────────────────────────────
+  if (view === "physics-chapters") {
+    return (
+      <>
+        <PhysicsChapterMapPage
+          onChapterSelect={(ch) => { setChapter(ch); setView("objective"); }}
+          onBack={() => setView("landing")}
+        />
+        {teacher}
+      </>
+    );
+  }
+
   // ── Objective page — full viewport ────────────────────────────────────────
   if (view === "objective" && selectedChapter) {
-    const chapterMapView = activeSubject === "mathematics" ? "math-chapters" : "chapters";
+    const chapterMapView =
+      activeSubject === "mathematics" ? "math-chapters" :
+      activeSubject === "physics"     ? "physics-chapters" :
+      "chapters";
     return (
       <>
         <ObjectivePage
