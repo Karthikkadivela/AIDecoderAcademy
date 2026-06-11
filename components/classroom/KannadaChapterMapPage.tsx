@@ -183,7 +183,7 @@ export function KannadaChapterMapPage({ onChapterSelect, onBack }: Props) {
 
       {/* Background image — full viewport */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/classroom/chapter/background.png" alt="" aria-hidden draggable={false}
+      <img src="/classroom/KANNADA/background.png" alt="" aria-hidden draggable={false}
         className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
         style={{ zIndex:0 }} />
 
@@ -273,17 +273,15 @@ export function KannadaChapterMapPage({ onChapterSelect, onBack }: Props) {
             whileTap={!tile.locked ? { scale:0.97 } : {}}
             onClick={() => handleClick(tile.num, tile.locked)}
           >
-            <div className="relative rounded-xl overflow-hidden"
+            <div className="relative rounded-2xl overflow-hidden"
               style={{
-                height: 130,
                 boxShadow: tile.locked
                   ? "0 4px 16px rgba(15,28,77,0.12)"
                   : "0 6px 28px rgba(15,28,77,0.18), 0 0 0 2px rgba(124,58,237,0.35)",
               }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={tile.src} alt={tile.key}
-                className="w-full h-full select-none"
-                style={{ objectFit:"cover", objectPosition:"center" }}
+                className="w-full h-auto select-none block"
                 draggable={false} />
               {tile.locked && <LockMedallion />}
             </div>
