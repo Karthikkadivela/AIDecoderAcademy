@@ -32,10 +32,10 @@ const LEFT_SUBJECTS = [
 ] as const;
 
 const RIGHT_SUBJECTS = [
-  { id: "kannada",  src: "/classroom/kannada.png",  name: "Kannada",               hasData: true  },
-  { id: "social",   src: "/classroom/social.png",   name: "Social Science",        hasData: false },
-  { id: "computer", src: "/classroom/computer.png", name: "Computer Applications", hasData: false },
-  { id: "biology",  src: "/classroom/biology.png",  name: "Biology",               hasData: false },
+  { id: "kannada",  src: "/classroom/kannada.png",  name: "Kannada",               hasData: true,  cardMode: true,  number: "05", subtitle: "Grammar, Literature,\nPoetry, Prose &\nMCQ Practice Questions" },
+  { id: "social",   src: "/classroom/social.png",   name: "Social Science",        hasData: false, cardMode: false, number: undefined, subtitle: undefined },
+  { id: "computer", src: "/classroom/computer.png", name: "Computer Applications", hasData: false, cardMode: false, number: undefined, subtitle: undefined },
+  { id: "biology",  src: "/classroom/biology.png",  name: "Biology",               hasData: false, cardMode: false, number: undefined, subtitle: undefined },
 ] as const;
 
 // ── Leaderboard (same as hub) ─────────────────────────────────────────────────
@@ -382,7 +382,11 @@ function ClassroomLanding({ profile, onEnter }: { profile: Profile|null; onEnter
         {/* Right — 4 subject tiles */}
         <div className="cl-col-right">
           {RIGHT_SUBJECTS.map(s => (
-            <SubjectTile key={s.id} src={s.src} name={s.name} hasData={s.hasData} onClick={() => onEnter(s.id)} />
+            <SubjectTile key={s.id} src={s.src} name={s.name} hasData={s.hasData}
+              cardMode={"cardMode" in s ? s.cardMode : false}
+              number={"number" in s ? s.number : undefined}
+              subtitle={"subtitle" in s ? s.subtitle : undefined}
+              onClick={() => onEnter(s.id)} />
           ))}
         </div>
 
