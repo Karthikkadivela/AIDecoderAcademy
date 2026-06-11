@@ -275,7 +275,6 @@ export function KannadaChapterMapPage({ onChapterSelect, onBack }: Props) {
           >
             <div className="relative rounded-2xl overflow-hidden"
               style={{
-                background: "#ffffff",
                 boxShadow: tile.locked
                   ? "0 4px 16px rgba(15,28,77,0.12)"
                   : "0 6px 28px rgba(15,28,77,0.18), 0 0 0 2px rgba(124,58,237,0.35)",
