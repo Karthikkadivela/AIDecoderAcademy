@@ -262,7 +262,8 @@ export function KannadaChapterMapPage({ onChapterSelect, onBack }: Props) {
           </div>
         </motion.div>
 
-        {/* Chapter tiles */}
+        {/* Chapter tile overlays — background.png already shows the tile visuals,
+            so we only render transparent click zones + lock/hover on top */}
         {TILES.map((tile, i) => (
           <motion.div key={tile.key}
             className="absolute"
@@ -273,16 +274,18 @@ export function KannadaChapterMapPage({ onChapterSelect, onBack }: Props) {
             whileTap={!tile.locked ? { scale:0.97 } : {}}
             onClick={() => handleClick(tile.num, tile.locked)}
           >
-            <div className="relative rounded-2xl overflow-hidden"
-              style={{
-                boxShadow: tile.locked
-                  ? "0 4px 16px rgba(15,28,77,0.12)"
-                  : "0 6px 28px rgba(15,28,77,0.18), 0 0 0 2px rgba(124,58,237,0.35)",
-              }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={tile.src} alt={tile.key}
-                className="w-full h-auto select-none block"
-                draggable={false} />
+            <div className="relative rounded-2xl overflow-hidden" style={{ height:150 }}>
+              {/* Hover glow for unlocked chapter */}
+              {!tile.locked && (
+                <motion.div
+                  className="absolute inset-0 rounded-2xl pointer-events-none"
+                  initial={{ opacity:0 }}
+                  whileHover={{ opacity:1 }}
+                  style={{ border:"2px solid rgba(124,58,237,0.65)",
+                    background:"rgba(124,58,237,0.10)",
+                    boxShadow:"0 0 24px rgba(124,58,237,0.35)" }}
+                />
+              )}
               {tile.locked && <LockMedallion />}
             </div>
           </motion.div>
