@@ -12,15 +12,15 @@ interface Props {
 
 // ── Chapter tile positions — pentagon layout matching the background PNG ───────
 const TILES = [
-  { key:"ch1", num:1, locked:false,
+  { key:"ch1", num:1, locked:false, src:"/classroom/KANNADA/KANNADA 1.png",
     style:{ top:"calc(50% - 250px)", left:"calc(47% - 150px)" } },
-  { key:"ch2", num:2, locked:true,
+  { key:"ch2", num:2, locked:true,  src:"/classroom/KANNADA/KANNADA 2.png",
     style:{ top:"calc(50% - 110px)", left:"calc(47% + 131px)" } },
-  { key:"ch3", num:3, locked:true,
+  { key:"ch3", num:3, locked:true,  src:"/classroom/KANNADA/KANNADA 3.png",
     style:{ top:"calc(50% + 100px)", left:"calc(47% + 25px)" } },
-  { key:"ch4", num:4, locked:true,
+  { key:"ch4", num:4, locked:true,  src:"/classroom/KANNADA/KANNADA 4.png",
     style:{ top:"calc(50% + 100px)", left:"calc(47% - 315px)" } },
-  { key:"ch5", num:5, locked:true,
+  { key:"ch5", num:5, locked:true,  src:"/classroom/KANNADA/KANNADA 5.png",
     style:{ top:"calc(50% - 110px)", left:"calc(47% - 421px)" } },
 ] as const;
 
@@ -116,10 +116,22 @@ export function KannadaChapterMapPage({ onChapterSelect, onBack }: Props) {
             whileTap={!tile.locked ? { scale:0.97 } : {}}
             onClick={() => handleClick(tile.num, tile.locked)}
           >
-            <div className="relative rounded-2xl overflow-hidden" style={{ height:150 }}>
+            {/* Fixed height on every tile so all cards are identical size */}
+            <div className="relative rounded-2xl overflow-hidden"
+              style={{
+                height: 138,
+                boxShadow: tile.locked
+                  ? "0 4px 16px rgba(15,28,77,0.12)"
+                  : "0 6px 28px rgba(15,28,77,0.18), 0 0 0 2px rgba(124,58,237,0.3)",
+              }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={tile.src} alt={`Chapter ${tile.num}`}
+                className="w-full h-full select-none block"
+                style={{ objectFit:"cover", objectPosition:"top" }}
+                draggable={false} />
               {!tile.locked && (
                 <motion.div
-                  className="absolute inset-0 rounded-2xl pointer-events-none"
+                  className="absolute inset-0 pointer-events-none"
                   initial={{ opacity:0 }}
                   whileHover={{ opacity:1 }}
                   style={{ border:"2px solid rgba(124,58,237,0.65)",
