@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { FlashcardDeck, parseFlashcards } from "./FlashcardDeck";
 import type { FlashCard } from "./FlashcardDeck";
+import { ComicViewer } from "./ComicViewer";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, Play, X } from "lucide-react";
 import { MessageBubble } from "@/components/playground/MessageBubble";
@@ -48,7 +49,7 @@ const TILES = [
   { key:"notes",      label:"Notes",           active:true,  top:"11%" },
   { key:"flashcards", label:"Flashcards",       active:true,  top:"22%" },
   { key:"mindmap",    label:"Mind Map",         active:false, top:"33%" },
-  { key:"comic",      label:"Comic Creations",  active:false, top:"44%" },
+  { key:"comic",      label:"Comic Creations",  active:true,  top:"44%" },
   { key:"explainer",  label:"Explainer Videos", active:false, top:"55%" },
   { key:"audio",      label:"Audio Overview",   active:false, top:"66%" },
   { key:"podcast",    label:"Audio Podcast",    active:false, top:"77%" },
@@ -57,6 +58,7 @@ const TILES = [
 const TILE_PROMPTS: Record<string, (t: string) => string> = {
   notes:      (t) => `Generate comprehensive study notes for "${t}" — CBSE Class 10 Science. Use clear headings, bullet points, key definitions, important equations, and a quick-revision summary. For equations, use plain text format only — no LaTeX. Write fractions as a/b or a ÷ b, use characters like θ, π, °, ±. Examples: sin(90° - θ) = cos(θ), csc(θ) = 1/sin(θ).`,
   flashcards: (t) => `Generate 10 flashcards for "${t}" — CBSE Class 10 Science. Format each as:\n**Q:** [question]\n**A:** [answer]\n\nCover the most important definitions, reactions, and concepts for board exams. For any equations in answers, use plain text — no LaTeX.`,
+  comic:      (t) => `Create an educational comic strip about "${t}" — CBSE Class 10 Science. Make it fun, accurate, and engaging for a Class 10 student.`,
 };
 
 const ACCENT     = "#2563eb";
@@ -75,6 +77,8 @@ export function ClassroomArena({ chapter, onBack }: Props) {
   const [playingVideo,   setPlayingVideo]   = useState<VideoItem | null>(null);
   const [flashcardCards, setFlashcardCards] = useState<FlashCard[] | null>(null);
   const [flashcardRaw,   setFlashcardRaw]   = useState("");
+  const [comicData,      setComicData]      = useState<{ panels: any[]; keyTakeaways: string[]; chapterTitle: string } | null>(null);
+  const [comicLoading,   setComicLoading]   = useState(false);
   const bottomRef           = useRef<HTMLDivElement>(null);
   const taRef               = useRef<HTMLTextAreaElement>(null);
   const pendingFlashcardRef = useRef(false);
@@ -201,15 +205,35 @@ export function ClassroomArena({ chapter, onBack }: Props) {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); }
   };
 
+  const handleComicGenerate = useCallback(async () => {
+    if (!profile || comicLoading) return;
+    setComicLoading(true);
+    try {
+      const res = await fetch("/api/classroom/comic", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ chapterTitle: chapter.chapter_title }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setComicData(data);
+    } catch (e) {
+      console.error("[comic]", e);
+    } finally {
+      setComicLoading(false);
+    }
+  }, [profile, comicLoading, chapter.chapter_title]);
+
   const handleTileClick = useCallback((key: string) => {
     if (!profile || isStreaming) return;
+    if (key === "comic") { handleComicGenerate(); return; }
     const buildPrompt = TILE_PROMPTS[key];
     if (!buildPrompt) return;
     if (key === "flashcards") pendingFlashcardRef.current = true;
     setActiveHint(key);
     setTimeout(() => setActiveHint(null), 900);
     sendMessage(buildPrompt(chapter.chapter_title));
-  }, [profile, isStreaming, sendMessage, chapter.chapter_title]);
+  }, [profile, isStreaming, sendMessage, chapter.chapter_title, handleComicGenerate]);
 
   // Called by MessageBubble's save button → adds thumbnail + persists to creations
   const handleSave = useCallback((content: string, outputType: OutputType) => {
@@ -327,6 +351,13 @@ export function ClassroomArena({ chapter, onBack }: Props) {
         onClick={() => { setMode("notes"); handleTileClick("flashcards"); }}
         className="absolute"
         style={{ left:"0", top:"21%", width:"13%", height:"8.5%", zIndex:20, cursor:"pointer" }}
+      />
+
+      {/* ── Toolbar hotspot: Comic Creations (invisible clickable zone) ────────── */}
+      <div
+        onClick={() => { setMode("notes"); handleTileClick("comic"); }}
+        className="absolute"
+        style={{ left:0, top:"33%", width:"13%", height:"8.5%", zIndex:20, cursor:"pointer" }}
       />
 
       {/* ── Toolbar hotspot: Explainer Videos (invisible clickable zone) ─────── */}
@@ -730,6 +761,54 @@ export function ClassroomArena({ chapter, onBack }: Props) {
             chapterTitle={chapter.chapter_title}
             onClose={() => setFlashcardCards(null)}
             onSave={handleFlashcardSave}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ── Comic loading overlay ──────────────────────────────────────────── */}
+      <AnimatePresence>
+        {comicLoading && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            style={{
+              position: "fixed", inset: 0, zIndex: 999,
+              background: "rgba(0,0,0,0.78)", backdropFilter: "blur(10px)",
+              display: "flex", flexDirection: "column",
+              alignItems: "center", justifyContent: "center", gap: 16,
+            }}
+          >
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ repeat: Infinity, duration: 1.4, ease: "linear" }}
+              style={{
+                width: 48, height: 48, borderRadius: "50%",
+                border: "4px solid rgba(255,215,0,0.25)",
+                borderTop: "4px solid #FFD700",
+              }}
+            />
+            <div style={{ color: "#fff", fontWeight: 700, fontSize: 16 }}>
+              🎨 Creating your comic strip…
+            </div>
+            <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, textAlign: "center", maxWidth: 280 }}>
+              Generating panel scripts and AI illustrations for<br />
+              <span style={{ color: "#FFD700" }}>{chapter.chapter_title}</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Comic viewer overlay ────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {comicData && (
+          <ComicViewer
+            chapterTitle={comicData.chapterTitle}
+            panels={comicData.panels}
+            keyTakeaways={comicData.keyTakeaways}
+            onClose={() => setComicData(null)}
+            onSave={(content) => {
+              handleSave(content, "text");
+              setComicData(null);
+            }}
           />
         )}
       </AnimatePresence>
