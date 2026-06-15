@@ -40,9 +40,9 @@ interface Props {
   profile:          { id?: string; display_name?: string; age_group?: string } | null;
   whiteboardImages: WhiteboardImageMessage[];   // recent images from whiteboard chat
   // Worksheet docs the kid dropped into chat (priority: popup wins, this is fallback)
-  whiteboardDocs?:  { url: string; filename: string; format: "pdf" | "docx" }[];
-  // Videos the kid dropped into chat (sole source for OBJ 6 avatar MP4 now)
+  whiteboardDocs?:   { url: string; filename: string; format: "pdf" | "docx" }[];
   whiteboardVideos?: { url: string; filename: string }[];
+  whiteboardAudio?:  { url: string; filename: string }[];
   onClose:          () => void;
   onComplete:       (composite: number, tier: FinalResult["tier"]) => Promise<void>;
 }
@@ -52,6 +52,20 @@ interface Props {
 // Each key matches the exact field id used in worksheetSchemas.ts / validators.
 // Only fires for completely empty fields; vague-but-filled fields go to SAGE's
 // rubric grading (she'll call them out there with specific feedback).
+
+const OBJ2_FIELD_LINES: Record<string, string> = {
+  intent:               "Intent — blank. What do you genuinely want to find out from the comparison?",
+  assumptions:          "Assumptions — empty. What do you believe about how the three AIs will respond?",
+  audience:             "Audience — nothing. Who benefits from this comparison?",
+  success:              "Success — also blank. What would the comparison have to show you to feel worth it?",
+  question:             "Question — blank. Write something you actually want to know — it needs reasoning, not a single fact.",
+  chatGptObservation:   "ChatGPT observation — empty. What did you literally see in the response?",
+  chatGptInterpretation:"ChatGPT interpretation — missing. What do you conclude from it?",
+  geminiObservation:    "Gemini observation — empty. What did you literally see?",
+  geminiInterpretation: "Gemini interpretation — missing. What do you conclude?",
+  claudeObservation:    "Claude observation — empty. What did you literally see?",
+  claudeInterpretation: "Claude interpretation — missing. What do you conclude?",
+};
 
 const OBJ6_FIELD_LINES: Record<string, string> = {
   intent:            "Intent — blank. What is this avatar actually for? Start there.",
@@ -81,9 +95,9 @@ const OBJ10_FIELD_LINES: Record<string, string> = {
 
 function getEmptyFieldLines(
   data: Record<string, string | boolean>,
-  isObj6: boolean,
+  objNumber: number,
 ): string[] {
-  const map = isObj6 ? OBJ6_FIELD_LINES : OBJ10_FIELD_LINES;
+  const map = objNumber === 6 ? OBJ6_FIELD_LINES : objNumber === 2 ? OBJ2_FIELD_LINES : OBJ10_FIELD_LINES;
   return Object.entries(map)
     .filter(([key]) => {
       const val = data[key];
@@ -160,21 +174,22 @@ const READY_LINES_GENERIC_PENDING = [
 ];
 
 interface ReadyContext {
-  hasInlineForm:   boolean;
-  hasFile:         boolean;
-  mediaCount:      number;
-  notesLen:        number;
-  whiteboardCount: number;
-  isObj6:          boolean;
-  emptyFieldCount: number;  // required fields that are still blank in the inline form
+  hasInlineForm:    boolean;
+  hasFile:          boolean;
+  mediaCount:       number;
+  notesLen:         number;
+  whiteboardCount:  number;
+  isObj6:           boolean;
+  isWorksheetOnly?: boolean;  // obj1: no images required — worksheet alone is enough
+  emptyFieldCount:  number;   // required fields that are still blank in the inline form
 }
 
 function pickReadyLine(ctx: ReadyContext): string {
-  const { hasInlineForm, hasFile, mediaCount, notesLen, whiteboardCount, isObj6, emptyFieldCount } = ctx;
+  const { hasInlineForm, hasFile, mediaCount, notesLen, whiteboardCount, isObj6, isWorksheetOnly, emptyFieldCount } = ctx;
   const hasWorksheet = hasInlineForm || hasFile;
 
   // Nothing yet — gentle, not pushy.
-  if (!hasWorksheet && mediaCount === 0 && whiteboardCount === 0) {
+  if (!hasWorksheet && (isWorksheetOnly || (mediaCount === 0 && whiteboardCount === 0))) {
     return pickRandom(READY_LINES_EMPTY);
   }
 
@@ -278,22 +293,40 @@ function clearDraft(lmsId: string, profileId?: string) {
   localStorage.removeItem(`aida:worksheet:${lmsId}:${profileId}:draft`);
 }
 
-export function ObjectiveSubmissionPanel({
-  open, rubric, profile, whiteboardImages, whiteboardDocs = [], whiteboardVideos = [], onClose, onComplete,
-}: Props) {
-  const isObj6        = rubric.lmsId === "l1-06";
-  const validateUrl   = isObj6 ? "/api/aida/validate/obj6" : "/api/aida/validate/obj10";
+function hasExplicitSave(lmsId: string, profileId?: string): boolean {
+  if (typeof window === "undefined" || !profileId) return false;
+  try {
+    const raw = localStorage.getItem(`aida:worksheet:${lmsId}:${profileId}:pending`);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+    return !!(parsed && typeof parsed === "object" && parsed.lmsId === lmsId);
+  } catch { return false; }
+}
 
-  const [phase,   setPhase]   = useState<Phase>("intro");
-  const [pending, setPending] = useState<PendingPayload | null>(null);
-  const [result,  setResult]  = useState<FinalResult | null>(null);
-  const [error,   setError]   = useState<string | null>(null);
-  const [text,    setText]    = useState("");
-  const [revealed,setRevealed]= useState(0);
+export function ObjectiveSubmissionPanel({
+  open, rubric, profile, whiteboardImages, whiteboardDocs = [], whiteboardVideos = [], whiteboardAudio = [], onClose, onComplete,
+}: Props) {
+  const objNumber   = (() => { const m = rubric.lmsId.match(/l1-0?(\d+)/); return m ? parseInt(m[1], 10) : 10; })();
+  const isObj6      = objNumber === 6;
+  const isObj2      = objNumber === 2;
+  const validateUrl = `/api/aida/validate/obj${objNumber}`;
+
+  const [phase,            setPhase]            = useState<Phase>("intro");
+  const [pending,          setPending]          = useState<PendingPayload | null>(null);
+  const [isExplicitlySaved,setIsExplicitlySaved]= useState(false);
+  const [result,           setResult]           = useState<FinalResult | null>(null);
+  const [error,            setError]            = useState<string | null>(null);
+  const [text,             setText]             = useState("");
+  const [revealed,         setRevealed]         = useState(0);
 
   const speakRef         = useRef<SpeakHandle | null>(null);
   const validateAbortRef = useRef<AbortController | null>(null);
   const { setLast: publishValidator } = useValidatorWriter();
+  const whiteboardImagesRef = useRef(whiteboardImages);
+  const whiteboardDocsRef   = useRef(whiteboardDocs);
+  const whiteboardVideosRef = useRef(whiteboardVideos);
+  const whiteboardAudioRef  = useRef(whiteboardAudio);
+  const parsedDocUrlsRef    = useRef(new Set<string>());
 
   // ── Speak helpers ────────────────────────────────────────────────────────
   // We track an "active speech generation" id so that if a new speak* call
@@ -366,11 +399,10 @@ export function ObjectiveSubmissionPanel({
 
     const fresh = readPending(rubric.lmsId, profile?.id);
     setPending(fresh);
+    setIsExplicitlySaved(hasExplicitSave(rubric.lmsId, profile?.id));
 
     let isFirstOpen = false;
     if (typeof window !== "undefined") {
-      // v2 key so a previously-poisoned "shown" flag from earlier crash
-      // loops doesn't suppress the pep-talk we want to play.
       const introKey = `aida:intro-shown-v2:${rubric.lmsId}`;
       if (!sessionStorage.getItem(introKey)) {
         isFirstOpen = true;
@@ -380,24 +412,21 @@ export function ObjectiveSubmissionPanel({
 
     const intro = getObjectiveIntro(rubric.lmsId);
     if (isFirstOpen && intro) {
-      // Three-beat reveal — each beat lands separately.
       setPhase("intro");
       void speakBeats(intro.beats);
     } else {
-      // Second+ open: contextual notice line that reflects what's pending.
       setPhase("ready");
-      // Media now comes from chat — count whichever kind the objective needs.
-      const chatMediaCount = isObj6 ? whiteboardVideos.length : whiteboardImages.length;
       const hasInlineForm = !!(fresh?.data && Object.keys(fresh.data).length > 0);
       const ctx: ReadyContext = {
         hasInlineForm,
-        hasFile:         (whiteboardDocs?.length ?? 0) > 0,
-        mediaCount:      chatMediaCount,
-        notesLen:        fresh?.notes?.length ?? 0,
-        whiteboardCount: whiteboardImages.length,
+        hasFile:          (whiteboardDocs?.length ?? 0) > 0 || !!(fresh?.worksheetFile),
+        mediaCount:       whiteboardImages.length,
+        notesLen:         fresh?.notes?.length ?? 0,
+        whiteboardCount:  whiteboardImages.length,
         isObj6,
-        emptyFieldCount: hasInlineForm && fresh?.data
-          ? getEmptyFieldLines(fresh.data, isObj6).length
+        isWorksheetOnly:  objNumber === 1,
+        emptyFieldCount:  hasInlineForm && fresh?.data
+          ? getEmptyFieldLines(fresh.data, objNumber).length
           : 0,
       };
       speakLine(pickReadyLine(ctx));
@@ -437,6 +466,58 @@ export function ObjectiveSubmissionPanel({
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [text, open]);
+
+  // ── Keep refs in sync so handleValidate always reads the latest media ────
+  useEffect(() => {
+    whiteboardImagesRef.current = whiteboardImages;
+    whiteboardDocsRef.current   = whiteboardDocs;
+    whiteboardVideosRef.current = whiteboardVideos;
+    whiteboardAudioRef.current  = whiteboardAudio;
+  }, [whiteboardImages, whiteboardDocs, whiteboardVideos, whiteboardAudio]);
+
+  // ── Auto-parse docx dropped into whiteboard → pre-fill WorksheetPopup ───
+  // Fires whenever a new doc arrives. Calls /api/aida/parse-worksheet which
+  // runs mammoth + GPT-4o-mini to extract field values, then dispatches a
+  // CustomEvent so WorksheetPopup can update its form fields without a reload.
+  useEffect(() => {
+    if (whiteboardDocs.length === 0 || !profile?.id) return;
+    const latest    = whiteboardDocs[whiteboardDocs.length - 1];
+    const lmsId     = rubric.lmsId;
+    const profileId = profile.id;
+    if (parsedDocUrlsRef.current.has(latest.url)) return;
+    if (latest.format !== "docx") return;
+
+    parsedDocUrlsRef.current.add(latest.url);
+
+    fetch("/api/aida/parse-worksheet", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ url: latest.url, format: latest.format, lmsId }),
+    })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(({ data }: { data: Record<string, string> }) => {
+        if (!data || typeof data !== "object") return;
+        // Merge into any existing draft (don't clobber fields the kid already typed).
+        const draftKey = `aida:worksheet:${lmsId}:${profileId}:draft`;
+        let existing: Record<string, unknown> = {};
+        try {
+          const raw = localStorage.getItem(draftKey);
+          if (raw) existing = JSON.parse(raw) ?? {};
+        } catch { /* ignore */ }
+        const merged = {
+          ...existing,
+          data: { ...(existing.data as Record<string, string> ?? {}), ...data },
+          worksheetFile: { url: latest.url, format: latest.format, filename: latest.filename },
+        };
+        localStorage.setItem(draftKey, JSON.stringify(merged));
+        // Tell WorksheetPopup to refresh its form.
+        window.dispatchEvent(new CustomEvent("aida:worksheet-parsed", { detail: { lmsId, profileId } }));
+        // Refresh our own pending read so the status row updates instantly.
+        setPending(readPending(lmsId, profileId));
+      })
+      .catch(() => { /* non-fatal — kid can fill the form manually */ });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [whiteboardDocs.length, rubric.lmsId, profile?.id]);
 
   // ── Validate ─────────────────────────────────────────────────────────────
   function buildWorksheetPayload(p: PendingPayload | null): WorksheetUpload | null {
@@ -483,22 +564,30 @@ export function ObjectiveSubmissionPanel({
       return;
     }
 
-    // Media is ALWAYS from the whiteboard chat — the worksheet popup no
-    // longer accepts uploads. BOTH objectives now take the most recent IMAGE
-    // (OBJ 6 = avatar image, OBJ 10 = comic image). Videos are no longer the
-    // OBJ 6 deliverable per the GenAlpha spec rewrite.
+    // Media from whiteboard chat — which kind depends on the objective.
+    // obj2: first 3 images (ChatGPT → Gemini → Claude screenshots, in order).
+    // obj6: last image (avatar).
+    // obj10: last image (comic).
     let mediaToUse: string[] = [];
-    if (whiteboardImages.length > 0) {
+    if (isObj2) {
+      mediaToUse = whiteboardImages.slice(0, 3).map(i => i.url);
+    } else if (whiteboardImages.length > 0) {
       mediaToUse = [whiteboardImages[whiteboardImages.length - 1].url];
     }
 
+    if (isObj2 && mediaToUse.length < 3) {
+      const msg = `I need all 3 screenshots — ChatGPT, Gemini, and Claude — dropped in chat in that order. You've got ${mediaToUse.length} so far.`;
+      setError(msg);
+      speakLine(msg);
+      return;
+    }
     if (isObj6 && mediaToUse.length === 0) {
       const msg = "I need your avatar image. Generate one in Visual Studio or drop a photo of yourself in chat, then come back.";
       setError(msg);
       speakLine(msg);
       return;
     }
-    if (!isObj6 && mediaToUse.length === 0) {
+    if (objNumber === 10 && mediaToUse.length === 0) {
       const msg = "Worksheet — in. Comic — missing. I can read minds, not blank canvases. Generate the comic or drop it in chat.";
       setError(msg);
       speakLine(msg);
@@ -507,7 +596,7 @@ export function ObjectiveSubmissionPanel({
 
     // Hard gate: call out every empty required field before sending to API.
     if (worksheetPayload.kind === "inline-form") {
-      const emptyLines = getEmptyFieldLines(worksheetPayload.data, isObj6);
+      const emptyLines = getEmptyFieldLines(worksheetPayload.data, objNumber);
       if (emptyLines.length > 0) {
         const beats: ObjectiveIntroBeat[] = [
           ...emptyLines.map(text => ({ text })),
@@ -525,25 +614,34 @@ export function ObjectiveSubmissionPanel({
     validateAbortRef.current = ctrl;
 
     try {
-      const body = isObj6
+      const profilePayload = {
+        display_name: profile?.display_name ?? "Student",
+        age_group:    profile?.age_group    ?? "11-13",
+      };
+      const notes = fresh?.notes ?? "";
+      const body = isObj2
+        ? {
+            worksheet:   worksheetPayload,
+            v1ImageUrl:  mediaToUse[0],
+            v2ImageUrl:  mediaToUse[1],
+            v3ImageUrl:  mediaToUse[2],
+            notes,
+            profile:     profilePayload,
+          }
+        : isObj6
         ? {
             worksheet:      worksheetPayload,
             avatarImageUrl: mediaToUse[0],
-            notes:          fresh?.notes ?? "",
-            profile: {
-              display_name: profile?.display_name ?? "Student",
-              age_group:    profile?.age_group    ?? "11-13",
-            },
+            notes,
+            profile:        profilePayload,
           }
         : {
-            worksheet:        worksheetPayload,
-            comicImageUrls:   mediaToUse,
-            notes:            fresh?.notes ?? "",
+            worksheet:      worksheetPayload,
+            comicImageUrls: mediaToUse,
+            audioUrls:      (whiteboardAudioRef.current ?? []).map(a => a.url),
+            notes,
             whiteboardImages,
-            profile: {
-              display_name: profile?.display_name ?? "Student",
-              age_group:    profile?.age_group    ?? "11-13",
-            },
+            profile:        profilePayload,
           };
 
       const res = await fetch(validateUrl, {
@@ -576,9 +674,10 @@ export function ObjectiveSubmissionPanel({
       }
 
       // Publish to validator channel so AIDA can ground its replies.
+      const objId = `a1-${objNumber}`;
       let attemptCount = 0;
       try {
-        const cRes = await fetch(`/api/objective-attempts?objective_id=${rubric.lmsId === "l1-06" ? "a1-6" : "a1-10"}`);
+        const cRes = await fetch(`/api/objective-attempts?objective_id=${objId}`);
         if (cRes.ok) attemptCount = (await cRes.json()).count ?? 0;
       } catch { /* non-fatal */ }
       publishValidator({
@@ -591,7 +690,6 @@ export function ObjectiveSubmissionPanel({
 
       // Log + complete attempt.
       try {
-        const objId = rubric.lmsId === "l1-06" ? "a1-6" : "a1-10";
         const aRes  = await fetch("/api/objective-attempts", {
           method:  "POST",
           headers: { "Content-Type": "application/json" },
@@ -649,17 +747,18 @@ export function ObjectiveSubmissionPanel({
     setPhase("ready");
     const fresh = readPending(rubric.lmsId, profile?.id);
     setPending(fresh);
-    const chatMediaCount = isObj6 ? whiteboardVideos.length : whiteboardImages.length;
+    setIsExplicitlySaved(hasExplicitSave(rubric.lmsId, profile?.id));
     const hasInlineForm = !!(fresh?.data && Object.keys(fresh.data).length > 0);
     const ctx: ReadyContext = {
       hasInlineForm,
-      hasFile:         (whiteboardDocs?.length ?? 0) > 0,
-      mediaCount:      chatMediaCount,
-      notesLen:        fresh?.notes?.length ?? 0,
-      whiteboardCount: whiteboardImages.length,
-      isObj6:          isObj6,
-      emptyFieldCount: hasInlineForm && fresh?.data
-        ? getEmptyFieldLines(fresh.data, isObj6).length
+      hasFile:          (whiteboardDocs?.length ?? 0) > 0 || !!(fresh?.worksheetFile),
+      mediaCount:       whiteboardImages.length,
+      notesLen:         fresh?.notes?.length ?? 0,
+      whiteboardCount:  whiteboardImages.length,
+      isObj6,
+      isWorksheetOnly:  objNumber === 1,
+      emptyFieldCount:  hasInlineForm && fresh?.data
+        ? getEmptyFieldLines(fresh.data, objNumber).length
         : 0,
     };
     speakLine(pickReadyLine(ctx));
@@ -786,7 +885,13 @@ export function ObjectiveSubmissionPanel({
             {/* Body — phase-driven */}
             <div className="flex-1 overflow-y-auto pr-1" style={{ scrollbarWidth: "thin" }}>
               {phase === "ready" && (
-                <ReadyView pending={pending} isObj6={isObj6} whiteboardImageCount={whiteboardImages.length}/>
+                <ReadyView
+                  pending={pending}
+                  isObj6={isObj6}
+                  isObj2={isObj2}
+                  whiteboardImageCount={whiteboardImages.length}
+                  isExplicitlySaved={isExplicitlySaved}
+                />
               )}
               {phase === "submitting" && <SubmittingPanel/>}
               {phase === "result" && result && (
@@ -877,28 +982,43 @@ function ActionButton({
 }
 
 function ReadyView({
-  pending, isObj6, whiteboardImageCount,
-}: { pending: PendingPayload | null; isObj6: boolean; whiteboardImageCount: number }) {
-  const hasInline   = pending?.data && Object.keys(pending.data).length > 0;
-  const hasFile     = !!pending?.worksheetFile;
-  const mediaCount  = pending?.mediaUrls?.length ?? 0;
-  const usingWhiteboardFallback = !isObj6 && mediaCount === 0 && whiteboardImageCount > 0;
+  pending, isObj6, isObj2, whiteboardImageCount, isExplicitlySaved,
+}: {
+  pending:              PendingPayload | null;
+  isObj6:               boolean;
+  isObj2:               boolean;
+  whiteboardImageCount: number;
+  isExplicitlySaved:    boolean;
+}) {
+  const hasInline  = pending?.data && Object.keys(pending.data).length > 0;
+  const hasFile    = !!pending?.worksheetFile;
+
+  const mediaLabel  = isObj6 ? "Avatar image" : isObj2 ? "Screenshots (×3)" : "Comic image";
+  const mediaOk     = isObj2 ? whiteboardImageCount >= 3 : whiteboardImageCount > 0;
+  const mediaDetail = isObj2
+    ? whiteboardImageCount >= 3
+      ? `${whiteboardImageCount} image${whiteboardImageCount !== 1 ? "s" : ""} in chat — using first 3`
+      : whiteboardImageCount > 0
+        ? `${whiteboardImageCount}/3 in chat — drop ChatGPT, Gemini, Claude screenshots in order`
+        : "Drop 3 screenshots in chat: ChatGPT, Gemini, Claude — in that order"
+    : isObj6
+      ? whiteboardImageCount > 0 ? "Will use most recent whiteboard image" : "Generate your avatar in Visual Studio, then come back"
+      : whiteboardImageCount > 0 ? "Will use most recent whiteboard image" : "Generate a comic in the whiteboard or upload one";
+
+  const worksheetOk     = !!(hasInline || hasFile);
+  const worksheetDetail = hasFile
+    ? `📄 ${pending!.worksheetFile!.filename}`
+    : hasInline
+      ? isExplicitlySaved
+        ? "Saved and ready"
+        : "In progress — save the worksheet when ready"
+      : "Not yet — open the worksheet and fill it in";
 
   return (
-    <div className="space-y-2">
-      <div className="text-[12px] font-display font-bold text-white/80">What I'll grade</div>
-      <Row label="Worksheet"
-           ok={!!(hasInline || hasFile)}
-           detail={hasFile ? `📄 ${pending!.worksheetFile!.filename}` : hasInline ? "Filled in — ready" : "Not yet — open the worksheet and fill it in"}/>
-      <Row label={isObj6 ? "Avatar video" : "Comic image"}
-           ok={mediaCount > 0 || usingWhiteboardFallback}
-           detail={
-             mediaCount > 0
-               ? `${mediaCount} uploaded`
-               : usingWhiteboardFallback
-                 ? "Will use most recent whiteboard image"
-                 : isObj6 ? "Upload your MP4 in the worksheet" : "Generate a comic in the whiteboard or upload one"
-           }/>
+    <div className="space-y-3">
+      <div className="text-[12px] font-display font-bold text-white/80">What I&apos;ll grade</div>
+      <Row label="Worksheet" ok={worksheetOk} detail={worksheetDetail}/>
+      <Row label={mediaLabel} ok={mediaOk} detail={mediaDetail}/>
       {pending?.notes && (
         <Row label="Your notes" ok detail={`"${pending.notes.slice(0, 80)}${pending.notes.length > 80 ? "…" : ""}"`}/>
       )}

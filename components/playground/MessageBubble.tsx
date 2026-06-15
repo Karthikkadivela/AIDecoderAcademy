@@ -463,33 +463,145 @@ export function MessageBubble({
           {!isEmpty && !isLoading && !isImage && !audioData && !slideData && !videoData && !(isJson && !isUser) && (
             isUser ? (
               <div>
-                <p className="whitespace-pre-wrap">{message.content}</p>
+                {/* Parse [Image titled "X": URL] and [Document titled "X": URL] markers — render as thumbnails/chips */}
+                {(() => {
+                  const IMAGE_RE = /\[Image titled "([^"]+)": (https?:\/\/\S+?)\]/g;
+                  const DOC_RE   = /\[Document titled "([^"]+)": (https?:\/\/\S+?)\]/g;
+                  const imgs: { title: string; url: string }[] = [];
+                  const docs: { title: string; url: string }[] = [];
+                  let text = message.content.replace(IMAGE_RE, (_, title, url) => { imgs.push({ title, url }); return ""; });
+                  text = text.replace(DOC_RE, (_, title, url) => { docs.push({ title, url }); return ""; });
+                  const clean = text.trim();
+                  return (
+                    <>
+                      {(imgs.length > 0 || docs.length > 0) && (
+                        <div className="flex gap-2 flex-wrap mb-2">
+                          {imgs.map((img, i) => (
+                            <div key={`img-${i}`} className="flex flex-col items-center gap-1">
+                              <div className="rounded-lg overflow-hidden flex-shrink-0"
+                                style={{ width: 80, height: 56, border: "1.5px solid rgba(255,255,255,0.3)" }}>
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={img.url} alt={img.title} style={{ width: "100%", height: "100%", objectFit: "cover" }}/>
+                              </div>
+                              <span style={{ fontSize: 9, fontWeight: 700, color: userTextColor, opacity: 0.75, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.05em" }}>
+                                {img.title.toUpperCase()}
+                              </span>
+                            </div>
+                          ))}
+                          {docs.map((doc, i) => {
+                            const name = doc.title.length > 18 ? doc.title.slice(0, 16) + "…" : doc.title;
+                            return (
+                              <a key={`doc-${i}`} href={doc.url} target="_blank" rel="noopener noreferrer"
+                                className="flex flex-col items-center gap-1 no-underline" style={{ textDecoration: "none" }}>
+                                <div className="rounded-lg flex-shrink-0 flex items-center justify-center"
+                                  style={{ width: 56, height: 56, border: "1.5px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.12)" }}>
+                                  <svg width="24" height="28" viewBox="0 0 24 28" fill="none">
+                                    <path d="M14 1H4a2 2 0 00-2 2v22a2 2 0 002 2h16a2 2 0 002-2V9L14 1z" stroke={userTextColor} strokeWidth="1.5" strokeOpacity="0.8"/>
+                                    <path d="M14 1v8h8" stroke={userTextColor} strokeWidth="1.5" strokeOpacity="0.8"/>
+                                    <line x1="7" y1="15" x2="17" y2="15" stroke={userTextColor} strokeWidth="1.5" strokeOpacity="0.6" strokeLinecap="round"/>
+                                    <line x1="7" y1="19" x2="14" y2="19" stroke={userTextColor} strokeWidth="1.5" strokeOpacity="0.6" strokeLinecap="round"/>
+                                  </svg>
+                                </div>
+                                <span style={{ fontSize: 9, fontWeight: 700, color: userTextColor, opacity: 0.75, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.05em", maxWidth: 64, textAlign: "center", wordBreak: "break-all" }}>
+                                  {name.toUpperCase()}
+                                </span>
+                              </a>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {clean && <p className="whitespace-pre-wrap">{clean}</p>}
+                    </>
+                  );
+                })()}
                 {message.attachmentMeta && message.attachmentMeta.length > 0 && (() => {
-                  // Split into injected-image entries (img:url) and plain type badges
                   const imgEntries  = message.attachmentMeta.filter(m => m.startsWith("img:"));
-                  const badgeEntries = message.attachmentMeta.filter(m => !m.startsWith("img:"));
+                  const docEntries  = message.attachmentMeta.filter(m => m.startsWith("doc:"));
+                  const audioEntries = message.attachmentMeta.filter(m => m.startsWith("audio:"));
+                  const badgeEntries = message.attachmentMeta.filter(m => !m.startsWith("img:") && !m.startsWith("doc:") && !m.startsWith("audio:"));
                   return (
                     <div className="mt-2 flex flex-col gap-1.5">
-                      {/* Injected image thumbnails */}
+                      {/* Injected image thumbnails — format: img:TITLE:URL (new) or img:URL (legacy) */}
                       {imgEntries.length > 0 && (
                         <div className="flex gap-2 flex-wrap">
                           {imgEntries.map((item, i) => {
-                            const url = item.slice(4); // strip "img:"
+                            const rest      = item.slice(4); // strip "img:"
+                            const isLegacy  = rest.startsWith("http");
+                            const colonIdx  = isLegacy ? -1 : rest.indexOf(":");
+                            const title     = (!isLegacy && colonIdx >= 0) ? rest.slice(0, colonIdx) : "";
+                            const url       = (!isLegacy && colonIdx >= 0) ? rest.slice(colonIdx + 1) : rest;
+                            const label     = title ? title.toUpperCase() : "IMAGE";
                             return (
-                              <div key={i} className="relative rounded-lg overflow-hidden flex-shrink-0"
-                                style={{ width: 72, height: 52, border: "1.5px solid rgba(255,255,255,0.25)" }}>
-                                <img src={url} alt="injected" draggable={false}
-                                  style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                                <div className="absolute bottom-0 left-0 right-0 px-1 py-0.5 text-center"
-                                  style={{ background: "rgba(0,0,0,0.55)", fontSize: 7, fontWeight: 700, color: "rgba(255,255,255,0.8)" }}>
-                                  image
+                              <div key={i} className="flex flex-col items-center gap-1">
+                                <div className="rounded-lg overflow-hidden flex-shrink-0"
+                                  style={{ width: 80, height: 56, border: "1.5px solid rgba(255,255,255,0.3)" }}>
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={url} alt={title || "image"} draggable={false}
+                                    style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                                 </div>
+                                <span style={{ fontSize: 9, fontWeight: 700, color: userTextColor, opacity: 0.75, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.05em" }}>
+                                  {label}
+                                </span>
                               </div>
                             );
                           })}
                         </div>
                       )}
-                      {/* Plain type badges */}
+                      {/* Doc chips — doc:filename:url */}
+                      {docEntries.length > 0 && (
+                        <div className="flex gap-2 flex-wrap">
+                          {docEntries.map((item, i) => {
+                            // format: doc:filename:url  (url may contain colons, so split at first two colons only)
+                            const rest     = item.slice(4); // strip "doc:"
+                            const colonIdx = rest.indexOf(":");
+                            const filename = colonIdx >= 0 ? rest.slice(0, colonIdx) : rest;
+                            const url      = colonIdx >= 0 ? rest.slice(colonIdx + 1) : "";
+                            const label    = filename.length > 16 ? filename.slice(0, 14) + "…" : filename;
+                            const chip = (
+                              <div className="flex flex-col items-center gap-1">
+                                <div className="rounded-lg flex-shrink-0 flex items-center justify-center"
+                                  style={{ width: 56, height: 56, border: "1.5px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.12)" }}>
+                                  <svg width="22" height="26" viewBox="0 0 24 28" fill="none">
+                                    <path d="M14 1H4a2 2 0 00-2 2v22a2 2 0 002 2h16a2 2 0 002-2V9L14 1z" stroke={userTextColor} strokeWidth="1.5" strokeOpacity="0.8"/>
+                                    <path d="M14 1v8h8" stroke={userTextColor} strokeWidth="1.5" strokeOpacity="0.8"/>
+                                    <line x1="7" y1="15" x2="17" y2="15" stroke={userTextColor} strokeWidth="1.5" strokeOpacity="0.6" strokeLinecap="round"/>
+                                    <line x1="7" y1="19" x2="14" y2="19" stroke={userTextColor} strokeWidth="1.5" strokeOpacity="0.6" strokeLinecap="round"/>
+                                  </svg>
+                                </div>
+                                <span style={{ fontSize: 9, fontWeight: 700, color: userTextColor, opacity: 0.75, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.05em", maxWidth: 64, textAlign: "center", wordBreak: "break-all" }}>
+                                  {label.toUpperCase()}
+                                </span>
+                              </div>
+                            );
+                            return url
+                              ? <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="no-underline" style={{ textDecoration: "none" }}>{chip}</a>
+                              : <div key={i}>{chip}</div>;
+                          })}
+                        </div>
+                      )}
+                      {/* Audio chips — audio:filename:url */}
+                      {audioEntries.length > 0 && (
+                        <div className="flex gap-1 flex-wrap">
+                          {audioEntries.map((item, i) => {
+                            const rest     = item.slice(6); // strip "audio:"
+                            const colonIdx = rest.indexOf(":");
+                            const filename = colonIdx >= 0 ? rest.slice(0, colonIdx) : rest;
+                            const label    = filename.length > 20 ? filename.slice(0, 18) + "…" : filename;
+                            return (
+                              <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold"
+                                style={{ background: "rgba(255,255,255,0.18)", color: userTextColor }}>
+                                <div className="flex items-end gap-[1.5px]">
+                                  {[2,3,2,4,2,3,2].map((h, j) => (
+                                    <div key={j} className="w-[1.5px] rounded-full" style={{ height: `${h}px`, background: userTextColor }}/>
+                                  ))}
+                                </div>
+                                {label || "audio attached"}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {/* Plain type badges (image/audio/pdf/file generic) */}
                       {badgeEntries.length > 0 && (
                         <div className="flex gap-1 flex-wrap">
                           {badgeEntries.map((item, i) => {

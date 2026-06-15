@@ -182,6 +182,26 @@ export function WorksheetPopup({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schema, lmsId, profileId]);
 
+  // Docx auto-parse notify — fired by ObjectiveSubmissionPanel when a .docx
+  // dropped in the whiteboard chat has been parsed and merged into the draft.
+  // The storage event only fires across tabs, so this custom event is needed
+  // for same-tab updates from the parse-worksheet API callback.
+  useEffect(() => {
+    if (!schema) return;
+    function onParsed(e: Event) {
+      const detail = (e as CustomEvent<{ lmsId?: string; profileId?: string }>).detail;
+      if (detail?.lmsId && detail.lmsId !== lmsId) return;
+      const fresh = loadDraft(lmsId, profileId);
+      setData(fresh.data);
+      setMediaUrls(fresh.mediaUrls ?? []);
+      setNotes(fresh.notes ?? "");
+      writer.setDraft(lmsId, fresh.data);
+    }
+    window.addEventListener("aida:worksheet-parsed", onParsed);
+    return () => window.removeEventListener("aida:worksheet-parsed", onParsed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schema, lmsId, profileId]);
+
   // Esc closes
   useEffect(() => {
     if (!open) return;

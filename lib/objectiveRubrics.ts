@@ -68,25 +68,28 @@ export const RUBRICS_L1: ObjectiveRubric[] = [
       "If personal prompt is too vague: 'Make your question more specific — instead of \"tell me about cricket\" try \"Why do fast bowlers swing the ball more in humid weather?\" A specific question gets a much richer answer.'",
     ],
   },
+  // l1-02 ("Three AI Brains, One Question") — single-pass mirror.
   {
     lmsId:      "l1-02",
-    title:      "Meet the Three LLMs — Same Question, Three Answers",
+    title:      "Three AI Brains, One Question",
     tier:       "T1 — EXPLORE",
     difficulty: 2,
     tools:      ["ChatGPT", "Google Gemini", "Claude.ai"],
-    labTask: "Open all three LLM tools. Ask each one the EXACT same question (something the student genuinely wants to know). Screenshot all three responses.",
-    submitRequirements:  "3 screenshots — same question, three different LLMs — each labelled with the question.",
-    passCriteria:        "All 3 tools used (not 3 screenshots from the same tool). Same question in all 3.",
-    meritCriteria:       "Same question, all 3 tools, plus a one-line note under each screenshot describing one thing different about that LLM's response.",
-    distinctionCriteria: "Strong notes that compare specific differences (tone, structure, depth) across the three LLMs.",
+    labTask: "Open the worksheet — write one genuine question you actually want answered (something open, requires reasoning, matters to you personally). Ask the exact same question to ChatGPT, Gemini, and Claude. Screenshot each response. Apply CT Skill 2: for each response write one OBSERVATION sentence (literally there) and one INTERPRETATION sentence (what you conclude). Drop all three screenshots in chat with your comparison.",
+    submitRequirements:  "Filled-in worksheet + 3 screenshots (ChatGPT, Gemini, Claude responses to the same question) + Observation vs Interpretation notes for each.",
+    passCriteria:        "All 3 tools used (different LLMs, not same one 3×). Identical question in all 3. Worksheet has observation + interpretation for each.",
+    meritCriteria:       "Question is genuinely open and reasoning-based (not a factual lookup). Observations are LITERAL — they describe what's on screen. Interpretations are clearly separated from observations.",
+    distinctionCriteria: "Student identifies a specific structural difference (tone, depth, format) across the three LLMs that they did NOT predict in advance. CT Skill 2 visibly applied.",
     teacherChecklist: [
-      "Are all 3 tools used (different LLMs)?",
-      "Is the question identical in all 3?",
-      "Are differences noted?",
+      "Are all 3 different LLMs used (not the same one 3×)?",
+      "Is the question identical in all 3 screenshots?",
+      "Does the worksheet separate observation from interpretation for each response?",
+      "Is the question open / reasoning-based, not factual?",
     ],
     correctiveHints: [
-      "If the same tool was used 3 times: 'Each screenshot must be from a different tool — ChatGPT at chat.openai.com, Gemini at gemini.google.com, and Claude at claude.ai. Open a new tab for each one.'",
-      "If question is trivial: 'Your question works — for Merit, add a short label under each screenshot noting one thing that was different about how that LLM responded.'",
+      "If the same tool was used 3×: 'Each screenshot must be from a different tool — chat.openai.com, gemini.google.com, claude.ai. Open three tabs.'",
+      "If question is trivial: 'A factual question like \"What year did India gain independence\" produces three identical answers. Ask something that requires reasoning — \"What's the best way to study for a maths exam in 3 days?\" The disagreement is the lesson.'",
+      "If observation and interpretation are mixed: 'Observation is what's literally there: \"Three bullet points.\" Interpretation is what you conclude: \"It seems to prefer structured answers.\" Don't mix them.'",
     ],
   },
   {
@@ -439,11 +442,12 @@ export const RUBRICS_L2: ObjectiveRubric[] = [];
 
 import { OBJ10_RUBRIC, type StagedRubric } from "@/lib/obj10Rubric";
 import { OBJ6_STAGED_RUBRIC } from "@/lib/obj6Rubric";
+import { OBJ2_STAGED_RUBRIC } from "@/lib/obj2Rubric";
 
 export type AnyRubric = ObjectiveRubric | StagedRubric;
 
 const SINGLE_RUBRICS: ObjectiveRubric[] = [...RUBRICS_L1, ...RUBRICS_L2];
-const STAGED_RUBRICS: StagedRubric[]    = [OBJ10_RUBRIC, OBJ6_STAGED_RUBRIC];
+const STAGED_RUBRICS: StagedRubric[]    = [OBJ2_STAGED_RUBRIC, OBJ10_RUBRIC, OBJ6_STAGED_RUBRIC];
 
 const singleRubricMap: Record<string, ObjectiveRubric> = Object.fromEntries(
   SINGLE_RUBRICS.map(r => [r.lmsId, r]),

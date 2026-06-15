@@ -439,9 +439,214 @@ export const OBJ6_SCHEMA: WorksheetSchema = {
   ],
 };
 
+// ─── OBJ 2 — Three AI Brains, One Question ──────────────────────────────────
+// All longform copy taken verbatim from OBJ2_Doc2_StudentWorksheet.docx.
+//
+// Field id stability — the validator reads these exact ids from inline-form data:
+//   canvas: intent, assumptions, audience, success
+//   storyIt: question
+//   analysis: chatGptObservation, chatGptInterpretation,
+//             geminiObservation, geminiInterpretation,
+//             claudeObservation, claudeInterpretation
+//   synthesis: surprisingDifference, agreement, whichAiForType
+//   reflection: correctAssumption, wrongAssumption
+
+export const OBJ2_SCHEMA: WorksheetSchema = {
+  lmsId:    "l1-02",
+  legacyId: "a1-2",
+  title:    "Objective 2 — Three AI Brains, One Question",
+  intro:    "Document 2 of 2 — Complete Think It and Story It BEFORE opening any AI tool. Then drop your 3 screenshots (ChatGPT → Gemini → Claude) into the whiteboard chat, in that order, before hitting validate.",
+  sections: [
+    {
+      id: "header",
+      title: "Header",
+      fields: [
+        { kind: "text", id: "avatarName", label: "Avatar Name", placeholder: "Your Avatar Name — from OBJ 1" },
+      ],
+    },
+
+    {
+      id: "howToUse",
+      title: "📋  How to use this worksheet",
+      body:
+        "This worksheet guides you through the Three AI Brains, One Question comparison. Complete Think It and Story It BEFORE you open any AI tool. Students who plan their question produce a more interesting, more comparable set of outputs.",
+      bullets: [
+        "Complete THINK IT first — all four Canvas fields.",
+        "Write and test your question in STORY IT.",
+        "Open ChatGPT, Gemini, and Claude one at a time — same exact question to each.",
+        "Screenshot each response. Drop them into the whiteboard chat — ChatGPT first, then Gemini, then Claude.",
+        "Complete the CT Skill 2 analysis for each in this worksheet.",
+        "Complete Comparison Synthesis and Reflection AFTER all three analyses.",
+        "Upload this worksheet to the LMS.",
+      ],
+      fields: [],
+    },
+
+    {
+      id: "thinkIt",
+      title: "💡  Think It",
+      subtitle: "Answer all four fields before you choose your question or open any AI tool.",
+      body:
+        "The AI Teacher reads these fields before your comparison is validated. Be specific about what you want to find out and why the comparison matters — not just that you are completing the task.",
+      fields: [
+        {
+          kind: "longtext", id: "intent",
+          label: "🎯  Field 1 — Intent",
+          description:
+            "What do you genuinely want to find out from this comparison — not just 'to compare three AIs.' What question about how AI thinks do you want answered?",
+          weakEx:   "To compare three AIs.",
+          strongEx: "To find out whether different AI systems reason differently — or just say the same things in different words — on a question I genuinely want answered.",
+          rows: 4, minWords: 10,
+        },
+        {
+          kind: "longtext", id: "assumptions",
+          label: "🔍  Field 2 — Assumptions",
+          description:
+            "What do you already believe about how ChatGPT, Gemini, and Claude will respond? Name at least two specific beliefs — which one do you think will give the best answer, and which will surprise you most?",
+          weakEx:   "I assume ChatGPT will be the best.",
+          strongEx: "I assume all three AIs will give broadly similar answers. But I might be wrong about how different their reasoning styles are. I also assume Gemini will give the longest answer.",
+          rows: 4, minWords: 10,
+        },
+        {
+          kind: "longtext", id: "audience",
+          label: "👥  Field 3 — Audience",
+          description:
+            "Who will you share this comparison with — or who will benefit from your analysis? Even if the audience is just yourself, describe what you would need to see to feel the comparison was genuinely valuable.",
+          weakEx:   "Myself.",
+          strongEx: "Myself — and then my trainer and classmates. They need to understand why the differences between the three responses matter, not just that they exist.",
+          rows: 4, minWords: 10,
+        },
+        {
+          kind: "longtext", id: "success",
+          label: "✅  Field 4 — Success Definition",
+          description:
+            "What would the comparison have to show you to feel like you actually learned something about how these AIs think differently? Name a specific observation.",
+          weakEx:   "If I can compare them.",
+          strongEx: "If I can write one observation and one interpretation for each AI response — and if the interpretations are different for each AI, not copies of each other with different names.",
+          rows: 4, minWords: 10,
+        },
+      ],
+    },
+
+    {
+      id: "storyIt",
+      title: "📖  Story It",
+      subtitle: "Choose your question deliberately. Test it against the three criteria before you ask any AI.",
+      body:
+        "Your question must meet all three criteria:\n" +
+        "• OPEN-ENDED: requires reasoning or judgement — not a single factual answer.\n" +
+        "• PERSONAL: something you actually want to know — not a random topic.\n" +
+        "• REASONING-REQUIRED: starts with or implies Why does… How should… What would happen if… What is the best way to…",
+      fields: [
+        {
+          kind: "longtext", id: "question",
+          label: "MY QUESTION — The exact question I will ask all three AIs",
+          description: "Use the exact same wording for all three AIs.",
+          placeholder: "Write your question here…",
+          rows: 3, minWords: 5,
+        },
+      ],
+    },
+
+    {
+      id: "ctSkill2",
+      title: "🧠  CT Skill 2 Analysis — Observation vs Interpretation",
+      subtitle: "Complete ONE analysis for EACH of the three AIs. Screenshot each response first — then write your analysis.",
+      body:
+        "THE RULE:\n" +
+        "OBSERVATION = what is literally there in the response. Facts only. No conclusions. No opinions. Just what you can point to on the screen.\n" +
+        "INTERPRETATION = what you conclude about this AI from what you observed. Your reasoning about what the response reveals about how the AI thinks.",
+      fields: [
+        {
+          kind: "longtext", id: "chatGptObservation",
+          label: "ChatGPT — OBSERVATION",
+          description: "What does this response literally contain? (facts only — no conclusions) What words, structure, length, or style do you literally see?",
+          rows: 3, minWords: 5,
+        },
+        {
+          kind: "longtext", id: "chatGptInterpretation",
+          label: "ChatGPT — INTERPRETATION",
+          description: "What do you conclude about this AI from what you observed? What does the response suggest about how ChatGPT reasons or prioritises?",
+          rows: 3, minWords: 5,
+        },
+        {
+          kind: "longtext", id: "geminiObservation",
+          label: "Google Gemini — OBSERVATION",
+          description: "What does this response literally contain? (facts only — no conclusions)",
+          rows: 3, minWords: 5,
+        },
+        {
+          kind: "longtext", id: "geminiInterpretation",
+          label: "Google Gemini — INTERPRETATION",
+          description: "What do you conclude about this AI from what you observed?",
+          rows: 3, minWords: 5,
+        },
+        {
+          kind: "longtext", id: "claudeObservation",
+          label: "Claude — OBSERVATION",
+          description: "What does this response literally contain? (facts only — no conclusions)",
+          rows: 3, minWords: 5,
+        },
+        {
+          kind: "longtext", id: "claudeInterpretation",
+          label: "Claude — INTERPRETATION",
+          description: "What do you conclude about this AI from what you observed?",
+          rows: 3, minWords: 5,
+        },
+      ],
+    },
+
+    {
+      id: "synthesis",
+      title: "🔍  Comparison Synthesis",
+      subtitle: "Complete AFTER all three analyses.",
+      fields: [
+        {
+          kind: "longtext", id: "surprisingDifference",
+          label: "1. Most surprising DIFFERENCE",
+          description: "What was the most surprising DIFFERENCE between the three responses?",
+          rows: 3, minWords: 5,
+        },
+        {
+          kind: "longtext", id: "agreement",
+          label: "2. What all three agreed on",
+          description: "What was the ONE thing all three AIs seemed to agree on — even if they expressed it differently?",
+          rows: 2, minWords: 5,
+        },
+        {
+          kind: "longtext", id: "whichAiForType",
+          label: "3. Which AI would you use for this type of question?",
+          description: "For THIS specific type of question — which AI would you use in the future? Why?",
+          rows: 2, minWords: 5,
+        },
+      ],
+    },
+
+    {
+      id: "reflection",
+      title: "💡  Reflection",
+      subtitle: "Complete AFTER all three analyses.",
+      body: "Go back to Field 2 — Assumptions. Now that you have done the comparison, answer both questions honestly.",
+      fields: [
+        {
+          kind: "longtext", id: "correctAssumption",
+          label: "✅  Which assumption from Field 2 was CORRECT?",
+          rows: 2,
+        },
+        {
+          kind: "longtext", id: "wrongAssumption",
+          label: "❌  Which assumption was WRONG — and what did you not predict?",
+          rows: 2,
+        },
+      ],
+    },
+  ],
+};
+
 export function getWorksheetSchema(lmsIdOrLegacy: string): WorksheetSchema | null {
   const id = lmsIdOrLegacy.toLowerCase();
   if (id === "l1-10" || id === "a1-10") return OBJ10_SCHEMA;
   if (id === "l1-06" || id === "a1-6")  return OBJ6_SCHEMA;
+  if (id === "l1-02" || id === "a1-2")  return OBJ2_SCHEMA;
   return null;
 }

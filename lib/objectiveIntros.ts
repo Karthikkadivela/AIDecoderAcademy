@@ -40,6 +40,17 @@ export interface ObjectiveIntro {
 //   - SAGE introduces themselves explicitly (kid wants to know who's talking).
 //   - End with a concrete first action, not a vague encouragement.
 const INTROS: Record<string, ObjectiveIntro> = {
+  // OBJ 2 — Three AI Brains, One Question (text, ChatGPT + Gemini + Claude)
+  "l1-02": {
+    beats: [
+      { text: "Sage. I'll grade this one.",                                      tone: "calm hello" },
+      { text: "Objective 2. Same question. Three AI brains. Find the disagreement.", tone: "matter-of-fact" },
+      { text: "Worksheet first. Write a question that REQUIRES reasoning — not just facts.", tone: "instructive" },
+      { text: "Ask ChatGPT, Gemini, and Claude. Screenshot all three.",          tone: "practical, like a recipe" },
+      { text: "Then separate what you OBSERVE from what you INTERPRET. That's the skill.", tone: "patient" },
+    ],
+  },
+
   // OBJ 10 — Your First AI Comic Strip
   "l1-10": {
     beats: [
