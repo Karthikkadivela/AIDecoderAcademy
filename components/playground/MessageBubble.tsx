@@ -5,7 +5,6 @@ import { cn } from "@/lib/utils";
 import { AudioPlayer, type AudioData } from "./AudioPlayer";
 import { SlideCarousel, type SlideData } from "./SlideCarousel";
 import VideoPlayer from "./VideoPlayer";
-import VideoLoadingBubble from "./VideoLoadingBubble";
 
 interface VideoData {
   videoUrl:         string;
@@ -31,22 +30,25 @@ interface Props {
 
 // Per output-type loading colours (unchanged)
 const COLOR_MAP: Record<string, { ring: string; bg: string; bar: string; text: string }> = {
-  cyan:   { ring: "border-[#00D4FF]/35", bg: "bg-white/[0.04]", bar: "bg-[#00D4FF] shadow-[0_0_14px_rgba(0,212,255,0.45)]",  text: "text-[#7AEFFF]"  },
-  pink:   { ring: "border-[#FF2D78]/35", bg: "bg-white/[0.04]", bar: "bg-[#FF2D78] shadow-[0_0_14px_rgba(255,45,120,0.45)]", text: "text-[#FF8FB8]"  },
-  purple: { ring: "border-[#7C3AED]/40", bg: "bg-white/[0.04]", bar: "bg-[#9F67FF] shadow-[0_0_14px_rgba(159,103,255,0.45)]",text: "text-[#C4B5FD]"  },
-  amber:  { ring: "border-[#FF6B2B]/35", bg: "bg-white/[0.04]", bar: "bg-[#FF6B2B] shadow-[0_0_14px_rgba(255,107,43,0.4)]",  text: "text-[#FFB38A]"  },
-  volt:   { ring: "border-[#C8FF00]/35", bg: "bg-white/[0.04]", bar: "bg-[#C8FF00] shadow-[0_0_14px_rgba(200,255,0,0.4)]",   text: "text-[#DEFF70]"  },
-  green:  { ring: "border-[#00FF94]/35", bg: "bg-white/[0.04]", bar: "bg-[#00FF94] shadow-[0_0_14px_rgba(0,255,148,0.4)]",   text: "text-[#7BFFC4]"  },
+  cyan:   { ring: "border-[#00D4FF]/50", bg: "bg-[#060e18]", bar: "bg-[#00D4FF] shadow-[0_0_14px_rgba(0,212,255,0.45)]",  text: "text-[#7AEFFF]"  },
+  pink:   { ring: "border-[#FF2D78]/50", bg: "bg-[#120009]", bar: "bg-[#FF2D78] shadow-[0_0_14px_rgba(255,45,120,0.45)]", text: "text-[#FF8FB8]"  },
+  purple: { ring: "border-[#7C3AED]/55", bg: "bg-[#0d0618]", bar: "bg-[#9F67FF] shadow-[0_0_14px_rgba(159,103,255,0.45)]",text: "text-[#C4B5FD]"  },
+  amber:  { ring: "border-[#FF6B2B]/50", bg: "bg-[#140800]", bar: "bg-[#FF6B2B] shadow-[0_0_14px_rgba(255,107,43,0.4)]",  text: "text-[#FFB38A]"  },
+  volt:   { ring: "border-[#C8FF00]/50", bg: "bg-[#0a0f00]", bar: "bg-[#C8FF00] shadow-[0_0_14px_rgba(200,255,0,0.4)]",   text: "text-[#DEFF70]"  },
+  green:  { ring: "border-[#00FF94]/50", bg: "bg-[#001409]", bar: "bg-[#00FF94] shadow-[0_0_14px_rgba(0,255,148,0.4)]",   text: "text-[#7BFFC4]"  },
+  // Dark variant for classroom (light background)
+  dark:   { ring: "border-[#1e3a8a]/60", bg: "bg-[#0a1640]",  bar: "bg-[#3b82f6]", text: "text-white" },
 };
 
 // Map arena id to loading bubble color key
 const ARENA_COLOR: Record<number, string> = {
-  1: "purple",
-  2: "cyan",
-  3: "amber",
-  4: "green",
-  5: "pink",
-  6: "volt",
+  1:  "purple",
+  2:  "cyan",
+  3:  "amber",
+  4:  "green",
+  5:  "pink",
+  6:  "volt",
+  10: "dark",   // classroom context
 };
 
 function LoadingBubble({ outputType, arenaId }: { outputType?: string; arenaId?: number }) {
@@ -84,7 +86,7 @@ function LoadingBubble({ outputType, arenaId }: { outputType?: string; arenaId?:
           <p className={cn("text-xs font-display font-extrabold leading-tight tracking-tight", colors.text)}>
             {meta.label}{dots}
           </p>
-          <p className="text-[10px] text-white/35 mt-0.5">20–30 seconds</p>
+          <p className={cn("text-[10px] mt-0.5", meta.color === "dark" ? "text-white/50" : "text-white/35")}>20–30 seconds</p>
         </div>
       </div>
       <div className="h-1 w-full bg-[#1E1E30] rounded-full overflow-hidden border border-white/10">
@@ -413,10 +415,7 @@ export function MessageBubble({
           )}
 
           {/* Loading */}
-          {!isEmpty && isLoading && message.outputType === "video" && (
-            <VideoLoadingBubble arenaAccent={arenaAccent} arenaAccentGlow={arenaAccentGlow} />
-          )}
-          {!isEmpty && isLoading && message.outputType !== "video" && (
+          {!isEmpty && isLoading && (
             <LoadingBubble outputType={message.outputType} arenaId={arenaId} />
           )}
 
@@ -465,9 +464,11 @@ export function MessageBubble({
               <div>
                 <p className="whitespace-pre-wrap">{message.content}</p>
                 {message.attachmentMeta && message.attachmentMeta.length > 0 && (() => {
-                  // Split into injected-image entries (img:url) and plain type badges
-                  const imgEntries  = message.attachmentMeta.filter(m => m.startsWith("img:"));
-                  const badgeEntries = message.attachmentMeta.filter(m => !m.startsWith("img:"));
+                  // Split into injected-image (img:url), doc (doc:name:url), audio (audio:name:url), and plain type badges
+                  const imgEntries   = message.attachmentMeta.filter(m => m.startsWith("img:"));
+                  const docEntries   = message.attachmentMeta.filter(m => m.startsWith("doc:"));
+                  const audioEntries = message.attachmentMeta.filter(m => m.startsWith("audio:"));
+                  const badgeEntries = message.attachmentMeta.filter(m => !m.startsWith("img:") && !m.startsWith("doc:") && !m.startsWith("audio:"));
                   return (
                     <div className="mt-2 flex flex-col gap-1.5">
                       {/* Injected image thumbnails */}
@@ -485,6 +486,63 @@ export function MessageBubble({
                                   image
                                 </div>
                               </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {/* Document chips — show filename + file icon */}
+                      {docEntries.length > 0 && (
+                        <div className="flex gap-2 flex-wrap">
+                          {docEntries.map((item, i) => {
+                            const parts    = item.slice(4).split(":"); // strip "doc:", then split name:url
+                            const filename = parts[0] ?? "document";
+                            const url      = parts.slice(1).join(":"); // re-join URL (has "https:")
+                            return (
+                              <a key={i} href={url || "#"} target="_blank" rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg no-underline flex-shrink-0"
+                                style={{
+                                  background: "rgba(255,255,255,0.15)",
+                                  border: "1px solid rgba(255,255,255,0.25)",
+                                  color: userTextColor,
+                                  maxWidth: 200,
+                                }}>
+                                <svg width="12" height="12" viewBox="0 0 10 10" fill="none" style={{ flexShrink: 0 }}>
+                                  <path d="M6 1H2.5a1 1 0 00-1 1v6a1 1 0 001 1h5a1 1 0 001-1V3.5L6 1z" stroke="currentColor" strokeWidth="1"/>
+                                  <path d="M6 1v2.5h2.5" stroke="currentColor" strokeWidth="1"/>
+                                </svg>
+                                <span style={{ fontSize: 10, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                  {filename}
+                                </span>
+                              </a>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {/* Audio chips */}
+                      {audioEntries.length > 0 && (
+                        <div className="flex gap-2 flex-wrap">
+                          {audioEntries.map((item, i) => {
+                            const parts    = item.slice(6).split(":"); // strip "audio:"
+                            const filename = parts[0] ?? "audio";
+                            const url      = parts.slice(1).join(":");
+                            return (
+                              <a key={i} href={url || "#"} target="_blank" rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg no-underline flex-shrink-0"
+                                style={{
+                                  background: "rgba(255,45,120,0.18)",
+                                  border: "1px solid rgba(255,45,120,0.35)",
+                                  color: userTextColor,
+                                  maxWidth: 200,
+                                }}>
+                                <div className="flex items-end gap-[1.5px]" style={{ flexShrink: 0 }}>
+                                  {[2,3,2,4,2,3,2].map((h, j) => (
+                                    <div key={j} className="w-[1.5px] rounded-full" style={{ height: `${h}px`, background: userTextColor }}/>
+                                  ))}
+                                </div>
+                                <span style={{ fontSize: 10, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                  {filename}
+                                </span>
+                              </a>
                             );
                           })}
                         </div>

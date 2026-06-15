@@ -106,17 +106,14 @@ export function TeacherCharacter({ objectiveId, messages, profile, onObjectiveCo
   const wantedOutputType = objective?.outputType ?? "image";
   const wantsImages      = wantedOutputType === "image";
 
-  const IMG_MARKER_RE = /\[Image titled "[^"]*":\s*(https?:\/\/[^\s\]]+)\s*\]/g;
-  const DOC_MARKER_RE = /\[Document titled "([^"]*)":\s*(https?:\/\/[^\s\]]+)\s*\]/g;
-  const VID_MARKER_RE = /\[Video titled "([^"]*)":\s*(https?:\/\/[^\s\]]+)\s*\]/g;
+  const IMG_MARKER_RE   = /\[Image titled "[^"]*":\s*(https?:\/\/[^\s\]]+)\s*\]/g;
+  const DOC_MARKER_RE   = /\[Document titled "([^"]*)":\s*(https?:\/\/[^\s\]]+)\s*\]/g;
+  const VID_MARKER_RE   = /\[Video titled "([^"]*)":\s*(https?:\/\/[^\s\]]+)\s*\]/g;
+  const AUDIO_MARKER_RE = /\[Audio titled "([^"]*)":\s*(https?:\/\/[^\s\]]+)\s*\]/g;
   const whiteboardImages: { url: string }[] = [];
-  // Chat-uploaded worksheet docs — fallback for the validator when the popup
-  // is empty. Same `[Document titled "X": URL]` marker the chat uses.
-  const whiteboardDocs: { url: string; filename: string; format: "pdf" | "docx" }[] = [];
-  // Chat-uploaded videos — kept for forward-compat; the active OBJ 6 path
-  // now grades an avatar IMAGE (not video) per the GenAlpha spec rewrite.
-  // since the worksheet popup no longer has an upload zone.
+  const whiteboardDocs:   { url: string; filename: string; format: "pdf" | "docx" }[] = [];
   const whiteboardVideos: { url: string; filename: string }[] = [];
+  const whiteboardAudio:  { url: string; filename: string }[] = [];
   for (const m of messages) {
     if (m.isLoading || m.role !== "user" || typeof m.content !== "string") continue;
     for (const match of m.content.matchAll(DOC_MARKER_RE)) {
@@ -126,10 +123,44 @@ export function TeacherCharacter({ objectiveId, messages, profile, onObjectiveCo
       const format: "pdf" | "docx" = lower.includes(".pdf") ? "pdf" : "docx";
       whiteboardDocs.push({ url, filename, format });
     }
+    // Also pick up docs stored in attachmentMeta chips (format "doc:filename:https://url")
+    // when the message content was replaced with clean display text by the playground page.
+    if (Array.isArray(m.attachmentMeta)) {
+      for (const tag of m.attachmentMeta) {
+        if (typeof tag === "string" && tag.startsWith("doc:")) {
+          const rest  = tag.slice(4);                        // "filename:https://..."
+          const colon = rest.indexOf(":");
+          const filename = colon > -1 ? rest.slice(0, colon) : rest;
+          const url      = colon > -1 ? rest.slice(colon + 1) : "";
+          if (!url.startsWith("http")) continue;
+          const lower = (url + " " + filename).toLowerCase();
+          const format: "pdf" | "docx" = lower.includes(".pdf") ? "pdf" : "docx";
+          whiteboardDocs.push({ url, filename, format });
+        }
+      }
+    }
     for (const match of m.content.matchAll(VID_MARKER_RE)) {
       const url = match[2];
       const filename = match[1] || url.split("/").pop() || "video";
       whiteboardVideos.push({ url, filename });
+    }
+    for (const match of m.content.matchAll(AUDIO_MARKER_RE)) {
+      const url = match[2];
+      const filename = match[1] || url.split("/").pop() || "audio";
+      whiteboardAudio.push({ url, filename });
+    }
+    // Also pick up audio stored in attachmentMeta chips (format "audio:filename:https://url")
+    if (Array.isArray(m.attachmentMeta)) {
+      for (const tag of m.attachmentMeta) {
+        if (typeof tag === "string" && tag.startsWith("audio:")) {
+          const rest  = tag.slice(6);
+          const colon = rest.indexOf(":");
+          const filename = colon > -1 ? rest.slice(0, colon) : rest;
+          const url      = colon > -1 ? rest.slice(colon + 1) : "";
+          if (!url.startsWith("http")) continue;
+          whiteboardAudio.push({ url, filename });
+        }
+      }
     }
   }
   if (wantsImages) {
@@ -332,6 +363,7 @@ export function TeacherCharacter({ objectiveId, messages, profile, onObjectiveCo
           whiteboardImages={whiteboardImages}
           whiteboardDocs={whiteboardDocs}
           whiteboardVideos={whiteboardVideos}
+          whiteboardAudio={whiteboardAudio}
           onClose={() => setOpen(false)}
           onComplete={async () => {
             // Award XP via the existing engine, same as TeacherDialogue's path.
