@@ -15,7 +15,7 @@ const OUTPUT_LABELS: Record<string, { label: string; color: string }> = {
   json:   { label: "JSON",   color: "#7BFFC4" },
   image:  { label: "Image",  color: "#7AEFFF" },
   audio:  { label: "Audio",  color: "#FF8FB8" },
-  slides: { label: "Slides", color: "#C8FF00" },
+  slides: { label: "Slides", color: "#A3E635" },
 };
 
 export default function WorldPage() {
