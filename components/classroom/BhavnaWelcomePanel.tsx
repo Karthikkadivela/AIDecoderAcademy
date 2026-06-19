@@ -158,18 +158,33 @@ export function BhavnaWelcomePanel({ profile, onClose, onOpenChat }: Props) {
                 onClick={toggleAudio}
                 title={audioOn ? "Mute Bhavna" : "Unmute Bhavna"}
                 aria-label={audioOn ? "Mute Bhavna" : "Unmute Bhavna"}
-                className="w-7 h-7 rounded-full flex items-center justify-center"
-                style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${audioOn ? GOLD : "rgba(255,255,255,0.12)"}` }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.boxShadow = `0 0 12px ${GOLD_GLOW}`;
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.boxShadow = "none";
+                }}
+                className="w-9 h-9 rounded-full flex items-center justify-center transition-all"
+                style={{
+                  background: audioOn ? "rgba(224,177,76,0.55)" : "rgba(224,177,76,0.35)",
+                  border: `1px solid ${GOLD}`,
+                }}
               >
-                {audioOn ? <Volume2 size={12} color={TEXT_HI} /> : <VolumeX size={12} color={TEXT_HI} />}
+                {audioOn ? <Volume2 size={15} color="#08080F" /> : <VolumeX size={15} color="#08080F" />}
               </button>
               <button
                 onClick={close}
                 aria-label="Close welcome"
-                className="w-7 h-7 rounded-full flex items-center justify-center"
-                style={{ background: "rgba(255,255,255,0.04)", color: TEXT_MID }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.boxShadow = "0 0 12px rgba(220,38,38,0.6)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.boxShadow = "none";
+                }}
+                className="w-9 h-9 rounded-full flex items-center justify-center transition-all"
+                style={{ background: "rgba(220,38,38,0.55)", border: "1px solid rgba(220,38,38,0.9)" }}
               >
-                <X size={14} />
+                <X size={16} color="#08080F" />
               </button>
             </div>
           </div>
