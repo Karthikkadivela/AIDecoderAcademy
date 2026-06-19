@@ -170,6 +170,10 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
       !!(window as Window & { __validatorPanelOpen?: boolean }).__validatorPanelOpen,
   );
   const [worksheetPopupOpen, setWorksheetPopupOpen] = useState(false);
+  const [teacherMounted, setTeacherMounted] = useState(
+    () => typeof window !== "undefined" &&
+      !!(window as Window & { __teacherMounted?: boolean }).__teacherMounted,
+  );
 
   // Whether AIDA voices her thought-bubble nudges. Persisted in localStorage
   // so the kid's preference survives reloads. Default: ON.
@@ -221,15 +225,21 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
     const onValidatorClose = () => setValidatorPanelOpen(false);
     const onWorksheetOpen  = () => setWorksheetPopupOpen(true);
     const onWorksheetClose = () => setWorksheetPopupOpen(false);
+    const onTeacherMounted   = () => setTeacherMounted(true);
+    const onTeacherUnmounted = () => setTeacherMounted(false);
     window.addEventListener("validator-panel-open",  onValidatorOpen);
     window.addEventListener("validator-panel-close", onValidatorClose);
     window.addEventListener("worksheet-popup-open",  onWorksheetOpen);
     window.addEventListener("worksheet-popup-close", onWorksheetClose);
+    window.addEventListener("teacher-mounted",       onTeacherMounted);
+    window.addEventListener("teacher-unmounted",     onTeacherUnmounted);
     return () => {
       window.removeEventListener("validator-panel-open",  onValidatorOpen);
       window.removeEventListener("validator-panel-close", onValidatorClose);
       window.removeEventListener("worksheet-popup-open",  onWorksheetOpen);
       window.removeEventListener("worksheet-popup-close", onWorksheetClose);
+      window.removeEventListener("teacher-mounted",       onTeacherMounted);
+      window.removeEventListener("teacher-unmounted",     onTeacherUnmounted);
     };
   }, []);
 
@@ -1010,10 +1020,6 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
 
   const voicePulse = voiceState === "listening" || voiceState === "speaking";
 
-  // On the playground, the floating button uses the bespoke assistant.png
-  // sprite instead of the gradient ✦ disc — matches the JRPG-style room
-  // alongside the Validator Teacher. Behaviour (open/close, voice gate) is
-  // unchanged.
   const onPlayground = isOnPlayground;
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -1511,219 +1517,42 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
 
   return (
     <>
-      {/* ── Playground: Duolingo hybrid — panel slides up above the character ──
-           SIZE knob: change the wrapper width/height clamp below (doubled from
-             original clamp(64px, 5.5vw, 96px)). The button is w-full/h-full so
-             it scales with the wrapper. Keep width === height (square sprite).
-           POSITION knobs: `right` (% from right edge of viewport — higher = more
-             to the left), `bottom` (px from bottom edge). Swap `right` for `left`
-             if you want to anchor from the left side instead. */}
+      {/* ── Playground: character sprite — always visible on playground ── */}
       {!validatorPanelOpen && !worksheetPopupOpen && onPlayground && (
         <div
           className="fixed z-50"
           style={{
-            right:  "62%",                          // ← horizontal position (% from right — higher = more LEFT)
-            bottom: "0px",                         // ← vertical position (px from bottom)
-            width:  "clamp(173px, 14.4vw, 269px)",    // ← SIZE: matched to SAGE (was clamp(128px, 11vw, 192px))
-            height: "clamp(173px, 14.4vw, 269px)",    // ← SIZE: keep equal to width
+            right:  "62%",
+            bottom: "0px",
+            width:  "clamp(173px, 14.4vw, 269px)",
+            height: "clamp(173px, 14.4vw, 269px)",
           }}
         >
-          {/* Panel — absolute above the button, centered horizontally */}
-          {open && (
-            <div
-              style={{
-                position:  "absolute",
-                bottom:    "calc(100% + 10px)",
-                left:      "50%",
-                transform: "translateX(-50%)",
-                width:     "clamp(320px, 28vw, 440px)",
-              }}
-            >
-              <div
-                className="flex flex-col rounded-2xl overflow-hidden"
-                style={{
-                  height:    "clamp(420px, 60vh, 600px)",
-                  animation: "aida-slide-up 0.28s cubic-bezier(0.16,1,0.3,1) both",
-                  ...panelBaseStyle,
-                }}
-              >
-                {panelInner}
-              </div>
-            </div>
-          )}
-
-          {/* Character trigger — always shows sprite, glow intensifies when open */}
           <button
-            onClick={() => { if (voiceState === "listening") return; setOpen(o => !o); }}
+            onClick={() => window.dispatchEvent(new CustomEvent("open-validator-panel"))}
             className="w-full h-full flex items-center justify-center transition-all duration-300 hover:scale-105 active:scale-95"
             style={{
               background: "transparent",
               border:     "none",
               padding:    0,
               cursor:     "pointer",
-              filter:     `drop-shadow(0 0 22px rgba(124,58,237,${open ? 0.85 : 0.55}))`,
+              filter:     "drop-shadow(0 0 22px rgba(124,58,237,0.55))",
             }}
-            title="Ask AIDA"
+            title="Talk to teacher"
           >
             <img
-              src="/assistant.png"
+              src="/teacher.png"
               alt=""
               draggable={false}
               style={{ width: "100%", height: "100%", objectFit: "contain" }}
             />
           </button>
 
-          {/* Cartoon-style thought bubble — floats above AIDA's head with
-              two trailing dots leading down to her, just like a comic-strip
-              "she's thinking…" panel. Auto-dismisses after 9s. NOT shown
-              inside the chat panel — this is the only place the nudge
-              appears, so kids see it whether AIDA is open or not. */}
-          {!open && floatingNudge && (() => {
-            const isStray    = floatingNudge.kind === "stray";
-            const isProgress = floatingNudge.kind === "progress";
-
-            // Theme colours — light cloudy fill, kind-tinted accent outline + glow.
-            const fillTop   = "#FFFFFF";
-            const fillBot   = "#F0F4FF";
-            const stroke    = isStray ? "#FFB020" : isProgress ? "#00D4FF" : "#7DD3FC";
-            const text      = "#0B1A2F";              // dark for readability on cloud
-            const glow      = isStray ? "rgba(255,176,32,0.55)"
-                            : isProgress ? "rgba(0,212,255,0.55)"
-                            : "rgba(125,211,252,0.45)";
-
-            return (
-              <div
-                role="status"
-                aria-live="polite"
-                aria-label="AIDA is thinking"
-                style={{
-                  position:      "absolute",
-                  bottom:        "calc(100% + 26px)",   // leave space for trailing dots
-                  left:          "50%",
-                  transform:     "translateX(-50%)",
-                  width:         "clamp(220px, 24vw, 320px)",
-                  pointerEvents: "auto",
-                  animation:     "aida-slide-up 0.32s cubic-bezier(0.16,1,0.3,1) both",
-                  filter:        `drop-shadow(0 0 18px ${glow}) drop-shadow(0 8px 18px rgba(0,0,0,0.35))`,
-                }}
-              >
-                {/* The cloud — pseudo-elements via two stacked rounded rects
-                    plus radial bumps at the bottom corners make a cartoon
-                    cloud shape without needing SVG. */}
-                <div
-                  style={{
-                    position:     "relative",
-                    background:   `linear-gradient(180deg, ${fillTop} 0%, ${fillBot} 100%)`,
-                    border:       `2.5px solid ${stroke}`,
-                    borderRadius: "36px 36px 36px 36px / 30px 30px 28px 28px",
-                    padding:      "14px 28px 14px 18px",
-                    color:        text,
-                    fontSize:     13,
-                    lineHeight:   1.45,
-                    fontFamily:   "'DM Sans', system-ui, sans-serif",
-                  }}
-                >
-                  {/* Two small "scallop" bumps left + right on the bottom give
-                      the bubble its cloud silhouette. */}
-                  <span
-                    aria-hidden
-                    style={{
-                      position:   "absolute",
-                      left:       18,
-                      bottom:     -10,
-                      width:      26,
-                      height:     20,
-                      borderRadius: "50%",
-                      background: fillBot,
-                      border:     `2.5px solid ${stroke}`,
-                      zIndex:     -1,
-                    }}
-                  />
-                  <span
-                    aria-hidden
-                    style={{
-                      position:   "absolute",
-                      right:      32,
-                      bottom:     -8,
-                      width:      22,
-                      height:     16,
-                      borderRadius: "50%",
-                      background: fillBot,
-                      border:     `2.5px solid ${stroke}`,
-                      zIndex:     -1,
-                    }}
-                  />
-                  {/* The thought text itself */}
-                  <span style={{ fontStyle: "italic", fontWeight: 500 }}>
-                    {floatingNudge.text}
-                  </span>
-
-                  {/* Dismiss button — small, on the cloud */}
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); setFloatingNudge(null); }}
-                    aria-label="Dismiss"
-                    style={{
-                      position:    "absolute",
-                      top:         -8,
-                      right:       -8,
-                      width:       22,
-                      height:      22,
-                      borderRadius: "50%",
-                      background:  "#FFFFFF",
-                      border:      `2px solid ${stroke}`,
-                      color:       text,
-                      fontSize:    13,
-                      fontWeight:  700,
-                      lineHeight:  1,
-                      cursor:      "pointer",
-                      padding:     0,
-                      display:     "flex",
-                      alignItems:  "center",
-                      justifyContent: "center",
-                      boxShadow:   "0 2px 6px rgba(0,0,0,0.25)",
-                    }}
-                  >×</button>
-                </div>
-
-                {/* Trailing thought-dots — two shrinking circles leading down
-                    toward AIDA's head. Classic comic-strip "thinking" cue. */}
-                <div
-                  aria-hidden
-                  style={{
-                    position:  "absolute",
-                    top:       "calc(100% + 4px)",
-                    left:      "calc(50% - 16px)",
-                    width:     14,
-                    height:    14,
-                    borderRadius: "50%",
-                    background: fillBot,
-                    border:    `2.5px solid ${stroke}`,
-                    boxShadow: `0 0 10px ${glow}`,
-                  }}
-                />
-                <div
-                  aria-hidden
-                  style={{
-                    position:  "absolute",
-                    top:       "calc(100% + 22px)",
-                    left:      "calc(50% - 7px)",
-                    width:     8,
-                    height:    8,
-                    borderRadius: "50%",
-                    background: fillBot,
-                    border:    `2px solid ${stroke}`,
-                    boxShadow: `0 0 8px ${glow}`,
-                  }}
-                />
-              </div>
-            );
-          })()}
         </div>
       )}
 
-      {/* ── Non-playground: fixed bottom-right corner ──────────────────────── */}
-      {!validatorPanelOpen && !worksheetPopupOpen && !onPlayground && (
+      {/* ── AIDA ✦ button — all pages ── */}
+      {(!worksheetPopupOpen || onPlayground) && (
         <>
           <button
             onClick={() => { if (voiceState === "listening") return; setOpen(o => !o); }}

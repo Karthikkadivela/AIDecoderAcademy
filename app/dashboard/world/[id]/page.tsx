@@ -147,10 +147,57 @@ export default function WorldPage() {
         <ArrowLeft size={14}/> Hub
       </motion.button>
 
+      {/* ── Arena header: emoji, name, tagline, progress (arenas 2–6 only; arena 1 has it baked into the bg image) ── */}
+      {unlocked && arenaId !== 1 && (
+        <motion.div
+          initial={{ opacity: 0, y: -18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+          className="absolute top-0 left-0 right-0 z-40 flex flex-col items-center pt-4 pointer-events-none"
+        >
+          <span className="text-2xl mb-0.5">{arena.emoji}</span>
+          <h1
+            className="font-display font-black text-white uppercase tracking-tight leading-none"
+            style={{
+              fontSize: "clamp(1.1rem, 2.5vw, 2rem)",
+              textShadow: `0 0 40px ${arena.accentGlow}, 0 0 80px ${arena.accentGlow}`,
+            }}
+          >
+            {arena.name}
+          </h1>
+          <p
+            className="font-mono uppercase tracking-[0.2em] mt-1"
+            style={{ fontSize: "clamp(0.5rem, 0.9vw, 0.65rem)", color: arena.accent }}
+          >
+            {arena.tagline}
+          </p>
+          <div className="flex items-center gap-2 mt-2">
+            <div className="flex gap-[3px]">
+              {objectives.map((o, i) => (
+                <div key={o.id} className="rounded-full overflow-hidden"
+                  style={{ width: "clamp(8px,1.1vw,11px)", height: 3, background: "rgba(255,255,255,0.1)" }}>
+                  <motion.div
+                    className="h-full rounded-full"
+                    initial={{ width: 0 }}
+                    animate={{ width: completed.has(o.id) ? "100%" : "0%" }}
+                    transition={{ delay: i * 0.03 + 0.6, duration: 0.35 }}
+                    style={{ background: arena.accent }}
+                  />
+                </div>
+              ))}
+            </div>
+            <span className="font-mono text-[10px]" style={{ color: arena.accent }}>
+              {completedCount}/{objectives.length}
+            </span>
+            {allDone && <span className="text-[10px] font-bold" style={{ color: "#7BFFC4" }}>✓ Complete!</span>}
+          </div>
+        </motion.div>
+      )}
+
       {/* ── Arenas 2–6: Mission cards grid ── */}
       {arenaId !== 1 && (
         <div className="absolute inset-0 flex items-center justify-center z-30 px-4 sm:px-8"
-          style={{ paddingTop: "100px", paddingBottom: "20px" }}>
+          style={{ paddingTop: "clamp(100px, 13vh, 140px)", paddingBottom: "20px" }}>
           <div className="w-full max-w-4xl grid grid-cols-1 sm:grid-cols-3 gap-4">
             {objectives.map((obj, i) => {
               const done           = completed.has(obj.id);
