@@ -32,7 +32,7 @@ const LEFT_SUBJECTS = [
 ] as const;
 
 const RIGHT_SUBJECTS = [
-  { id: "kannada",  src: "/classroom/kannada-card.png",  name: "Kannada",               hasData: true,  cardMode: false, number: undefined, subtitle: undefined },
+  { id: "kannada",  src: "/classroom/kannada-card.png",  name: "Kannada",               hasData: true,  cardMode: false, number: undefined, subtitle: undefined, bgSize: "88%", bgColor: "rgba(255,255,255,0.96)" },
   { id: "social",   src: "/classroom/social.png",   name: "Social Science",        hasData: false, cardMode: false, number: undefined, subtitle: undefined },
   { id: "computer", src: "/classroom/computer.png", name: "Computer Applications", hasData: false, cardMode: false, number: undefined, subtitle: undefined },
   { id: "biology",  src: "/classroom/biology.png",  name: "Biology",               hasData: false, cardMode: false, number: undefined, subtitle: undefined },
@@ -388,6 +388,7 @@ function ClassroomLanding({ profile, onEnter }: { profile: Profile|null; onEnter
               number={"number" in s ? s.number : undefined}
               subtitle={"subtitle" in s ? s.subtitle : undefined}
               bgSize={"bgSize" in s ? s.bgSize : undefined}
+              bgColor={"bgColor" in s ? s.bgColor : undefined}
               onClick={() => onEnter(s.id)} />
           ))}
         </div>
