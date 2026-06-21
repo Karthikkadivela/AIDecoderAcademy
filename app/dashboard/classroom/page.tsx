@@ -32,7 +32,7 @@ const LEFT_SUBJECTS = [
 ] as const;
 
 const RIGHT_SUBJECTS = [
-  { id: "kannada",  src: "/classroom/kannada2.png",  name: "Kannada",               hasData: true,  cardMode: true,  number: "05",      subtitle: "Grammar, Literature, Poetry, Prose & MCQ Practice Questions", imgPosition: "right center" },
+  { id: "kannada",  src: "/classroom/kannada2.png",  name: "Kannada",               hasData: true,  cardMode: false, number: undefined, subtitle: undefined },
   { id: "social",   src: "/classroom/social.png",   name: "Social Science",        hasData: false, cardMode: false, number: undefined, subtitle: undefined },
   { id: "computer", src: "/classroom/computer.png", name: "Computer Applications", hasData: false, cardMode: false, number: undefined, subtitle: undefined },
   { id: "biology",  src: "/classroom/biology.png",  name: "Biology",               hasData: false, cardMode: false, number: undefined, subtitle: undefined },
@@ -190,10 +190,9 @@ function LeaderboardPanel() {
 }
 
 // ── Subject tile ──────────────────────────────────────────────────────────────
-function SubjectTile({ src, name, hasData, cardMode, number, subtitle, bgSize, bgColor, imgPosition, onClick }: {
+function SubjectTile({ src, name, hasData, cardMode, number, subtitle, bgSize, bgColor, onClick }: {
   src: string; name: string; hasData: boolean;
   cardMode?: boolean; number?: string; subtitle?: string; bgSize?: string; bgColor?: string;
-  imgPosition?: string;
   onClick: (subject: string) => void;
 }) {
   // Card-mode: white card layout matching Mathematics/Chemistry style
@@ -242,7 +241,7 @@ function SubjectTile({ src, name, hasData, cardMode, number, subtitle, bgSize, b
         <div style={{ width:"42%", flexShrink:0, position:"relative", overflow:"hidden" }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={src} alt={name} draggable={false}
-            style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover", objectPosition: imgPosition ?? "center" }} />
+            style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover", objectPosition:"center" }} />
         </div>
         {/* Lock overlay */}
         {!hasData && (
@@ -387,7 +386,6 @@ function ClassroomLanding({ profile, onEnter }: { profile: Profile|null; onEnter
               cardMode={"cardMode" in s ? s.cardMode : false}
               number={"number" in s ? s.number : undefined}
               subtitle={"subtitle" in s ? s.subtitle : undefined}
-              imgPosition={"imgPosition" in s ? s.imgPosition : undefined}
               onClick={() => onEnter(s.id)} />
           ))}
         </div>
