@@ -32,7 +32,7 @@ const LEFT_SUBJECTS = [
 ] as const;
 
 const RIGHT_SUBJECTS = [
-  { id: "kannada",  src: "/classroom/bg%203.png",  name: "Kannada",               hasData: true,  cardMode: false, number: undefined, subtitle: undefined },
+  { id: "kannada",  src: "/classroom/bg%203.png",  name: "Kannada",               hasData: true,  cardMode: false, number: undefined, subtitle: undefined, bgSize: "103%" },
   { id: "social",   src: "/classroom/social.png",   name: "Social Science",        hasData: false, cardMode: false, number: undefined, subtitle: undefined },
   { id: "computer", src: "/classroom/computer.png", name: "Computer Applications", hasData: false, cardMode: false, number: undefined, subtitle: undefined },
   { id: "biology",  src: "/classroom/biology.png",  name: "Biology",               hasData: false, cardMode: false, number: undefined, subtitle: undefined },
@@ -271,7 +271,7 @@ function SubjectTile({ src, name, hasData, cardMode, number, subtitle, bgSize, b
       style={{ width:"100%", backgroundColor: bgColor ?? "transparent",
         backgroundImage:`url(${src})`, backgroundSize: bgSize ?? "cover",
         backgroundPosition:"center", backgroundRepeat:"no-repeat",
-        overflow: "hidden",
+        overflow: "hidden", borderRadius: 12,
         cursor: hasData ? "pointer" : "not-allowed" }}
       whileHover={hasData ? { scale:1.02 } : {}}
       whileTap={hasData ? { scale:0.98 } : {}}
