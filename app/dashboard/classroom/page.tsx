@@ -32,7 +32,7 @@ const LEFT_SUBJECTS = [
 ] as const;
 
 const RIGHT_SUBJECTS = [
-  { id: "kannada",  src: "/classroom/kannada2.png",  name: "Kannada",               hasData: true,  cardMode: false, number: undefined, subtitle: undefined },
+  { id: "kannada",  src: "/classroom/kannada2.png",  name: "Kannada",               hasData: true,  cardMode: false, number: undefined, subtitle: undefined, blendMode: "multiply" as const },
   { id: "social",   src: "/classroom/social.png",   name: "Social Science",        hasData: false, cardMode: false, number: undefined, subtitle: undefined },
   { id: "computer", src: "/classroom/computer.png", name: "Computer Applications", hasData: false, cardMode: false, number: undefined, subtitle: undefined },
   { id: "biology",  src: "/classroom/biology.png",  name: "Biology",               hasData: false, cardMode: false, number: undefined, subtitle: undefined },
@@ -190,9 +190,10 @@ function LeaderboardPanel() {
 }
 
 // ── Subject tile ──────────────────────────────────────────────────────────────
-function SubjectTile({ src, name, hasData, cardMode, number, subtitle, bgSize, bgColor, onClick }: {
+function SubjectTile({ src, name, hasData, cardMode, number, subtitle, bgSize, bgColor, blendMode, onClick }: {
   src: string; name: string; hasData: boolean;
   cardMode?: boolean; number?: string; subtitle?: string; bgSize?: string; bgColor?: string;
+  blendMode?: React.CSSProperties["mixBlendMode"];
   onClick: (subject: string) => void;
 }) {
   // Card-mode: white card layout matching Mathematics/Chemistry style
@@ -271,6 +272,7 @@ function SubjectTile({ src, name, hasData, cardMode, number, subtitle, bgSize, b
       style={{ width:"100%", backgroundColor: bgColor ?? "transparent",
         backgroundImage:`url(${src})`, backgroundSize: bgSize ?? "cover",
         backgroundPosition:"center", backgroundRepeat:"no-repeat",
+        mixBlendMode: blendMode,
         cursor: hasData ? "pointer" : "not-allowed" }}
       whileHover={hasData ? { scale:1.02 } : {}}
       whileTap={hasData ? { scale:0.98 } : {}}
@@ -386,6 +388,7 @@ function ClassroomLanding({ profile, onEnter }: { profile: Profile|null; onEnter
               cardMode={"cardMode" in s ? s.cardMode : false}
               number={"number" in s ? s.number : undefined}
               subtitle={"subtitle" in s ? s.subtitle : undefined}
+              blendMode={"blendMode" in s ? s.blendMode : undefined}
               onClick={() => onEnter(s.id)} />
           ))}
         </div>
