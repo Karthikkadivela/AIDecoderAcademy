@@ -271,8 +271,6 @@ function SubjectTile({ src, name, hasData, cardMode, number, subtitle, bgSize, b
       style={{ width:"100%", backgroundColor: bgColor ?? "transparent",
         backgroundImage:`url(${src})`, backgroundSize: bgSize ?? "cover",
         backgroundPosition:"center", backgroundRepeat:"no-repeat",
-        borderRadius: 12, overflow: "hidden",
-        boxShadow: "0 4px 20px rgba(15,28,77,0.10)",
         cursor: hasData ? "pointer" : "not-allowed" }}
       whileHover={hasData ? { scale:1.02 } : {}}
       whileTap={hasData ? { scale:0.98 } : {}}
