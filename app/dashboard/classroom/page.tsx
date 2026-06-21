@@ -33,7 +33,7 @@ const LEFT_SUBJECTS = [
 ] as const;
 
 const RIGHT_SUBJECTS = [
-  { id: "kannada",  src: "/classroom/hindi.png",    name: "Kannada",               hasData: true  },
+  { id: "kannada",  src: "/classroom/kannada-card.png", name: "Kannada",               hasData: true  },
   { id: "social",   src: "/classroom/social.png",   name: "Social Science",        hasData: false },
   { id: "computer", src: "/classroom/computer.png", name: "Computer Applications", hasData: false },
   { id: "biology",  src: "/classroom/biology.png",  name: "Biology",               hasData: false },
