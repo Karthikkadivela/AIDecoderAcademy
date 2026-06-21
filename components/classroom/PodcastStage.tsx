@@ -23,7 +23,8 @@
 import type { JSX } from "react";
 import { useEffect, useMemo, useReducer, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { Mic, X, Play, Pause, Send, Loader2, Radio } from "lucide-react";
+import { Mic, X, Play, Pause, Send, Loader2, Radio, SkipBack, SkipForward } from "lucide-react";
+import { createPortal } from "react-dom";
 import {
   initialStage,
   stageReducer,
@@ -259,6 +260,42 @@ export function PodcastStage({ result, onClose }: Props): JSX.Element {
     dispatch({ type: "ended" });
   }, []);
 
+  // ── Playback speed (YouTube-style), persisted across reloads ───────────────
+  const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+  const [speed, setSpeed] = useState<number>(() => {
+    if (typeof window === "undefined") return 1;
+    const v = parseFloat(localStorage.getItem("podcast-playback-speed") ?? "1");
+    return SPEEDS.includes(v) ? v : 1;
+  });
+  const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
+  const speedBtnRef = useRef<HTMLButtonElement>(null);
+  const [menuPos, setMenuPos] = useState<{ right: number; bottom: number } | null>(null);
+  const toggleSpeedMenu = useCallback(() => {
+    setSpeedMenuOpen((o) => {
+      const next = !o;
+      if (next) {
+        const r = speedBtnRef.current?.getBoundingClientRect();
+        if (r) setMenuPos({ right: window.innerWidth - r.right, bottom: window.innerHeight - r.top + 8 });
+      }
+      return next;
+    });
+  }, []);
+  const pickSpeed = useCallback((s: number) => {
+    setSpeed(s);
+    try { localStorage.setItem("podcast-playback-speed", String(s)); } catch { /* private mode */ }
+    setSpeedMenuOpen(false);
+  }, []);
+  // Apply rate to the element on change and whenever a new segment loads.
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.playbackRate = speed;
+  }, [speed, seg?.audioUrl]);
+
+  // ── Line-based skip (fits the per-segment audio model) ─────────────────────
+  const goToLine = useCallback((index: number) => {
+    setPlaying(true);
+    dispatch({ type: "seek", index });
+  }, []);
+
   // Words of the current line. ALL render at once (no layout shift); the reveal
   // is purely visual via opacity, clipped by revealCount (Febucci/TMP model).
   const words = useMemo(
@@ -281,7 +318,12 @@ export function PodcastStage({ result, onClose }: Props): JSX.Element {
     if (revealAll) return;
     const el = audioRef.current;
     const total = words.length;
-    if (!el || !total || !isFinite(el.duration) || el.duration <= 0) return;
+    if (!el || !total) return;
+    // Some streamed MP3s report duration as Infinity/NaN in Chrome until the
+    // whole clip is buffered. Without a usable duration we can't word-sync — so
+    // reveal the entire line immediately rather than leaving the caption blank
+    // for the whole turn. Karaoke reveal still runs whenever duration is known.
+    if (!isFinite(el.duration) || el.duration <= 0) { setRevealAll(true); return; }
     const progress = el.currentTime / el.duration;
     setRevealCount(Math.min(total, Math.ceil(progress * total)));
   }, [revealAll, words.length]);
@@ -611,12 +653,14 @@ export function PodcastStage({ result, onClose }: Props): JSX.Element {
             <span aria-hidden className="absolute right-3 bottom-3" style={{ width: 14, height: 14, borderRight: `2px solid ${GOLD}`, borderBottom: `2px solid ${GOLD}`, opacity: 0.7 }} />
 
             <div className="min-h-[68px] flex items-center">
-              <AnimatePresence mode="wait">
+              {/* No AnimatePresence "wait" here: a fast prev/next skip jumps the
+                  line index mid-exit, the exit-complete callback races, and the
+                  caption freezes on a stale line while audio + counter advance.
+                  The keyed motion.p remounts per line and still fades in. */}
                 <motion.p
                   key={`${state.phase}-${state.index}-${state.interIndex}`}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
                   transition={{ duration: 0.3, ease: EASE }}
                   onClick={onLineTap}
                   title={
@@ -651,11 +695,19 @@ export function PodcastStage({ result, onClose }: Props): JSX.Element {
                           </span>
                         ))}
                 </motion.p>
-              </AnimatePresence>
             </div>
 
             {/* Controls row */}
-            <div className="mt-4 flex items-center gap-3">
+            <div className="mt-4 flex items-center gap-2 sm:gap-3">
+              <button
+                onClick={() => goToLine(state.index - 1)}
+                disabled={interjecting || state.index <= 0}
+                aria-label="Previous line"
+                className="grid place-items-center rounded-full transition-all active:scale-95 disabled:opacity-35 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7dd3fc]"
+                style={{ width: 36, height: 36, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.16)", color: TEXT_HI }}
+              >
+                <SkipBack size={16} />
+              </button>
               <button
                 onClick={togglePlay}
                 disabled={finished}
@@ -670,6 +722,16 @@ export function PodcastStage({ result, onClose }: Props): JSX.Element {
                 }}
               >
                 {playing ? <Pause size={19} /> : <Play size={19} style={{ marginLeft: 2 }} />}
+              </button>
+
+              <button
+                onClick={() => goToLine(state.index + 1)}
+                disabled={interjecting || state.index >= state.episode.length - 1}
+                aria-label="Next line"
+                className="grid place-items-center rounded-full transition-all active:scale-95 disabled:opacity-35 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7dd3fc]"
+                style={{ width: 36, height: 36, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.16)", color: TEXT_HI }}
+              >
+                <SkipForward size={16} />
               </button>
 
               {/* Progress / status */}
@@ -713,6 +775,76 @@ export function PodcastStage({ result, onClose }: Props): JSX.Element {
                   )}
                 </div>
               </div>
+
+              {/* Playback speed — menu portaled to <body> to escape the
+                  dialogue box's overflow-hidden + backdrop-filter clip. */}
+              <div className="relative">
+                <button
+                  ref={speedBtnRef}
+                  onClick={toggleSpeedMenu}
+                  aria-label={`Playback speed, currently ${speed}x`}
+                  aria-haspopup="menu"
+                  aria-expanded={speedMenuOpen}
+                  className="grid place-items-center rounded-full transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7dd3fc]"
+                  style={{
+                    height: 36,
+                    minWidth: 48,
+                    padding: "0 10px",
+                    background: "rgba(255,255,255,0.06)",
+                    border: `1px solid ${speedMenuOpen ? GOLD : "rgba(255,255,255,0.16)"}`,
+                    color: speed !== 1 ? GOLD_SOFT : TEXT_HI,
+                    fontFamily: "var(--font-jetbrains-mono, monospace)",
+                    fontSize: 12,
+                    fontWeight: 600,
+                  }}
+                >
+                  {speed}×
+                </button>
+              </div>
+              {speedMenuOpen && menuPos && typeof document !== "undefined" &&
+                createPortal(
+                  <>
+                    <button
+                      aria-hidden
+                      tabIndex={-1}
+                      onClick={() => setSpeedMenuOpen(false)}
+                      className="fixed inset-0 z-[88] cursor-default"
+                      style={{ background: "transparent" }}
+                    />
+                    <div
+                      role="menu"
+                      aria-label="Playback speed"
+                      className="fixed z-[89] rounded-xl overflow-hidden"
+                      style={{
+                        bottom: menuPos.bottom,
+                        right: menuPos.right,
+                        minWidth: 96,
+                        background: "#0b1226",
+                        border: "1px solid rgba(255,255,255,0.14)",
+                        boxShadow: "0 12px 32px rgba(0,0,0,0.55)",
+                      }}
+                    >
+                      {SPEEDS.map((s) => (
+                        <button
+                          key={s}
+                          role="menuitemradio"
+                          aria-checked={s === speed}
+                          onClick={() => pickSpeed(s)}
+                          className="w-full text-left px-3 py-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7dd3fc]"
+                          style={{
+                            background: s === speed ? "rgba(224,177,76,0.16)" : "transparent",
+                            color: s === speed ? GOLD_SOFT : TEXT_HI,
+                            fontFamily: "var(--font-jetbrains-mono, monospace)",
+                            fontSize: 12,
+                          }}
+                        >
+                          {s}×{s === 1 ? "  Normal" : ""}
+                        </button>
+                      ))}
+                    </div>
+                  </>,
+                  document.body,
+                )}
 
               {/* Mic button */}
               <button

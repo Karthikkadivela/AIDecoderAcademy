@@ -16,7 +16,9 @@ export async function buildInterjectionTurns(inp: InterjectInput): Promise<Turn[
     `You are scripting a SHORT detour in a kids' (ages 11-16) podcast about "${inp.topic}". ` +
     `HOST = Bhavna (warm teacher). GUEST = ${inp.persona.name}, a ${inp.persona.archetype} ` +
     `(${inp.persona.personality}). A young listener just asked a question. ` +
-    `Write 2-4 turns where BOTH Bhavna and the guest answer it simply and kindly, ` +
+    `Write 2-4 turns where BOTH Bhavna and the guest answer it simply and kindly. ` +
+    `Make it feel like a conversation, not a Q&A break: the guest can turn it back to the listener ` +
+    `("What do YOU think about that?"), or the host can give a one-line recap ("So we just learned X and Y!"). ` +
     `THEN exactly ONE final "bridge-back" turn (speaker: "host") that playfully steers back to the show. ` +
     `The bridge-back turn MUST contain one of these phrases: "anyway", "where were we", "back to", or "resume". ` +
     `Example bridge-back: "Anyway, where were we? Ah yes — let's dive back in!" ` +

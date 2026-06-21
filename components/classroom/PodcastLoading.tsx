@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
+import { X } from "lucide-react";
 import { personaPortrait, GENERIC_PORTRAIT } from "@/lib/podcastPortraits";
 
 export interface LoadProgress {
@@ -40,9 +41,25 @@ const FACTS = [
   "Your ears never switch off — they keep working even while you sleep.",
 ];
 
-export function PodcastLoading({ progress }: { progress: LoadProgress }) {
+export function PodcastLoading({
+  progress,
+  onCancel,
+  onRetry,
+}: {
+  progress: LoadProgress;
+  onCancel?: () => void;
+  onRetry?: () => void;
+}) {
   const reduced = useReducedMotion();
   const isError = progress.stage === "error";
+
+  // Esc cancels an in-flight recording (mirrors the top-right Cancel button).
+  useEffect(() => {
+    if (!onCancel) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCancel(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel]);
   const curIdx = ORDER.indexOf(isError ? "persona" : progress.stage);
   const recording = progress.stage === "tts" && !!progress.total;
   const pct = recording
@@ -91,6 +108,20 @@ export function PodcastLoading({ progress }: { progress: LoadProgress }) {
         className="absolute inset-0 pointer-events-none"
         style={{ boxShadow: "inset 0 0 200px 50px rgba(0,0,0,0.6)" }}
       />
+
+      {/* Cancel — true-aborts the recording (Esc also triggers). Hidden on the
+          error state, where the footer's Close handles dismissal. */}
+      {!isError && onCancel && (
+        <button
+          type="button"
+          onClick={onCancel}
+          aria-label="Cancel podcast recording"
+          className="group absolute top-4 right-4 z-10 grid place-items-center w-9 h-9 rounded-full border border-[rgba(255,255,255,0.14)] text-white/70 transition-all duration-200 hover:text-[#E0B14C] hover:border-[#E0B14C] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7dd3fc]"
+          style={{ background: "rgba(0,0,0,0.5)" }}
+        >
+          <X size={18} />
+        </button>
+      )}
 
       {/* ON AIR chip */}
       <div
@@ -295,8 +326,35 @@ export function PodcastLoading({ progress }: { progress: LoadProgress }) {
       )}
 
       {isError && (
-        <div className="text-red-400 text-sm">
-          {progress.message ?? "Something went wrong."}
+        <div className="flex flex-col items-center gap-3">
+          <div className="text-white/80 text-sm">
+            {progress.message ?? "Something went wrong."}
+          </div>
+          <div className="flex items-center gap-3">
+            {onRetry && (
+              <button
+                type="button"
+                onClick={onRetry}
+                className="px-5 py-2 rounded-full text-sm font-semibold text-[#231803] transition-all duration-200 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7dd3fc]"
+                style={{
+                  background: `linear-gradient(90deg, ${GOLD}, ${GOLD_SOFT})`,
+                  boxShadow: `0 4px 18px ${GOLD_GLOW}`,
+                }}
+              >
+                Try again
+              </button>
+            )}
+            {onCancel && (
+              <button
+                type="button"
+                onClick={onCancel}
+                className="px-5 py-2 rounded-full text-sm font-medium text-white/80 border border-[rgba(255,255,255,0.16)] transition-all duration-200 hover:text-white hover:border-[rgba(255,255,255,0.32)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7dd3fc]"
+                style={{ background: "rgba(255,255,255,0.05)" }}
+              >
+                Close
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

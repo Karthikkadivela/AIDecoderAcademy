@@ -15,7 +15,8 @@ export type StageAction =
   | { type: "ended" }
   | { type: "interrupt" }
   | { type: "interjection"; segments: Segment[] }
-  | { type: "cancelInterrupt" };
+  | { type: "cancelInterrupt" }
+  | { type: "seek"; index: number };
 
 export function initialStage(episode: Segment[]): StageState {
   return { episode, index: 0, phase: "episode", resumeIndex: 0, interjection: [], interIndex: 0 };
@@ -33,6 +34,12 @@ export function stageReducer(s: StageState, a: StageAction): StageState {
       return { ...s, phase: "interrupting", resumeIndex: s.index };
     case "cancelInterrupt":
       return { ...s, phase: "episode" };
+    case "seek": {
+      // Line-based skip: jump to a clamped episode index, leave any interjection.
+      const max = s.episode.length - 1;
+      const index = Math.max(0, Math.min(max, a.index));
+      return { ...s, phase: "episode", index, interjection: [], interIndex: 0 };
+    }
     case "interjection":
       return { ...s, phase: "interjection", interjection: a.segments, interIndex: 0 };
     case "ended": {
