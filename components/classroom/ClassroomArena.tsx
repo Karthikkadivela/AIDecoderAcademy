@@ -170,6 +170,14 @@ export function ClassroomArena({ chapter, onBack }: Props) {
       .catch(() => {});
   }, [chapter.chapter_title]);
 
+  // Tell the floating Bhavna standee (TeacherCharacter) to stand down while a
+  // podcast is generating OR playing — otherwise its idle nudge bubble fires and
+  // speaks over the episode audio. Mirrors the validator-panel-open pattern.
+  useEffect(() => {
+    const active = !!podcast || !!podcastProgress;
+    window.dispatchEvent(new Event(active ? "podcast-open" : "podcast-close"));
+  }, [podcast, podcastProgress]);
+
   // Sends to the dedicated classroom chat route (NOT /api/chat)
   const sendMessage = useCallback(async (text: string) => {
     if (!profile || isStreaming || !text.trim()) return;
@@ -394,19 +402,16 @@ export function ClassroomArena({ chapter, onBack }: Props) {
         if (data?.creation?.id) {
           setSavedItems(prev => prev.map(item => item.id === tempId ? { ...item, id: data.creation.id } : item));
           // Lightweight save confirmation for the podcast: a transient Bhavna
-          // bubble (voiced, mute-respecting) that auto-clears after 3s — reuses
-          // the existing chat/voice path, no toast library.
+          // bubble that auto-clears after 3s. NOT voiced: the save fires exactly
+          // as the podcast stage opens and starts playing, so speaking would talk
+          // over the episode — and the bubble sits behind the fullscreen stage
+          // anyway, so the student sees it only after they close the stage.
           if (kind === "podcast") {
             const bubbleId = crypto.randomUUID();
             const line = "Saved that one for you!";
             setMessages(prev => [...prev, {
               id: bubbleId, role: "assistant", content: line, outputType: "text", createdAt: new Date(),
             }]);
-            const muted = typeof window !== "undefined" && localStorage.getItem(HINT_AUDIO_KEY) === "off";
-            if (!muted) {
-              const c = new AbortController();
-              speakBhavna(line, c.signal).catch(() => { /* autoplay block / abort — silent */ });
-            }
             setTimeout(() => setMessages(prev => prev.filter(m => m.id !== bubbleId)), 3000);
           }
         }

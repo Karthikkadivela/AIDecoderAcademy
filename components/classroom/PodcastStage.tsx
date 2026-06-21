@@ -43,6 +43,11 @@ const GUEST_GLOW = "rgba(155,208,255,0.55)";
 const TEXT_HI    = "#F4ECD7";
 const TEXT_MID   = "rgba(244,236,215,0.72)";
 const EASE = [0.16, 1, 0.3, 1] as const;
+// Fallback speaking rate for word-by-word caption reveal when the audio clip's
+// duration is unknown (CDN-streamed MP3s report Infinity/NaN on Vercel). Tuned
+// to typical TTS pace (~150 wpm) so words track the voice instead of dumping
+// the whole line at once.
+const WORDS_PER_SECOND = 2.5;
 const BHAVNA_SRC = "/classroom/teacher-bhavna.png";
 
 export interface PodcastStageResult {
@@ -319,12 +324,16 @@ export function PodcastStage({ result, onClose }: Props): JSX.Element {
     const el = audioRef.current;
     const total = words.length;
     if (!el || !total) return;
-    // Some streamed MP3s report duration as Infinity/NaN in Chrome until the
-    // whole clip is buffered. Without a usable duration we can't word-sync — so
-    // reveal the entire line immediately rather than leaving the caption blank
-    // for the whole turn. Karaoke reveal still runs whenever duration is known.
-    if (!isFinite(el.duration) || el.duration <= 0) { setRevealAll(true); return; }
-    const progress = el.currentTime / el.duration;
+    // Reveal words in time with the voice off the audio's own clock. currentTime
+    // always advances, even when a CDN-streamed MP3 reports duration as
+    // Infinity/NaN (as on Vercel) — in that case we estimate the line length from
+    // the word count so the karaoke still tracks speech instead of dumping the
+    // whole line at once. currentTime/duration are both in media-time, so this
+    // stays correct at any playback speed.
+    const dur = isFinite(el.duration) && el.duration > 0
+      ? el.duration
+      : total / WORDS_PER_SECOND;
+    const progress = el.currentTime / dur;
     setRevealCount(Math.min(total, Math.ceil(progress * total)));
   }, [revealAll, words.length]);
 
