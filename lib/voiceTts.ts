@@ -36,19 +36,6 @@ interface SpeakOpts {
   onStart?: () => void;
 }
 
-let sharedCtx: AudioContext | null = null;
-function getCtx(): AudioContext | null {
-  if (typeof window === "undefined") return null;
-  const AC = window.AudioContext
-    ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!AC) return null;
-  if (!sharedCtx) {
-    try { sharedCtx = new AC(); } catch { return null; }
-  }
-  if (sharedCtx.state === "suspended") sharedCtx.resume().catch(() => { /* */ });
-  return sharedCtx;
-}
-
 function b64ToBytes(b64: string): Uint8Array {
   const bin = atob(b64);
   const out = new Uint8Array(bin.length);
@@ -68,35 +55,26 @@ export function speak(text: string, opts: SpeakOpts = {}): SpeakHandle {
   let resolveDone!: () => void;
   const done = new Promise<void>((r) => { resolveDone = r; });
 
-  // ── Amplitude graph (orb) ────────────────────────────────────────────────
+  // Orb amplitude — driven SYNTHETICALLY while the audio is playing. We do NOT
+  // route the <audio> element through a Web Audio AnalyserNode: that capture
+  // (createMediaElementSource) redirects the element's output into the audio
+  // graph, and if the AudioContext is suspended the result is total silence.
+  // Reliable playback matters more than a true waveform, so the element plays
+  // straight to the speakers and the orb pulses from a lively oscillator.
   let raf = 0;
-  let analyser: AnalyserNode | null = null;
-  let srcNode: MediaElementAudioSourceNode | null = null;
-  const ctx = opts.onAmplitude ? getCtx() : null;
-  if (ctx) {
-    try {
-      srcNode  = ctx.createMediaElementSource(audio);
-      analyser = ctx.createAnalyser();
-      analyser.fftSize = 256;
-      srcNode.connect(analyser);
-      analyser.connect(ctx.destination); // also routes sound to the speaker
-      const buf = new Uint8Array(analyser.frequencyBinCount);
-      const tick = () => {
-        if (stopped || !analyser) return;
-        analyser.getByteTimeDomainData(buf);
-        let sum = 0;
-        for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v; }
-        const rms = Math.sqrt(sum / buf.length);
-        opts.onAmplitude?.(Math.min(1, rms * 3));
-        raf = requestAnimationFrame(tick);
-      };
-      raf = requestAnimationFrame(tick);
-    } catch {
-      // createMediaElementSource throws if the element is already routed —
-      // give up on amplitude; audio still plays directly.
-      analyser = null; srcNode = null;
+  let playing = false;
+  let phase = 0;
+  const animate = () => {
+    if (stopped) return;
+    if (playing && opts.onAmplitude) {
+      phase += 0.09;
+      const a = 0.4 + 0.22 * Math.sin(phase * 7) + 0.16 * Math.sin(phase * 13)
+        + (Math.random() - 0.5) * 0.12;
+      opts.onAmplitude(Math.max(0.05, Math.min(1, a)));
     }
-  }
+    raf = requestAnimationFrame(animate);
+  };
+  if (opts.onAmplitude) raf = requestAnimationFrame(animate);
 
   const cleanup = () => {
     if (stopped) return;
@@ -105,15 +83,14 @@ export function speak(text: string, opts: SpeakOpts = {}): SpeakHandle {
     try { opts.onAmplitude?.(0); } catch { /* */ }
     try { abort.abort(); } catch { /* */ }
     try { audio.pause(); } catch { /* */ }
-    try { srcNode?.disconnect(); } catch { /* */ }
-    try { analyser?.disconnect(); } catch { /* */ }
     if (audio.src.startsWith("blob:")) { try { URL.revokeObjectURL(audio.src); } catch { /* */ } }
     resolveDone();
   };
 
-  audio.onended = cleanup;
-  audio.onerror = cleanup;
-  if (opts.onStart) audio.onplaying = () => { opts.onStart?.(); };
+  audio.onended  = cleanup;
+  audio.onerror  = cleanup;
+  audio.onpause  = () => { playing = false; };
+  audio.onplaying = () => { playing = true; opts.onStart?.(); };
 
   if (!clean) { cleanup(); return { stop: cleanup, done }; }
 

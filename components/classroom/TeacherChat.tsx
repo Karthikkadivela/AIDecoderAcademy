@@ -425,17 +425,10 @@ export function TeacherChat({ profile, chapterTitle, onClose, onSpeakingChange, 
         </button>
       </div>
 
-      {/* ── Messages ── */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3" style={{ scrollbarWidth: "thin" }}>
+      {/* ── Messages (hidden in voice mode — the orb fills the panel) ── */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3"
+        style={{ scrollbarWidth: "thin", display: io === "voice" ? "none" : undefined }}>
         <style>{TC_MD_CSS}</style>
-        {io === "voice" && (
-          <div className="flex flex-col items-center justify-center h-full gap-3 opacity-70 pointer-events-none text-center px-6">
-            <span className="text-2xl">🎧</span>
-            <p className="text-[12px] leading-relaxed" style={{ color: "rgba(244,236,215,0.6)" }}>
-              Voice mode — just talk to Ms. Bhavna.<br />Tap the orb below to start.
-            </p>
-          </div>
-        )}
         {io !== "voice" && messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
             <div
@@ -554,25 +547,27 @@ function VoicePanel({
   const TEXT_LO  = "rgba(244,236,215,0.50)";
 
   return (
-    <div className="px-3 py-4 flex flex-col items-center gap-2.5 border-t border-white/[0.08] flex-shrink-0"
+    <div className="flex-1 min-h-0 px-3 py-3 flex flex-col items-center justify-center gap-3"
       style={{ background: "rgba(0,0,0,0.18)" }}>
 
-      {/* Orb is the button: tap to start / stop the live call. */}
+      {/* The orb fills the panel and is the button: tap to start / stop. */}
       <button
         onClick={toggleLive}
         disabled={liveState === "arming"}
         aria-label={active ? "Stop" : "Start talking to Bhavna"}
         className="rounded-full transition-transform active:scale-95 disabled:opacity-70"
         style={{ lineHeight: 0 }}>
-        <VoiceOrb variant="bhavna" size={128} amplitude={orbAmp} state={orbState} />
+        <VoiceOrb variant="bhavna" size={248} amplitude={orbAmp} state={orbState} />
       </button>
 
-      <p className="text-[11px] h-4" style={{ color: TEXT_MID }}>{liveLabel[liveState] ?? ""}</p>
+      <p className="text-[12px]" style={{ color: TEXT_MID }}>
+        {active ? (liveLabel[liveState] ?? "") : "Tap the orb to start 🎧"}
+      </p>
 
-      {/* Mandatory mic-live indicator + stop + mute. */}
-      <div className="flex items-center gap-2">
-        {active && (
-          <>
+      {/* During a call only: mic-live indicator, stop, mute, type-fallback. */}
+      {active && (
+        <div className="flex flex-col items-center gap-2">
+          <div className="flex items-center gap-2">
             <span className="flex items-center gap-1.5 text-[10px]" style={{ color: GOLD }}>
               <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: GOLD }} />
               Mic is live
@@ -583,51 +578,45 @@ function VoicePanel({
               style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.14)", color: TEXT_HI }}>
               <PhoneOff size={11} /> Stop
             </button>
-          </>
-        )}
-        <button
-          onClick={toggleMute}
-          title={muted ? "Unmute Bhavna" : "Mute Bhavna"}
-          aria-label={muted ? "Unmute Bhavna" : "Mute Bhavna"}
-          className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
-          style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${muted ? GOLD : "rgba(255,255,255,0.12)"}` }}>
-          {muted ? <VolumeX size={14} color={TEXT_HI} /> : <Volume2 size={14} color={TEXT_HI} />}
-        </button>
-      </div>
+            <button
+              onClick={toggleMute}
+              title={muted ? "Unmute Bhavna" : "Mute Bhavna"}
+              aria-label={muted ? "Unmute Bhavna" : "Mute Bhavna"}
+              className="w-7 h-7 rounded-full flex items-center justify-center transition-colors"
+              style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${muted ? GOLD : "rgba(255,255,255,0.12)"}` }}>
+              {muted ? <VolumeX size={13} color={TEXT_HI} /> : <Volume2 size={13} color={TEXT_HI} />}
+            </button>
+          </div>
 
-      {/* "or type instead" — fallback when STT keeps failing. */}
-      <button
-        onClick={() => setTypeOpen(v => !v)}
-        className="text-[10px] underline underline-offset-2 transition-colors"
-        style={{ color: TEXT_LO }}>
-        {typeOpen ? "hide keyboard" : "or type instead"}
-      </button>
-      {typeOpen && (
-        <div className="w-full flex gap-2 items-center">
-          <input
-            value={typeInput}
-            onChange={e => setTypeInput(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === "Enter" && typeInput.trim() && !streaming) {
-                onSend(typeInput.trim());
-                setTypeInput("");
-              }
-            }}
-            placeholder="Type your message…"
-            disabled={streaming}
-            className="flex-1 bg-transparent outline-none text-[12.5px] px-3 py-1.5 rounded-lg"
-            style={{ border: `1px solid rgba(255,255,255,0.12)`, color: TEXT_HI, background: "rgba(255,255,255,0.04)" }}
-          />
-          <button
-            onClick={() => { if (typeInput.trim()) { onSend(typeInput.trim()); setTypeInput(""); } }}
-            disabled={streaming || !typeInput.trim()}
-            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-            style={{
-              background: typeInput.trim() && !streaming ? GOLD : "rgba(255,255,255,0.06)",
-              opacity: (streaming || !typeInput.trim()) ? 0.5 : 1,
-            }}>
-            <Send size={13} color={typeInput.trim() && !streaming ? "#2a1c00" : TEXT_HI} />
-          </button>
+          {!typeOpen ? (
+            <button
+              onClick={() => setTypeOpen(true)}
+              className="text-[10px] underline underline-offset-2"
+              style={{ color: TEXT_LO }}>
+              or type instead
+            </button>
+          ) : (
+            <div className="flex gap-2 items-center" style={{ width: 260 }}>
+              <input
+                value={typeInput}
+                onChange={e => setTypeInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === "Enter" && typeInput.trim() && !streaming) { onSend(typeInput.trim()); setTypeInput(""); }
+                }}
+                placeholder="Type your message…"
+                disabled={streaming}
+                className="flex-1 bg-transparent outline-none text-[12px] px-3 py-1.5 rounded-lg"
+                style={{ border: `1px solid rgba(255,255,255,0.12)`, color: TEXT_HI, background: "rgba(255,255,255,0.04)" }}
+              />
+              <button
+                onClick={() => { if (typeInput.trim()) { onSend(typeInput.trim()); setTypeInput(""); } }}
+                disabled={streaming || !typeInput.trim()}
+                className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+                style={{ background: typeInput.trim() && !streaming ? GOLD : "rgba(255,255,255,0.06)", opacity: (streaming || !typeInput.trim()) ? 0.5 : 1 }}>
+                <Send size={12} color={typeInput.trim() && !streaming ? "#2a1c00" : TEXT_HI} />
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

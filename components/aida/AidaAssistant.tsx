@@ -1347,9 +1347,10 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
         </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3" style={{ scrollbarWidth: "none" }}>
-        {(messages.length === 0 || mode === "voice") && (
+      {/* Messages (hidden in voice mode — the orb fills the panel) */}
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3"
+        style={{ scrollbarWidth: "none", display: mode === "voice" ? "none" : undefined }}>
+        {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full gap-3 opacity-60 pointer-events-none">
             <span className="text-3xl">✦</span>
             <p className="text-xs text-white/55 text-center font-medium leading-relaxed">
@@ -1564,16 +1565,14 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
         </div>
       )}
 
-      {/* ── Voice panel — pure-audio LIVE mode (AI-188) ─────────────────────
-           No tap sub-mode, no karaoke text. Just AIDA's Decoder Star orb that
-           listens, thinks, and speaks. A mic-live indicator + tap-to-stop are
-           always visible while the call is active (parents/schools). */}
+      {/* ── Voice panel — orb fills the whole panel (AI-188) ────────────────
+           Pure-audio live mode. The Decoder Star orb is the only UI element
+           except for a short label and active-call controls below it. */}
       {mode === "voice" && (
         <div
-          className="px-3 py-4 flex-shrink-0 flex flex-col items-center gap-2.5"
-          style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}
+          className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 px-3 py-4"
         >
-          {/* The orb is the button: tap to start / stop the live call. */}
+          {/* Orb fills the box — tap to start or stop */}
           <button
             onClick={toggleLiveCall}
             disabled={liveVoice.state === "arming"}
@@ -1583,22 +1582,21 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
           >
             <VoiceOrb
               variant="aida"
-              size={132}
+              size={240}
               amplitude={orbAmp}
               state={
                 liveVoice.state === "idle" || liveVoice.state === "arming" ? "idle" :
                 liveVoice.state === "llm-thinking"                          ? "thinking" :
                 liveVoice.state === "ai-speaking"                           ? "speaking" :
-                "listening" /* listening · user-speaking · awaiting-end */
+                "listening"
               }
             />
           </button>
 
-          <p className="text-[11px] text-white/60 h-4">
+          <p className="text-[11px] text-white/60 text-center">
             {voiceError ?? (liveVoice.state === "idle" ? "Tap to talk 🎧" : LIVE_LABEL[liveVoice.state])}
           </p>
 
-          {/* Mandatory mic-live indicator + explicit stop control. */}
           {liveVoice.state !== "idle" && (
             <div className="flex items-center gap-2">
               <span className="flex items-center gap-1.5 text-[10px]" style={{ color: "#7DD3FC" }}>
@@ -1614,37 +1612,6 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
               </button>
             </div>
           )}
-
-          {/* "Type instead" — fallback when STT keeps failing (offered per spec). */}
-          <div className="w-full flex items-center gap-2 mt-1">
-            <input
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === "Enter" && input.trim() && !streaming) {
-                  const t = input.trim(); setInput(""); coreSend(t);
-                }
-              }}
-              placeholder="…or type instead"
-              disabled={streaming}
-              className="flex-1 bg-transparent outline-none text-[12px] px-2.5 py-1.5 rounded-lg"
-              style={{ border: "1px solid rgba(255,255,255,0.12)", color: "#fff", background: "rgba(255,255,255,0.04)" }}
-            />
-            <button
-              onClick={() => { if (input.trim() && !streaming) { const t = input.trim(); setInput(""); coreSend(t); } }}
-              disabled={streaming || !input.trim()}
-              aria-label="Send"
-              className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-              style={{
-                background: input.trim() && !streaming
-                  ? "linear-gradient(180deg, #7DD3FC 0%, #00D4FF 50%, #0284C7 100%)"
-                  : "rgba(255,255,255,0.06)",
-                opacity: streaming || !input.trim() ? 0.5 : 1,
-              }}
-            >
-              <Send size={12} style={{ color: input.trim() && !streaming ? "#031024" : "rgba(255,255,255,0.4)" }} />
-            </button>
-          </div>
         </div>
       )}
     </>
