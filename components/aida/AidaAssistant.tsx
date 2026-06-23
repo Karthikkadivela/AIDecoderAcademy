@@ -8,6 +8,8 @@ import ReactMarkdown from "react-markdown";
 import { useWhiteboardReader, useValidatorReader, useWorksheetReader, useClassroomReader } from "@/lib/chatChannels";
 import { useLiveVoice } from "@/components/aida/voice/useLiveVoice";
 import type { LiveState } from "@/components/aida/voice/LiveVoiceSession";
+import { VoiceOrb, type OrbState } from "@/components/aida/VoiceOrb";
+import { speak as voiceSpeak, type SpeakHandle } from "@/lib/voiceTts";
 import type { Profile } from "@/types";
 import { warmVoice } from "@/lib/warmVoice";
 import { warmStt } from "@/lib/warmStt";
@@ -163,7 +165,12 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
   const [input, setInput]             = useState("");
   const [streaming, setStreaming]     = useState(false);
   const [mode, setMode]               = useState<"text" | "voice">("text");
-  const [voiceSubMode, setVoiceSubMode] = useState<VoiceSubMode>("tap");
+  // Voice mode is LIVE-only now (AI-188): pure audio + animated orb, no text,
+  // no tap sub-mode. `voiceSubMode` stays pinned to "live" so the existing
+  // live-session bridge (subModeRef checks) keeps working unchanged.
+  const [voiceSubMode] = useState<VoiceSubMode>("live");
+  // Orb amplitude 0..1, driven by the TTS AnalyserNode while AIDA speaks.
+  const [orbAmp, setOrbAmp] = useState(0);
   const [voiceState, setVoiceState]   = useState<VoiceState>("idle");
   const [streamReady, setStreamReady] = useState(false);
   const [voiceOK, setVoiceOK]         = useState(false);
@@ -280,7 +287,10 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
   const audioRef           = useRef<HTMLAudioElement | null>(null);
   const voiceStateRef      = useRef<VoiceState>("idle");
   const modeRef            = useRef<"text" | "voice">("text");
-  const subModeRef         = useRef<VoiceSubMode>("tap");
+  const subModeRef         = useRef<VoiceSubMode>("live");
+  // Active streaming-TTS handle (WebSocket player). Replaces the old chunked
+  // audio queue / karaoke machinery for spoken replies.
+  const voiceHandleRef     = useRef<SpeakHandle | null>(null);
   // Stashed partial AI response when the user interrupts mid-speech in Live mode.
   // Consumed by the next coreSend() call and forwarded to /api/aida as
   // interruptedContext (route already supports this — see app/api/aida/route.ts).
@@ -591,6 +601,8 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
     if (sttAbortRef.current) { sttAbortRef.current.abort(); sttAbortRef.current = null; }
     if (ttsAbortRef.current) { ttsAbortRef.current.abort(); ttsAbortRef.current = null; }
     abortAllTtsSentences();
+    if (voiceHandleRef.current) { try { voiceHandleRef.current.stop(); } catch {} voiceHandleRef.current = null; }
+    setOrbAmp(0);
     ++sendIdRef.current; // invalidate any in-flight coreSend stream
     ++ttsGenRef.current;
     if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
@@ -625,6 +637,8 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
 
   function abortAiResponse() {
     abortAllTtsSentences();
+    if (voiceHandleRef.current) { try { voiceHandleRef.current.stop(); } catch {} voiceHandleRef.current = null; }
+    setOrbAmp(0);
     if (ttsAbortRef.current) { ttsAbortRef.current.abort(); ttsAbortRef.current = null; }
     ++sendIdRef.current; // invalidate any in-flight coreSend stream reader
     ++ttsGenRef.current; // invalidate any in-flight playNext callbacks
@@ -755,26 +769,10 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
         full += decoder.decode(value, { stream: true });
 
         if (modeRef.current === "voice") {
-          // Voice mode: hold back text — reveal it in sync with audio playback below
-          let scan = spokenUpTo.current;
-          // Avoids splitting on "Dr.", "Mr.", "A.I." etc.
-          const rx = /(?<!(?:Mr|Mrs|Ms|Dr|Prof|Jr|Sr|St|vs|etc|approx|Fig|Vol|No))[!?]+(?:\s|$)|(?<!(?:Mr|Mrs|Ms|Dr|Prof|Jr|Sr|St|vs|etc|approx|Fig|Vol|No))\.+(?:\s+[A-Z]|\s*$)/g;
-          rx.lastIndex = scan;
-          let m: RegExpExecArray | null;
-          while ((m = rx.exec(full)) !== null) {
-            const sentenceStart = scan;
-            const sentence = full.slice(scan, m.index + m[0].length).trim();
-            const wordCount = sentence.split(/\s+/).length;
-            if (sentence.length > 3 && wordCount >= 4) {
-              spokenUpTo.current = m.index + m[0].length;
-              scan = spokenUpTo.current;
-              // precedingText = text from earlier sentences (already revealed);
-              // sentence is revealed word-by-word as its audio plays.
-              const precedingText = full.slice(0, sentenceStart);
-              setVS("speaking");
-              speakSentence(sentence, precedingText).catch(() => {});
-            }
-          }
+          // Voice mode = pure audio: don't reveal text as it streams. We wait
+          // for the full reply, then speak it once via the streaming player
+          // (orb animates; no karaoke). The orb shows "thinking" meanwhile,
+          // driven by liveVoice.state === "llm-thinking".
         } else {
           // Text mode: show immediately as it streams
           const captured = full;
@@ -789,13 +787,15 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
       if (sendIdRef.current !== myId) return;
 
       if (modeRef.current === "voice" && full.trim()) {
-        fullResponseRef.current = full; // shown as safety net once all audio finishes
-        setVS("speaking");
-        // Flush remaining text (anything after the last detected sentence boundary)
-        const tailStart = spokenUpTo.current;
-        const tail = full.slice(tailStart).trim();
-        if (tail) speakSentence(tail, full.slice(0, tailStart)).catch(() => {});
-        spokenUpTo.current = 0;
+        // Keep the text in history (for multi-turn context + a text-mode switch),
+        // but it is NOT displayed in voice mode (messages list is hidden).
+        fullResponseRef.current = full;
+        setMessages(prev => {
+          const copy = [...prev];
+          copy[copy.length - 1] = { role: "assistant", content: full };
+          return copy;
+        });
+        void speakText(full);
       }
     } catch {
       if (sendIdRef.current !== myId) return;
@@ -817,122 +817,33 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
 
   // ── TTS playback (chunked streaming — sentence-by-sentence for low latency) ─
 
+  // Pure-audio spoken reply via the ElevenLabs WebSocket streaming player
+  // (lib/voiceTts). No text/karaoke — the orb animates from live amplitude.
+  // Keeps the live-session bridge so VAD knows when AIDA is talking (barge-in).
   async function speakText(text: string) {
     const myGen = ++ttsGenRef.current;
 
-    // Abort any prior TTS request
-    if (ttsAbortRef.current) { ttsAbortRef.current.abort(); }
-    ttsAbortRef.current = new AbortController();
+    // Stop any prior playback.
+    if (voiceHandleRef.current) { try { voiceHandleRef.current.stop(); } catch {} voiceHandleRef.current = null; }
 
-    // Stop + clear any prior audio
-    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
-    clearAudioQueue();
+    if (!text.trim()) { if (voiceStateRef.current === "speaking") setVS("idle"); return; }
 
-    let streamDone  = false;
-    let firstChunk  = true;
+    setVS("speaking");
+    if (subModeRef.current === "live") liveSetAiSpeakingRef.current(true);
 
-    // Plays the next queued chunk, then recurses via onended
-    function playNext() {
-      if (ttsGenRef.current !== myGen) return; // superseded by barge-in or cleanup
-
-      const item = audioQueueRef.current.shift();
-      if (!item) {
-        audioRef.current = null;
-        // Queue empty + stream done — go back to idle so user can tap mic again
-        if (streamDone && voiceStateRef.current === "speaking") {
-          setVS("idle");
-          // Live session: tell the VAD AIDA stopped talking so a new
-          // user-speech-start no longer fires interrupt.
-          if (subModeRef.current === "live") liveSetAiSpeakingRef.current(false);
-        }
-        return;
-      }
-
-      const { audio, url } = item;
-      audioRef.current = audio;
-      // First chunk hitting playback = AIDA has started speaking. Tell the
-      // Live session so it transitions to "ai-speaking" and any subsequent
-      // VAD onSpeechStart fires interrupt instead of a normal turn.
-      if (subModeRef.current === "live") liveSetAiSpeakingRef.current(true);
-      let advanced = false;
-      const advance = () => {
-        if (advanced) return;
-        advanced = true;
-        URL.revokeObjectURL(url);
-        audioRef.current = null;
-        playNext();
-      };
-      audio.onended = advance;
-      audio.onerror = advance;
-      audio.play().catch(advance);
-    }
+    const handle = voiceSpeak(text, {
+      role: "aida",
+      onAmplitude: (lvl) => { if (ttsGenRef.current === myGen) setOrbAmp(lvl); },
+    });
+    voiceHandleRef.current = handle;
 
     try {
-      const res = await fetch("/api/aida/tts", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ text }),
-        signal:  ttsAbortRef.current.signal,
-      });
-      if (!res.ok || !res.body) throw new Error("TTS failed");
-
-      const reader  = res.body.getReader();
-      const decoder = new TextDecoder();
-      let   buf     = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (ttsGenRef.current !== myGen) break; // barge-in happened
-
-        buf += decoder.decode(value, { stream: true });
-
-        // Parse SSE frames
-        const frames = buf.split("\n\n");
-        buf = frames.pop() ?? "";
-
-        for (const frame of frames) {
-          const line = frame.trim();
-          if (!line.startsWith("data: ")) continue;
-          const data = line.slice(6);
-          if (data === "[DONE]") { streamDone = true; continue; }
-
-          // base64 → Blob → Audio element, queued for playback
-          const bin   = atob(data);
-          const bytes = new Uint8Array(bin.length);
-          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-          const blob  = new Blob([bytes], { type: "audio/mpeg" });
-          const url   = URL.createObjectURL(blob);
-          const audio = new Audio(url);
-
-          audioQueueRef.current.push({ audio, url });
-
-          if (firstChunk) {
-            firstChunk = false;
-            playNext(); // start playing immediately — no waiting for full response
-          }
-        }
-      }
-
-      streamDone = true;
-
-      if (ttsGenRef.current !== myGen) return;
-
-      // Edge cases after stream ends:
-      // 1) Queue has chunks but playback never started (e.g. [DONE] arrived before any chunk
-      //    triggered firstChunk's playNext) — kick playback now
-      if (!audioRef.current && audioQueueRef.current.length > 0) {
-        playNext();
-        return;
-      }
-      // 2) Nothing playing and queue empty — done speaking
-      if (!audioRef.current && audioQueueRef.current.length === 0) {
+      await handle.done;
+    } finally {
+      if (ttsGenRef.current === myGen) {
+        setOrbAmp(0);
+        if (voiceHandleRef.current === handle) voiceHandleRef.current = null;
         if (voiceStateRef.current === "speaking") setVS("idle");
-      }
-    } catch (err) {
-      if ((err as Error)?.name === "AbortError") return;
-      if (ttsGenRef.current === myGen && voiceStateRef.current === "speaking") {
-        setVS("idle");
         if (subModeRef.current === "live") liveSetAiSpeakingRef.current(false);
       }
     }
@@ -1274,15 +1185,6 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
     setMode(m);
   }
 
-  function switchVoiceSubMode(s: VoiceSubMode) {
-    if (s === voiceSubMode) return;
-    // Switching sub-modes always returns voice to a clean idle state — kill
-    // whichever engine was active.
-    cleanupVoice();
-    void liveVoice.stop();
-    setVoiceSubMode(s);
-  }
-
   async function toggleLiveCall() {
     if (liveVoice.state === "idle") {
       await liveVoice.start();
@@ -1456,19 +1358,19 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3" style={{ scrollbarWidth: "none" }}>
-        {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full gap-3 opacity-50 pointer-events-none">
+        {(messages.length === 0 || mode === "voice") && (
+          <div className="flex flex-col items-center justify-center h-full gap-3 opacity-60 pointer-events-none">
             <span className="text-3xl">✦</span>
-            <p className="text-xs text-white/50 text-center font-medium leading-relaxed">
+            <p className="text-xs text-white/55 text-center font-medium leading-relaxed">
               Hi {profile?.display_name?.split(" ")[0] ?? "there"}!<br />
               {mode === "voice"
-                ? "Tap the mic below to start talking."
+                ? "Voice mode — just talk to me.\nTap the star below to start."
                 : "Ask me anything — about this page,\nyour creations, or anything at all."}
             </p>
           </div>
         )}
 
-        {messages.map((msg, i) => {
+        {mode !== "voice" && messages.map((msg, i) => {
           // Inline thought-bubble nudge — visually distinct: italic, dimmer,
           // dashed border, 💭 prefix. Tinted by nudgeKind: stray = amber,
           // progress = cyan, encourage = neutral.
@@ -1671,147 +1573,87 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
         </div>
       )}
 
-      {/* ── Voice panel ─────────────────────────────────────────────────── */}
+      {/* ── Voice panel — pure-audio LIVE mode (AI-188) ─────────────────────
+           No tap sub-mode, no karaoke text. Just AIDA's Decoder Star orb that
+           listens, thinks, and speaks. A mic-live indicator + tap-to-stop are
+           always visible while the call is active (parents/schools). */}
       {mode === "voice" && (
         <div
-          className="px-3 py-3 flex-shrink-0 flex flex-col items-center gap-2"
+          className="px-3 py-4 flex-shrink-0 flex flex-col items-center gap-2.5"
           style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}
         >
-          <div className="flex items-center gap-0.5 rounded-lg p-0.5" style={{ background: "rgba(255,255,255,0.06)" }}>
-            <button
-              onClick={() => switchVoiceSubMode("tap")}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] transition-all duration-200"
-              style={voiceSubMode === "tap"
-                ? { background: "rgba(124,58,237,0.45)", color: "#fff" }
-                : { color: "rgba(255,255,255,0.38)" }}
-            >
-              <Mic size={9} />
-              Tap
-            </button>
-            <button
-              onClick={() => switchVoiceSubMode("live")}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] transition-all duration-200"
-              style={voiceSubMode === "live"
-                ? { background: "linear-gradient(135deg,#7C3AED,#FF2D78)", color: "#fff" }
-                : { color: "rgba(255,255,255,0.38)" }}
-            >
-              <Radio size={9} />
-              Live
-            </button>
-          </div>
+          {/* The orb is the button: tap to start / stop the live call. */}
+          <button
+            onClick={toggleLiveCall}
+            disabled={liveVoice.state === "arming"}
+            aria-label={liveVoice.state === "idle" ? "Start talking to AIDA" : "Stop"}
+            className="relative rounded-full transition-transform duration-300 active:scale-95 disabled:opacity-70"
+            style={{ lineHeight: 0 }}
+          >
+            <VoiceOrb
+              variant="aida"
+              size={132}
+              amplitude={orbAmp}
+              state={
+                liveVoice.state === "idle" || liveVoice.state === "arming" ? "idle" :
+                liveVoice.state === "llm-thinking"                          ? "thinking" :
+                liveVoice.state === "ai-speaking"                           ? "speaking" :
+                "listening" /* listening · user-speaking · awaiting-end */
+              }
+            />
+          </button>
 
-          {voiceSubMode === "tap" && (
-            <>
-              <p className="text-[10px] h-3" style={{ color: voiceError ? "#FF6B6B" : "rgba(255,255,255,0.4)" }}>
-                {voiceError ?? VOICE_LABEL[voiceState]}
-              </p>
+          <p className="text-[11px] text-white/60 h-4">
+            {voiceError ?? (liveVoice.state === "idle" ? "Tap to talk 🎧" : LIVE_LABEL[liveVoice.state])}
+          </p>
 
-              <canvas
-                ref={vizCanvasRef}
-                width={160}
-                height={32}
-                style={{
-                  opacity:    voiceState === "listening" ? 1 : 0,
-                  transition: "opacity 0.4s ease",
-                  display:    "block",
-                }}
-              />
-
-              <div className="flex items-center gap-4">
-                <div className="w-8 h-8" />
-
-                <button
-                  onClick={toggleVoiceSession}
-                  disabled={voiceState === "processing"}
-                  className="relative w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300 active:scale-90 disabled:opacity-50"
-                  style={{
-                    background: voiceState === "idle"
-                      ? "rgba(255,255,255,0.08)"
-                      : "linear-gradient(135deg, #7C3AED, #FF2D78)",
-                    boxShadow: voiceState !== "idle"
-                      ? "0 0 28px rgba(124,58,237,0.55)"
-                      : "none",
-                  }}
-                >
-                  {voicePulse && (
-                    <>
-                      <span className="absolute inset-0 rounded-full animate-ping"
-                        style={{ background: "rgba(124,58,237,0.22)", animationDuration: "1.4s" }} />
-                      <span className="absolute rounded-full animate-ping"
-                        style={{ inset: -7, background: "rgba(124,58,237,0.10)", animationDuration: "2.1s", animationDelay: "0.3s" }} />
-                    </>
-                  )}
-                  {voiceState === "speaking" ? (
-                    <span className="text-xl select-none">✦</span>
-                  ) : voiceState === "listening" ? (
-                    <Square size={18} className="text-white" fill="white" />
-                  ) : (
-                    <Mic size={20} className={voiceState === "idle" ? "text-white/50" : "text-white"} />
-                  )}
-                </button>
-
-                {voiceState === "listening" ? (
-                  <button
-                    onClick={e => { e.stopPropagation(); cancelRecording(); }}
-                    className="w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90"
-                    style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)" }}
-                    title="Cancel recording"
-                  >
-                    <X size={13} className="text-white/50" />
-                  </button>
-                ) : (
-                  <div className="w-8 h-8" />
-                )}
-              </div>
-
-              {voiceState === "speaking" && (
-                <p className="text-[9px] text-white/25">tap to stop</p>
-              )}
-            </>
-          )}
-
-          {voiceSubMode === "live" && (
-            <>
-              <p className="text-[10px] text-white/55 h-3">{LIVE_LABEL[liveVoice.state]}</p>
-
+          {/* Mandatory mic-live indicator + explicit stop control. */}
+          {liveVoice.state !== "idle" && (
+            <div className="flex items-center gap-2">
+              <span className="flex items-center gap-1.5 text-[10px]" style={{ color: "#7DD3FC" }}>
+                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#00D4FF" }} />
+                Mic is live
+              </span>
               <button
                 onClick={toggleLiveCall}
-                disabled={liveVoice.state === "arming"}
-                className="relative w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 active:scale-95 disabled:opacity-60"
-                style={{
-                  background: liveVoice.state === "idle"
-                    ? "rgba(255,255,255,0.08)"
-                    : `linear-gradient(135deg, ${LIVE_COLOR[liveVoice.state]}, ${LIVE_COLOR[liveVoice.state]}cc)`,
-                  boxShadow: liveVoice.state !== "idle"
-                    ? `0 0 32px ${LIVE_COLOR[liveVoice.state]}66`
-                    : "none",
-                }}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold"
+                style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.14)", color: "#fff" }}
               >
-                {liveVoice.state !== "idle" && (
-                  <span
-                    className="absolute inset-0 rounded-full animate-ping"
-                    style={{
-                      background: `${LIVE_COLOR[liveVoice.state]}33`,
-                      animationDuration: liveVoice.state === "user-speaking" ? "1s" : "1.6s",
-                    }}
-                  />
-                )}
-                {liveVoice.state === "idle" ? (
-                  <Radio size={22} className="text-white/55" />
-                ) : (
-                  <PhoneOff size={20} className="text-white" />
-                )}
+                <PhoneOff size={11} /> Stop
               </button>
-
-              <div className="h-4 max-w-full px-2">
-                {liveVoice.interim && (
-                  <p className="text-[10px] italic text-white/55 truncate" style={{ maxWidth: 320 }}>
-                    "{liveVoice.interim}"
-                  </p>
-                )}
-              </div>
-            </>
+            </div>
           )}
+
+          {/* "Type instead" — fallback when STT keeps failing (offered per spec). */}
+          <div className="w-full flex items-center gap-2 mt-1">
+            <input
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === "Enter" && input.trim() && !streaming) {
+                  const t = input.trim(); setInput(""); coreSend(t);
+                }
+              }}
+              placeholder="…or type instead"
+              disabled={streaming}
+              className="flex-1 bg-transparent outline-none text-[12px] px-2.5 py-1.5 rounded-lg"
+              style={{ border: "1px solid rgba(255,255,255,0.12)", color: "#fff", background: "rgba(255,255,255,0.04)" }}
+            />
+            <button
+              onClick={() => { if (input.trim() && !streaming) { const t = input.trim(); setInput(""); coreSend(t); } }}
+              disabled={streaming || !input.trim()}
+              aria-label="Send"
+              className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+              style={{
+                background: input.trim() && !streaming
+                  ? "linear-gradient(180deg, #7DD3FC 0%, #00D4FF 50%, #0284C7 100%)"
+                  : "rgba(255,255,255,0.06)",
+                opacity: streaming || !input.trim() ? 0.5 : 1,
+              }}
+            >
+              <Send size={12} style={{ color: input.trim() && !streaming ? "#031024" : "rgba(255,255,255,0.4)" }} />
+            </button>
+          </div>
         </div>
       )}
     </>

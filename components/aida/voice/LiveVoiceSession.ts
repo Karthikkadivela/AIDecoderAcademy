@@ -38,10 +38,12 @@ export type LiveEvent =
 
 type Listener = (e: LiveEvent) => void;
 
-// How long after VAD declares end-of-speech we wait for Deepgram's final
-// transcript to land. If a new speech-start arrives during this window, we
-// cancel and stay in user-speaking.
-const FINAL_DEBOUNCE_MS = 1500;
+// End-of-speech patience (AI-188): after VAD declares the kid stopped, we wait
+// this long before sending the transcript. Locked at 2s for ALL ages — forgiving
+// for younger kids who pause mid-thought. If a new speech-start arrives during
+// this window we cancel and stay in user-speaking, so a pause never cuts them
+// off. Deepgram's final transcript reliably lands within this window too.
+const FINAL_DEBOUNCE_MS = 2000;
 
 // Reconnect backoff for Deepgram WS drops.
 const RECONNECT_DELAYS_MS = [500, 1500, 4000];
