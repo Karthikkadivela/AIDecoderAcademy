@@ -12,7 +12,7 @@ import { Send, Mic, Volume2, VolumeX, X, BookOpen, MessageSquare, PhoneOff } fro
 import { buildClassroomGreeting } from "@/lib/teacherPanelGreeting";
 import { useTeacherVoice } from "./useTeacherVoice";
 import { VoiceOrb } from "@/components/aida/VoiceOrb";
-import { speak as voiceSpeak, type SpeakHandle } from "@/lib/voiceTts";
+import { type SpeakHandle } from "@/lib/voiceTts";
 import ReactMarkdown from "react-markdown";
 import type { Profile } from "@/types";
 
@@ -148,8 +148,59 @@ export function TeacherChat({ profile, chapterTitle, onClose, onSpeakingChange, 
     if (!text.trim()) return;
     setBhavnaSpeaking(true);
     setAiSpeakingRef.current(true);
-    const handle = voiceSpeak(text, { role: "classroom", onAmplitude: setOrbAmp });
+
+    // Call tts-timed directly — same path as classroom lessons (proven reliable).
+    // voiceTts.ts tries the WebSocket route first; if that ElevenLabs voice ID
+    // isn't on the plan, it silently produces no audio. Direct is unambiguous.
+    let active = true;
+    let raf = 0, phase = 0;
+    let audioEl: HTMLAudioElement | null = null;
+    let resolveDone!: () => void;
+    const done = new Promise<void>(r => { resolveDone = r; });
+
+    const finish = () => {
+      if (!active) return;
+      active = false;
+      cancelAnimationFrame(raf);
+      if (audioEl?.src.startsWith("blob:")) { try { URL.revokeObjectURL(audioEl.src); } catch { /* */ } }
+      resolveDone();
+    };
+
+    const handle: SpeakHandle = {
+      stop: () => { if (audioEl) { try { audioEl.pause(); } catch { /* */ } } finish(); },
+      done,
+    };
     voiceHandleRef.current = handle;
+
+    (async () => {
+      const res = await fetch("/api/aida/tts-timed", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, role: "classroom" }),
+      });
+      if (!active || !res.ok) { finish(); return; }
+      const data = await res.json() as { audioBase64?: string };
+      if (!active || !data.audioBase64) { finish(); return; }
+
+      const bin = atob(data.audioBase64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      audioEl = new Audio(URL.createObjectURL(new Blob([bytes.buffer as ArrayBuffer], { type: "audio/mpeg" })));
+
+      audioEl.onplaying = () => {
+        const tick = () => {
+          if (!active) return;
+          phase += 0.09;
+          setOrbAmp(Math.max(0.05, Math.min(1, 0.4 + 0.22 * Math.sin(phase * 7) + 0.16 * Math.sin(phase * 13) + (Math.random() - 0.5) * 0.12)));
+          raf = requestAnimationFrame(tick);
+        };
+        raf = requestAnimationFrame(tick);
+      };
+      audioEl.onpause = () => { cancelAnimationFrame(raf); setOrbAmp(0); };
+      audioEl.onended = () => { setOrbAmp(0); finish(); };
+      audioEl.onerror = () => { setOrbAmp(0); finish(); };
+      audioEl.play().catch(() => finish());
+    })().catch(() => finish());
+
     handle.done.finally(() => {
       if (voiceHandleRef.current === handle) {
         voiceHandleRef.current = null;
