@@ -43,7 +43,7 @@ type Listener = (e: LiveEvent) => void;
 // for younger kids who pause mid-thought. If a new speech-start arrives during
 // this window we cancel and stay in user-speaking, so a pause never cuts them
 // off. Deepgram's final transcript reliably lands within this window too.
-const FINAL_DEBOUNCE_MS = 2000;
+const FINAL_DEBOUNCE_MS = 800;
 
 // Reconnect backoff for Deepgram WS drops.
 const RECONNECT_DELAYS_MS = [500, 1500, 4000];

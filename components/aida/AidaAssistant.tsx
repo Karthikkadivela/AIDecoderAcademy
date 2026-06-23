@@ -752,8 +752,29 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
 
       if (!res.ok || !res.body) throw new Error("Request failed");
 
+      // Voice mode: reset sentence state and cancel any prior TTS so this
+      // response plays fresh. voiceSentCursor tracks how much of `full` has
+      // already been dispatched to speakSentence() during streaming.
+      let voiceSentCursor = 0;
+      if (modeRef.current === "voice") {
+        ttsGenRef.current++;
+        ttsSentenceAbortRefs.current.forEach(ab => { try { ab.abort(); } catch { /* */ } });
+        ttsSentenceAbortRefs.current   = [];
+        sentenceSlotsRef.current.clear();
+        nextPlayIndexRef.current       = 0;
+        ttsSeqRef.current              = 0;
+        pendingTtsSentencesRef.current = 0;
+        displayedTextRef.current       = "";
+        setVS("speaking");
+        if (subModeRef.current === "live") liveSetAiSpeakingRef.current(true);
+      }
+
       const reader  = res.body.getReader();
       const decoder = new TextDecoder();
+
+      // Min chars before punctuation counts as a sentence boundary —
+      // prevents "Mr." / "Dr." / "vs." abbreviations from splitting early.
+      const SENTENCE_MIN = 20;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -762,10 +783,24 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
         full += decoder.decode(value, { stream: true });
 
         if (modeRef.current === "voice") {
-          // Voice mode = pure audio: don't reveal text as it streams. We wait
-          // for the full reply, then speak it once via the streaming player
-          // (orb animates; no karaoke). The orb shows "thinking" meanwhile,
-          // driven by liveVoice.state === "llm-thinking".
+          // Fire TTS per sentence as tokens arrive — no waiting for full reply.
+          // Pipeline: GPT writes sentence N+1 while ElevenLabs synthesises N
+          // and the browser plays N-1. First audio arrives as soon as GPT
+          // finishes its first sentence (~200-400ms) instead of the whole response.
+          let found = true;
+          while (found) {
+            const unsent = full.slice(voiceSentCursor);
+            const match  = unsent.search(/[.!?]\s/);
+            if (match === -1 || match < SENTENCE_MIN) { found = false; break; }
+            const sentence  = unsent.slice(0, match + 1).trim();
+            const preceding = voiceSentCursor > 0 ? full.slice(0, voiceSentCursor) : undefined;
+            if (sentence) {
+              speakSentence(sentence, preceding);
+              voiceSentCursor += match + 2; // advance past punctuation + space
+            } else {
+              found = false;
+            }
+          }
         } else {
           // Text mode: show immediately as it streams
           const captured = full;
@@ -780,15 +815,20 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
       if (sendIdRef.current !== myId) return;
 
       if (modeRef.current === "voice" && full.trim()) {
-        // Keep the text in history (for multi-turn context + a text-mode switch),
-        // but it is NOT displayed in voice mode (messages list is hidden).
+        // Keep text in history (for multi-turn context + text-mode switch).
         fullResponseRef.current = full;
         setMessages(prev => {
           const copy = [...prev];
           copy[copy.length - 1] = { role: "assistant", content: full };
           return copy;
         });
-        void speakText(full);
+        // Speak any tail text that had no terminal punctuation
+        // (e.g. last line of a response: "Try this approach").
+        const remaining = full.slice(voiceSentCursor).trim();
+        if (remaining) {
+          const preceding = voiceSentCursor > 0 ? full.slice(0, voiceSentCursor) : undefined;
+          speakSentence(remaining, preceding);
+        }
       }
     } catch {
       if (sendIdRef.current !== myId) return;
