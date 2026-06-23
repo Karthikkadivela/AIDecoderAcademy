@@ -1,0 +1,409 @@
+﻿<!DOCTYPE html>
+<html lang="kn">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ಕನ್ನಡ – CBSE Class 10</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700;900&family=Syne:wght@800;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    :root {
+      --purple:#5B21B6; --purple-mid:#7C3AED; --purple-dark:#2D1270;
+      --navy:#0f1c4d; --card:rgba(255,255,255,0.93);
+    }
+    body { font-family:'DM Sans',sans-serif; height:100vh; overflow:hidden; position:relative; background:#d8cef5; }
+    .bg-img  { position:absolute; inset:0; background:url('public/classroom/kannada/bg.png') center/cover no-repeat; z-index:0; }
+    .bg-tint { position:absolute; inset:0; background:rgba(215,200,255,0.18); z-index:1; }
+    .kl { position:absolute; font-weight:900; color:rgba(80,20,170,0.13); pointer-events:none; z-index:2; user-select:none; line-height:1; }
+
+    /* HEADER */
+    header { position:relative; z-index:50; display:flex; align-items:center; padding:0 24px; height:56px; background:rgba(255,255,255,0.92); backdrop-filter:blur(20px); border-bottom:1px solid rgba(255,255,255,0.65); box-shadow:0 2px 18px rgba(15,28,77,0.08); }
+    .logo { display:flex; align-items:center; gap:7px; text-decoration:none; }
+    .logo-icon { width:32px; height:32px; background:var(--purple); border-radius:8px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:900; }
+    .logo-txt { font-size:17px; font-weight:900; }
+    .logo-ai  { color:var(--purple); }
+    .logo-dec { color:var(--purple-mid); }
+    .hdr-center { flex:1; display:flex; flex-direction:column; align-items:center; line-height:1; }
+    .hdr-title  { font-size:23px; font-weight:900; color:var(--purple-dark); }
+    .hdr-sub    { font-size:11px; font-weight:600; color:rgba(15,28,77,0.45); margin-top:2px; }
+    .hdr-av { width:34px; height:34px; border-radius:50%; background:var(--purple-mid); color:#fff; font-weight:900; font-size:14px; display:flex; align-items:center; justify-content:center; }
+
+    /* CANVAS */
+    .canvas { position:relative; height:calc(100vh - 56px); overflow:hidden; z-index:10; }
+    .connectors { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:3; }
+
+    /* CENTER CIRCLE */
+    .center-circle { position:absolute; width:180px; height:180px; border-radius:50%; top:calc(50% - 90px); left:calc(50% - 110px); z-index:6; overflow:hidden; box-shadow:0 0 0 5px rgba(255,255,255,0.55),0 10px 36px rgba(80,20,170,0.42); }
+    .center-circle img { width:100%; height:100%; object-fit:cover; display:block; }
+    .center-lock { position:absolute; bottom:10px; left:50%; transform:translateX(-50%); width:32px; height:32px; border-radius:50%; background:linear-gradient(180deg,#0d1e38,#060f20); border:1.5px solid rgba(125,211,252,0.68); display:flex; align-items:center; justify-content:center; box-shadow:0 0 16px rgba(0,212,255,0.58),inset 0 0 8px rgba(0,212,255,0.15); }
+
+    /* TILES — pentagon R=220px, center at (50%−20px, 50%)
+       cos18°=0.951  sin18°=0.309  cos54°=0.588  sin54°=0.809
+       vertex offsets from center: h=R·sin, v=R·cos              */
+    .tile { position:absolute; width:310px; height:140px; border-radius:16px; overflow:hidden; display:flex; background:var(--card); backdrop-filter:blur(22px); border:1.5px solid rgba(255,255,255,0.92); z-index:5; cursor:pointer; transition:transform 0.24s cubic-bezier(0.16,1,0.3,1),box-shadow 0.24s; }
+    .tile:hover { transform:scale(1.036) translateY(-3px); }
+    /* tile-w=310 half=155 | tile-h=140 half=70 | center=(50%-20px,50%) */
+    .tile-1 { top:calc(50% - 290px); left:calc(50% - 175px); box-shadow:0 6px 28px rgba(15,28,77,0.22),0 0 0 2px rgba(91,33,182,0.20); }
+    .tile-2 { top:calc(50% -  91px); left:calc(50% +  83px);  box-shadow:0 4px 22px rgba(15,28,77,0.14); }
+    .tile-3 { top:calc(50% + 108px); left:calc(50% +  12px);  box-shadow:0 4px 22px rgba(15,28,77,0.14); }
+    .tile-4 { top:calc(50% + 108px); left:calc(50% - 354px);  box-shadow:0 4px 22px rgba(15,28,77,0.14); }
+    .tile-5 { top:calc(50% -  91px); left:calc(50% - 440px);  box-shadow:0 4px 22px rgba(15,28,77,0.14); }
+    /* Tile interior — badge + title on SAME ROW */
+    .tile-left  { display:flex; flex-direction:column; padding:14px 12px 13px; width:196px; flex-shrink:0; }
+    .tile-top   { display:flex; align-items:flex-start; gap:10px; flex:1; }
+    .tile-badge { width:46px; height:46px; background:var(--purple); border-radius:10px; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:900; font-size:18px; letter-spacing:-1px; flex-shrink:0; box-shadow:0 4px 14px rgba(91,33,182,0.35); }
+    .tile-text  { display:flex; flex-direction:column; flex:1; min-width:0; padding-top:2px; }
+    .tile-title { font-weight:900; font-size:13px; color:var(--navy); line-height:1.25; text-transform:uppercase; }
+    .tile-sub   { font-size:9.5px; font-weight:600; color:rgba(15,28,77,0.44); margin-top:5px; line-height:1.4; }
+    .tile-foot  { margin-top:10px; flex-shrink:0; }
+    .tile-stats { display:flex; align-items:center; gap:5px; margin-bottom:5px; }
+    .tile-stats .s   { font-size:10px; font-weight:700; color:rgba(15,28,77,0.62); }
+    .tile-stats .sep { color:rgba(15,28,77,0.24); }
+    .pbar      { height:5px; border-radius:3px; background:rgba(91,33,182,0.13); overflow:hidden; }
+    .pbar-fill { height:100%; border-radius:3px; background:var(--purple); }
+    .tile-right { width:110px; flex-shrink:0; position:relative; display:flex; align-items:center; justify-content:center; overflow:hidden; background:linear-gradient(135deg,rgba(237,233,254,0.55),rgba(221,214,254,0.28)); }
+    .tile-right::before { content:''; position:absolute; left:0; top:0; bottom:0; width:20px; background:linear-gradient(to right,rgba(255,255,255,0.92),transparent); pointer-events:none; z-index:1; }
+    .tile-right svg { display:block; }
+    .lock-ov  { position:absolute; inset:0; backdrop-filter:blur(2.5px) saturate(75%); background:rgba(6,6,20,0.13); display:flex; align-items:center; justify-content:center; z-index:10; }
+    .lock-med { width:40px; height:40px; border-radius:50%; background:linear-gradient(180deg,#0d1e38,#060f20); border:1.5px solid rgba(125,211,252,0.68); display:flex; align-items:center; justify-content:center; box-shadow:0 0 20px rgba(0,212,255,0.52),inset 0 0 10px rgba(0,212,255,0.18); }
+
+    /* PROGRESS CARD */
+    .prog-card { position:absolute; top:18px; left:18px; width:260px; z-index:8; background:var(--card); backdrop-filter:blur(22px); border:1px solid rgba(255,255,255,0.78); box-shadow:0 8px 32px rgba(15,28,77,0.10); border-radius:20px; padding:16px; }
+    .prog-card-title { font-weight:900; font-size:14px; color:var(--navy); margin-bottom:12px; }
+    .prog-card-body  { display:flex; align-items:center; gap:14px; }
+    .ring-wrap  { position:relative; width:92px; height:92px; flex-shrink:0; }
+    .ring-wrap svg { display:block; }
+    .ring-inner { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+    .ring-pct   { font-size:20px; font-weight:900; color:var(--purple); line-height:1; }
+    .ring-lbl   { font-size:9.5px; font-weight:600; color:rgba(15,28,77,0.48); margin-top:2px; }
+    .stat-rows  { flex:1; display:flex; flex-direction:column; gap:8px; }
+    .stat-row   { display:flex; align-items:center; justify-content:space-between; }
+    .stat-lbl   { font-size:11px; color:rgba(15,28,77,0.50); }
+    .stat-val   { font-size:11px; font-weight:900; color:var(--navy); }
+
+    /* LEADERBOARD */
+    .lb { position:absolute; top:18px; right:18px; width:298px; max-height:calc(100% - 36px); z-index:8; background:rgba(255,255,255,0.91); backdrop-filter:blur(22px); border:1px solid rgba(255,255,255,0.78); box-shadow:0 8px 36px rgba(0,0,0,0.13),inset 0 1px 0 rgba(255,255,255,0.82); border-radius:18px; overflow:hidden; display:flex; flex-direction:column; }
+    .lb-head { padding:12px 15px; display:flex; align-items:center; gap:8px; background:linear-gradient(135deg,rgba(91,33,182,0.08),rgba(91,33,182,0.02)); border-bottom:1px solid rgba(0,0,0,0.055); flex-shrink:0; }
+    .lb-head-title { font-weight:900; font-size:14px; color:#1a1a2e; }
+    .lb-podium { display:flex; align-items:flex-end; gap:4px; padding:16px 10px 6px; background:linear-gradient(180deg,rgba(91,33,182,0.045),transparent); flex-shrink:0; }
+    .pd-col  { flex:1; display:flex; flex-direction:column; align-items:center; }
+    .pd-crown { font-size:13px; margin-bottom:4px; line-height:1; }
+    .pd-av   { border-radius:50%; background:rgba(255,255,255,0.9); display:flex; align-items:center; justify-content:center; }
+    .pd-dot  { width:6px; height:6px; border-radius:50%; background:var(--purple-mid); margin:4px 0 2px; }
+    .pd-name { font-size:10px; font-weight:900; color:#1a1a2e; text-align:center; max-width:68px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .pd-xp   { font-size:10px; font-weight:900; color:var(--purple-mid); }
+    .pd-plat { width:100%; border-radius:4px 4px 0 0; display:flex; align-items:flex-end; justify-content:center; padding-bottom:3px; font-size:10px; font-weight:900; margin-top:4px; }
+    .lb-div  { display:flex; align-items:center; gap:8px; padding:7px 12px; flex-shrink:0; }
+    .lb-div-line { flex:1; height:1px; background:rgba(0,0,0,0.06); }
+    .lb-div-txt  { font-size:9px; font-weight:700; color:#ccc; letter-spacing:0.09em; }
+    .lb-rows { flex:1; overflow-y:auto; padding:0 8px 8px; scrollbar-width:none; }
+    .lb-row  { display:flex; align-items:center; gap:7px; padding:7px 10px; border-radius:12px; margin-bottom:2px; }
+    .row-rank { width:18px; font-size:10px; font-weight:900; color:#c0c0c0; text-align:center; flex-shrink:0; }
+    .row-dot  { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+    .row-av   { width:25px; height:25px; border-radius:50%; background:rgba(0,0,0,0.05); display:flex; align-items:center; justify-content:center; font-size:13px; flex-shrink:0; }
+    .row-info { flex:1; min-width:0; }
+    .row-name { font-size:11px; font-weight:700; color:#1a1a2e; line-height:1; }
+    .row-lvl  { font-size:9px; color:#c0c0c0; margin-top:2px; }
+    .row-xp   { font-size:11px; font-weight:900; color:#333; flex-shrink:0; }
+
+    /* TEACHER */
+    .teacher { position:absolute; bottom:0; left:16px; width:215px; height:350px; z-index:4; pointer-events:none; }
+    .teacher img { width:100%; height:100%; object-fit:contain; object-position:bottom center; }
+  </style>
+</head>
+<body>
+  <div class="bg-img"></div>
+  <div class="bg-tint"></div>
+
+  <span class="kl" style="top:6%;left:23%;font-size:64px">ಅ</span>
+  <span class="kl" style="top:3%;left:37%;font-size:52px">ಆ</span>
+  <span class="kl" style="top:5%;left:52%;font-size:57px">ಇ</span>
+  <span class="kl" style="top:7%;left:66%;font-size:50px">ಕ</span>
+  <span class="kl" style="top:26%;left:16%;font-size:72px">ಪ</span>
+  <span class="kl" style="top:48%;left:12%;font-size:60px">ಮ</span>
+  <span class="kl" style="top:70%;left:18%;font-size:57px">ಕ</span>
+  <span class="kl" style="top:78%;left:40%;font-size:53px">ಪ</span>
+  <span class="kl" style="top:72%;left:62%;font-size:62px">ಮ</span>
+  <span class="kl" style="top:26%;left:70%;font-size:54px">ಅ</span>
+  <span class="kl" style="top:50%;left:76%;font-size:66px">ಆ</span>
+  <span class="kl" style="top:14%;left:84%;font-size:48px">ಇ</span>
+
+  <header>
+    <a class="logo" href="#">
+      <div class="logo-icon">AI</div>
+      <span class="logo-txt"><span class="logo-ai">AI</span><span class="logo-dec">Decoder</span></span>
+    </a>
+    <div class="hdr-center">
+      <div class="hdr-title">ಕನ್ನಡ</div>
+      <div class="hdr-sub">CBSE Class 10</div>
+    </div>
+    <div class="hdr-av">R</div>
+  </header>
+
+  <div class="canvas">
+
+    <!-- Dashed connectors: center (50%−20px, 50%) → each tile midpoint (approx %) -->
+    <svg class="connectors" viewBox="0 0 100 100" preserveAspectRatio="none">
+      <line x1="48.7" y1="50" x2="48.7" y2="17"  stroke="rgba(255,255,255,0.72)" stroke-width="0.26" stroke-dasharray="1.3 1.1" stroke-linecap="round"/>
+      <line x1="48.7" y1="50" x2="65"   y2="40"  stroke="rgba(255,255,255,0.72)" stroke-width="0.26" stroke-dasharray="1.3 1.1" stroke-linecap="round"/>
+      <line x1="48.7" y1="50" x2="59"   y2="74"  stroke="rgba(255,255,255,0.72)" stroke-width="0.26" stroke-dasharray="1.3 1.1" stroke-linecap="round"/>
+      <line x1="48.7" y1="50" x2="36"   y2="74"  stroke="rgba(255,255,255,0.72)" stroke-width="0.26" stroke-dasharray="1.3 1.1" stroke-linecap="round"/>
+      <line x1="48.7" y1="50" x2="32"   y2="40"  stroke="rgba(255,255,255,0.72)" stroke-width="0.26" stroke-dasharray="1.3 1.1" stroke-linecap="round"/>
+    </svg>
+
+    <div class="center-circle">
+      <img src="public/classroom/kannada/mid_term_exam.png" alt="Integrated Exam Practice"/>
+      <div class="center-lock">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+          <rect x="5" y="11" width="14" height="10" rx="2" stroke="#E0F4FF" stroke-width="1.9"/>
+          <path d="M8 11V8a4 4 0 1 1 8 0v3" stroke="#E0F4FF" stroke-width="1.9" stroke-linecap="round"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- ── TILE 1 — unlocked — purple book ── -->
+    <div class="tile tile-1">
+      <div class="tile-left">
+        <div class="tile-top">
+          <div class="tile-badge">01</div>
+          <div class="tile-text">
+            <div class="tile-title">ಕನ್ನಡ ಭಾಷೆಯ ಪರಿಚಯ</div>
+            <div class="tile-sub">ಅ ಆ ಇ ಕ →</div>
+          </div>
+        </div>
+        <div class="tile-foot">
+          <div class="tile-stats"><span class="s">Progress 80%</span><span class="sep">|</span><span class="s">Acc. 72%</span></div>
+          <div class="pbar"><div class="pbar-fill" style="width:80%"></div></div>
+        </div>
+      </div>
+      <div class="tile-right">
+        <svg width="82" height="96" viewBox="0 0 82 96" fill="none">
+          <ellipse cx="41" cy="90" rx="24" ry="4" fill="rgba(91,33,182,0.13)"/>
+          <!-- back shadow -->
+          <rect x="26" y="10" width="38" height="74" rx="4" fill="#4C1D95" transform="rotate(4 26 10)"/>
+          <!-- main book body -->
+          <rect x="18" y="8" width="38" height="74" rx="4" fill="#7C3AED"/>
+          <!-- spine -->
+          <rect x="18" y="8" width="7" height="74" rx="4 0 0 4" fill="#4C1D95"/>
+          <!-- pages side -->
+          <rect x="56" y="11" width="4" height="68" rx="0 2 2 0" fill="#EDE9FE"/>
+          <!-- cover lines -->
+          <rect x="28" y="22" width="22" height="2.5" rx="1.2" fill="rgba(255,255,255,0.55)"/>
+          <rect x="28" y="29" width="16" height="2" rx="1" fill="rgba(255,255,255,0.35)"/>
+          <rect x="28" y="35" width="19" height="2" rx="1" fill="rgba(255,255,255,0.35)"/>
+          <!-- Kannada letter on cover -->
+          <text x="37" y="62" text-anchor="middle" font-family="serif" font-size="20" fill="rgba(255,255,255,0.70)" font-weight="bold">ಅ</text>
+          <!-- bookmark -->
+          <rect x="48" y="5" width="5" height="18" rx="2.5" fill="#F59E0B"/>
+          <polygon points="48,23 50.5,27 53,23" fill="#F59E0B"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- ── TILE 2 — locked — blue book ── -->
+    <div class="tile tile-2">
+      <div class="tile-left">
+        <div class="tile-top">
+          <div class="tile-badge">02</div>
+          <div class="tile-text">
+            <div class="tile-title">ವ್ಯಾಕರಣ</div>
+            <div class="tile-sub">ಸಂಧಿ • ಸಮಾಸ • ನಾಮಪದ</div>
+          </div>
+        </div>
+        <div class="tile-foot">
+          <div class="tile-stats"><span class="s">Progress 65%</span><span class="sep">|</span><span class="s">Acc. 68%</span></div>
+          <div class="pbar"><div class="pbar-fill" style="width:65%"></div></div>
+        </div>
+      </div>
+      <div class="tile-right">
+        <svg width="82" height="96" viewBox="0 0 82 96" fill="none">
+          <ellipse cx="41" cy="90" rx="24" ry="4" fill="rgba(37,99,235,0.13)"/>
+          <rect x="26" y="10" width="38" height="74" rx="4" fill="#1D4ED8" transform="rotate(4 26 10)"/>
+          <rect x="18" y="8" width="38" height="74" rx="4" fill="#3B82F6"/>
+          <rect x="18" y="8" width="7" height="74" rx="4 0 0 4" fill="#1D4ED8"/>
+          <rect x="56" y="11" width="4" height="68" rx="0 2 2 0" fill="#DBEAFE"/>
+          <rect x="28" y="22" width="22" height="2.5" rx="1.2" fill="rgba(255,255,255,0.55)"/>
+          <rect x="28" y="29" width="16" height="2" rx="1" fill="rgba(255,255,255,0.35)"/>
+          <rect x="28" y="35" width="19" height="2" rx="1" fill="rgba(255,255,255,0.35)"/>
+          <text x="37" y="62" text-anchor="middle" font-family="serif" font-size="20" fill="rgba(255,255,255,0.70)" font-weight="bold">ವ್ಯಾ</text>
+          <rect x="48" y="5" width="5" height="18" rx="2.5" fill="#EF4444"/>
+          <polygon points="48,23 50.5,27 53,23" fill="#EF4444"/>
+        </svg>
+      </div>
+      <div class="lock-ov"><div class="lock-med">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="10" rx="2" stroke="#E0F4FF" stroke-width="1.9"/><path d="M8 11V8a4 4 0 1 1 8 0v3" stroke="#E0F4FF" stroke-width="1.9" stroke-linecap="round"/></svg>
+      </div></div>
+    </div>
+
+    <!-- ── TILE 3 — locked — green book ── -->
+    <div class="tile tile-3">
+      <div class="tile-left">
+        <div class="tile-top">
+          <div class="tile-badge">03</div>
+          <div class="tile-text">
+            <div class="tile-title">ಗದ್ಯ ಪಾಠಗಳು</div>
+            <div class="tile-sub">ಪ್ರಬಂಧ • ಪ್ರಶ್ನೋತ್ತರ • ಭಾವ</div>
+          </div>
+        </div>
+        <div class="tile-foot">
+          <div class="tile-stats"><span class="s">Progress 70%</span><span class="sep">|</span><span class="s">Acc. 75%</span></div>
+          <div class="pbar"><div class="pbar-fill" style="width:70%"></div></div>
+        </div>
+      </div>
+      <div class="tile-right">
+        <svg width="82" height="96" viewBox="0 0 82 96" fill="none">
+          <ellipse cx="41" cy="90" rx="24" ry="4" fill="rgba(5,150,105,0.13)"/>
+          <rect x="26" y="10" width="38" height="74" rx="4" fill="#065F46" transform="rotate(4 26 10)"/>
+          <rect x="18" y="8" width="38" height="74" rx="4" fill="#059669"/>
+          <rect x="18" y="8" width="7" height="74" rx="4 0 0 4" fill="#065F46"/>
+          <rect x="56" y="11" width="4" height="68" rx="0 2 2 0" fill="#D1FAE5"/>
+          <rect x="28" y="22" width="22" height="2.5" rx="1.2" fill="rgba(255,255,255,0.55)"/>
+          <rect x="28" y="29" width="16" height="2" rx="1" fill="rgba(255,255,255,0.35)"/>
+          <rect x="28" y="35" width="19" height="2" rx="1" fill="rgba(255,255,255,0.35)"/>
+          <text x="37" y="62" text-anchor="middle" font-family="serif" font-size="20" fill="rgba(255,255,255,0.70)" font-weight="bold">ಗದ್ಯ</text>
+          <rect x="48" y="5" width="5" height="18" rx="2.5" fill="#F59E0B"/>
+          <polygon points="48,23 50.5,27 53,23" fill="#F59E0B"/>
+        </svg>
+      </div>
+      <div class="lock-ov"><div class="lock-med">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="10" rx="2" stroke="#E0F4FF" stroke-width="1.9"/><path d="M8 11V8a4 4 0 1 1 8 0v3" stroke="#E0F4FF" stroke-width="1.9" stroke-linecap="round"/></svg>
+      </div></div>
+    </div>
+
+    <!-- ── TILE 4 — locked — orange book ── -->
+    <div class="tile tile-4">
+      <div class="tile-left">
+        <div class="tile-top">
+          <div class="tile-badge">04</div>
+          <div class="tile-text">
+            <div class="tile-title">ಪದ್ಯ ಪಾಠಗಳು</div>
+            <div class="tile-sub">ಕವಿತೆ • ಛಂದಸ್ಸು • ಅಲಂಕಾರ</div>
+          </div>
+        </div>
+        <div class="tile-foot">
+          <div class="tile-stats"><span class="s">Progress 60%</span><span class="sep">|</span><span class="s">Acc. 65%</span></div>
+          <div class="pbar"><div class="pbar-fill" style="width:60%"></div></div>
+        </div>
+      </div>
+      <div class="tile-right">
+        <svg width="82" height="96" viewBox="0 0 82 96" fill="none">
+          <ellipse cx="41" cy="90" rx="24" ry="4" fill="rgba(234,88,12,0.13)"/>
+          <rect x="26" y="10" width="38" height="74" rx="4" fill="#C2410C" transform="rotate(4 26 10)"/>
+          <rect x="18" y="8" width="38" height="74" rx="4" fill="#EA580C"/>
+          <rect x="18" y="8" width="7" height="74" rx="4 0 0 4" fill="#C2410C"/>
+          <rect x="56" y="11" width="4" height="68" rx="0 2 2 0" fill="#FED7AA"/>
+          <rect x="28" y="22" width="22" height="2.5" rx="1.2" fill="rgba(255,255,255,0.55)"/>
+          <rect x="28" y="29" width="16" height="2" rx="1" fill="rgba(255,255,255,0.35)"/>
+          <rect x="28" y="35" width="19" height="2" rx="1" fill="rgba(255,255,255,0.35)"/>
+          <text x="37" y="62" text-anchor="middle" font-family="serif" font-size="20" fill="rgba(255,255,255,0.70)" font-weight="bold">ಪದ್ಯ</text>
+          <rect x="48" y="5" width="5" height="18" rx="2.5" fill="#7C3AED"/>
+          <polygon points="48,23 50.5,27 53,23" fill="#7C3AED"/>
+        </svg>
+      </div>
+      <div class="lock-ov"><div class="lock-med">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="10" rx="2" stroke="#E0F4FF" stroke-width="1.9"/><path d="M8 11V8a4 4 0 1 1 8 0v3" stroke="#E0F4FF" stroke-width="1.9" stroke-linecap="round"/></svg>
+      </div></div>
+    </div>
+
+    <!-- ── TILE 5 — locked — teal book ── -->
+    <div class="tile tile-5">
+      <div class="tile-left">
+        <div class="tile-top">
+          <div class="tile-badge">05</div>
+          <div class="tile-text">
+            <div class="tile-title">ಪೂರಕ ಓದು</div>
+            <div class="tile-sub">ಹೆಚ್ಚುವರಿ • ಪ್ರಬಂಧ • ಮಾಹಿತಿ</div>
+          </div>
+        </div>
+        <div class="tile-foot">
+          <div class="tile-stats"><span class="s">Progress 50%</span><span class="sep">|</span><span class="s">Acc. 55%</span></div>
+          <div class="pbar"><div class="pbar-fill" style="width:50%"></div></div>
+        </div>
+      </div>
+      <div class="tile-right">
+        <svg width="82" height="96" viewBox="0 0 82 96" fill="none">
+          <ellipse cx="41" cy="90" rx="24" ry="4" fill="rgba(13,148,136,0.13)"/>
+          <rect x="26" y="10" width="38" height="74" rx="4" fill="#0F766E" transform="rotate(4 26 10)"/>
+          <rect x="18" y="8" width="38" height="74" rx="4" fill="#0D9488"/>
+          <rect x="18" y="8" width="7" height="74" rx="4 0 0 4" fill="#0F766E"/>
+          <rect x="56" y="11" width="4" height="68" rx="0 2 2 0" fill="#CCFBF1"/>
+          <rect x="28" y="22" width="22" height="2.5" rx="1.2" fill="rgba(255,255,255,0.55)"/>
+          <rect x="28" y="29" width="16" height="2" rx="1" fill="rgba(255,255,255,0.35)"/>
+          <rect x="28" y="35" width="19" height="2" rx="1" fill="rgba(255,255,255,0.35)"/>
+          <text x="37" y="62" text-anchor="middle" font-family="serif" font-size="20" fill="rgba(255,255,255,0.70)" font-weight="bold">ಓದು</text>
+          <rect x="48" y="5" width="5" height="18" rx="2.5" fill="#F59E0B"/>
+          <polygon points="48,23 50.5,27 53,23" fill="#F59E0B"/>
+        </svg>
+      </div>
+      <div class="lock-ov"><div class="lock-med">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="10" rx="2" stroke="#E0F4FF" stroke-width="1.9"/><path d="M8 11V8a4 4 0 1 1 8 0v3" stroke="#E0F4FF" stroke-width="1.9" stroke-linecap="round"/></svg>
+      </div></div>
+    </div><!-- /tile-5 -->
+
+    <!-- Subject Progress -->
+    <div class="prog-card">
+      <div class="prog-card-title">Subject Progress</div>
+      <div class="prog-card-body">
+        <div class="ring-wrap">
+          <svg width="92" height="92" viewBox="0 0 92 92">
+            <circle cx="46" cy="46" r="37" fill="none" stroke="rgba(0,0,0,0.07)" stroke-width="8"/>
+            <circle cx="46" cy="46" r="37" fill="none" stroke="#5B21B6" stroke-width="8"
+              stroke-dasharray="46.5 232.5" stroke-linecap="round" transform="rotate(-90 46 46)"/>
+          </svg>
+          <div class="ring-inner">
+            <span class="ring-pct">20%</span>
+            <span class="ring-lbl">Completed</span>
+          </div>
+        </div>
+        <div class="stat-rows">
+          <div class="stat-row"><span class="stat-lbl">Chapters Completed</span><span class="stat-val">1/5</span></div>
+          <div class="stat-row"><span class="stat-lbl">Tests Attempted</span><span class="stat-val">—</span></div>
+          <div class="stat-row"><span class="stat-lbl">Avg. Accuracy</span><span class="stat-val">—</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Leaderboard -->
+    <div class="lb">
+      <div class="lb-head">
+        <span style="font-size:17px;line-height:1">🏆</span>
+        <span class="lb-head-title">Leaderboard</span>
+      </div>
+      <div class="lb-podium">
+        <div class="pd-col">
+          <div class="pd-crown">🥈</div>
+          <div class="pd-av" style="width:31px;height:31px;border:2.5px solid #C0C0C0;box-shadow:0 0 10px rgba(192,192,192,0.38)">🦁</div>
+          <div class="pd-dot"></div><div class="pd-name">Explorer</div><div class="pd-xp">1,658</div>
+          <div class="pd-plat" style="height:28px;background:linear-gradient(180deg,rgba(192,192,192,0.15),rgba(192,192,192,0.03));border-top:1.5px solid rgba(192,192,192,0.5);color:#C0C0C0">2</div>
+        </div>
+        <div class="pd-col">
+          <div class="pd-crown" style="font-size:15px">👑</div>
+          <div class="pd-av" style="width:40px;height:40px;border:2.5px solid #FFD700;box-shadow:0 0 14px rgba(255,215,0,0.42)">🦊</div>
+          <div class="pd-dot"></div><div class="pd-name">Explorer</div><div class="pd-xp">3,751</div>
+          <div class="pd-plat" style="height:42px;background:linear-gradient(180deg,rgba(255,215,0,0.16),rgba(255,215,0,0.03));border-top:1.5px solid rgba(255,215,0,0.52);color:#FFD700">1</div>
+        </div>
+        <div class="pd-col">
+          <div class="pd-crown">🥉</div>
+          <div class="pd-av" style="width:27px;height:27px;border:2.5px solid #CD7F32;box-shadow:0 0 10px rgba(205,127,50,0.36)">🦊</div>
+          <div class="pd-dot"></div><div class="pd-name">Riya</div><div class="pd-xp">1,158</div>
+          <div class="pd-plat" style="height:18px;background:linear-gradient(180deg,rgba(205,127,50,0.15),rgba(205,127,50,0.03));border-top:1.5px solid rgba(205,127,50,0.5);color:#CD7F32">3</div>
+        </div>
+      </div>
+      <div class="lb-div">
+        <div class="lb-div-line"></div><span class="lb-div-txt">RANKING</span><div class="lb-div-line"></div>
+      </div>
+      <div class="lb-rows">
+        <div class="lb-row"><span class="row-rank">4</span><div class="row-dot" style="background:#FF2D78"></div><div class="row-av">🦁</div><div class="row-info"><div class="row-name">Riya</div><div class="row-lvl">Lv 4</div></div><span class="row-xp">920</span></div>
+        <div class="lb-row"><span class="row-rank">5</span><div class="row-dot" style="background:#7C3AED"></div><div class="row-av">🐯</div><div class="row-info"><div class="row-name">jose</div><div class="row-lvl">Lv 4</div></div><span class="row-xp">638</span></div>
+        <div class="lb-row"><span class="row-rank">6</span><div class="row-dot" style="background:#7C3AED"></div><div class="row-av">👤</div><div class="row-info"><div class="row-name">Rajesh</div><div class="row-lvl">Lv 3</div></div><span class="row-xp">442</span></div>
+        <div class="lb-row"><span class="row-rank">7</span><div class="row-dot" style="background:#FF6B2B"></div><div class="row-av">🐯</div><div class="row-info"><div class="row-name">Arjun</div><div class="row-lvl">Lv 2</div></div><span class="row-xp">180</span></div>
+      </div>
+    </div>
+
+    <div class="teacher">
+      <img src="public/classroom/kannada/teacher.png" alt="Bhavna" onerror="this.style.display='none'"/>
+    </div>
+
+  </div>
+</body>
+</html>
