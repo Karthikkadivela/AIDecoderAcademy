@@ -1,21 +1,18 @@
 "use client";
 
 // Classroom Teacher chat panel — Ms. Bhavna.
-// Text + Voice modes (tap-to-talk and live call).
+// Text + Voice modes. Voice mode (AI-188) is pure-audio LIVE only: Bhavna's
+// golden orb listens, thinks, and speaks — no text, no tap sub-mode, no karaoke.
+// Spoken replies stream via lib/voiceTts (ElevenLabs WebSocket).
 // Lecture mode lives in LecturePanel — the "Lesson" button here opens it.
-//
-// Fixes applied:
-//   • Toggle label = current state (Text/Voice pill; "Lesson" button always says Lesson)
-//   • X button has generous spacing from the toggles (fat-finger safe)
-//   • Voice panel includes "or type" textarea fallback
-//   • Space bar triggers tap-to-talk when voice panel is focused
-//   • abortStream clears the streaming flag on message bubbles too
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Send, Mic, Square, Volume2, VolumeX, X, BookOpen, MessageSquare } from "lucide-react";
+import { Send, Mic, Volume2, VolumeX, X, BookOpen, MessageSquare, PhoneOff } from "lucide-react";
 import { buildClassroomGreeting } from "@/lib/teacherPanelGreeting";
 import { useTeacherVoice } from "./useTeacherVoice";
+import { VoiceOrb } from "@/components/aida/VoiceOrb";
+import { speak as voiceSpeak, type SpeakHandle } from "@/lib/voiceTts";
 import ReactMarkdown from "react-markdown";
 import type { Profile } from "@/types";
 
@@ -117,6 +114,7 @@ export function TeacherChat({ profile, chapterTitle, onClose, onSpeakingChange, 
   const voice = useTeacherVoice({
     onTranscript: handleTranscript,
     onInterrupt: () => {
+      stopBhavnaRef.current();
       streamGenRef.current++;
       sendAbortRef.current?.abort();
       setStreaming(false); streamingRef.current = false;
@@ -124,20 +122,51 @@ export function TeacherChat({ profile, chapterTitle, onClose, onSpeakingChange, 
     },
   });
 
-  // Stable speak ref — lets `send` drop `voice` from its deps
-  const speakRef = useRef(voice.speak);
-  speakRef.current = voice.speak;
-  // Live refs for the karaoke reveal in voice mode.
-  const spokenCharsRef = useRef(voice.spokenChars);
-  spokenCharsRef.current = voice.spokenChars;
-  const vsRef = useRef(voice.voiceState);
-  vsRef.current = voice.voiceState;
   const mutedRef = useRef(voice.muted);
   mutedRef.current = voice.muted;
 
+  // ── Pure-audio voice mode (AI-188) ────────────────────────────────────────
+  // Orb amplitude (0..1) driven by the streaming TTS AnalyserNode + the active
+  // playback handle. We drive TTS directly (not voice.speak) so it streams over
+  // the WebSocket player and never reveals text. setAiSpeaking bridges the live
+  // VAD so barge-in still interrupts Bhavna.
+  const [orbAmp, setOrbAmp] = useState(0);
+  const voiceHandleRef = useRef<SpeakHandle | null>(null);
+  const setAiSpeakingRef = useRef(voice.setAiSpeaking);
+  setAiSpeakingRef.current = voice.setAiSpeaking;
+  const [bhavnaSpeaking, setBhavnaSpeaking] = useState(false);
+
+  const stopBhavnaAudio = useCallback(() => {
+    if (voiceHandleRef.current) { try { voiceHandleRef.current.stop(); } catch { /* */ } voiceHandleRef.current = null; }
+    setOrbAmp(0);
+    setBhavnaSpeaking(false);
+    setAiSpeakingRef.current(false);
+  }, []);
+
+  const speakBhavna = useCallback((text: string) => {
+    stopBhavnaAudio();
+    if (!text.trim()) return;
+    setBhavnaSpeaking(true);
+    setAiSpeakingRef.current(true);
+    const handle = voiceSpeak(text, { role: "classroom", onAmplitude: setOrbAmp });
+    voiceHandleRef.current = handle;
+    handle.done.finally(() => {
+      if (voiceHandleRef.current === handle) {
+        voiceHandleRef.current = null;
+        setOrbAmp(0);
+        setBhavnaSpeaking(false);
+        setAiSpeakingRef.current(false);
+      }
+    });
+  }, [stopBhavnaAudio]);
+  const speakBhavnaRef = useRef(speakBhavna);
+  speakBhavnaRef.current = speakBhavna;
+  const stopBhavnaRef = useRef(stopBhavnaAudio);
+  stopBhavnaRef.current = stopBhavnaAudio;
+
   useEffect(() => {
-    onSpeakingChange?.(voice.voiceState === "speaking");
-  }, [voice.voiceState, onSpeakingChange]);
+    onSpeakingChange?.(bhavnaSpeaking || voice.voiceState === "speaking");
+  }, [bhavnaSpeaking, voice.voiceState, onSpeakingChange]);
 
   // ── Stream abort ──────────────────────────────────────────────────────────
   const abortStream = useCallback(() => {
@@ -226,25 +255,11 @@ export function TeacherChat({ profile, chapterTitle, onClose, onSpeakingChange, 
       };
 
       if (ioRef.current === "voice" && full.trim() && !mutedRef.current) {
-        // Start audio (sets word timings) and reveal text word-by-word in sync.
-        void speakRef.current(full);
-        let everSpoke = false;
-        const startT = performance.now();
-        const revealTick = () => {
-          if (streamGenRef.current !== myGen) return;
-          const speaking = vsRef.current === "speaking";
-          if (speaking) everSpoke = true;
-          const sc = spokenCharsRef.current();
-          // sc === -1 (timings not loaded yet) → hold at 0 so text never leads.
-          const target = sc >= 0 ? Math.min(full.length, sc) : 0;
-          // Finalize once audio has started then ended, or if it never started
-          // within 1.5s (autoplay blocked / failed) so text isn't stuck hidden.
-          const finalize = (everSpoke && !speaking) ||
-                           (!everSpoke && performance.now() - startT > 1500);
-          setBubble(finalize ? full : full.slice(0, target), !finalize);
-          if (!finalize) requestAnimationFrame(revealTick);
-        };
-        requestAnimationFrame(revealTick);
+        // Pure audio: stream the reply over the WebSocket player; the orb
+        // animates from amplitude. No text reveal. We still write the bubble
+        // (for history + a text-mode switch) but it's hidden in voice mode.
+        setBubble(full, false);
+        speakBhavnaRef.current(full);
       } else {
         // Text mode (or muted): show the full reply immediately.
         setBubble(full, false);
@@ -293,17 +308,21 @@ export function TeacherChat({ profile, chapterTitle, onClose, onSpeakingChange, 
 
   const handleClose = useCallback(() => {
     abortStream();
+    stopBhavnaAudio();
     void fireReflection();
     voice.cleanup();
     onClose();
-  }, [abortStream, fireReflection, voice, onClose]);
+  }, [abortStream, stopBhavnaAudio, fireReflection, voice, onClose]);
 
   const switchIo = useCallback((next: "text" | "voice") => {
     if (next === io) return;
     abortStream();
+    stopBhavnaAudio();
     voice.cleanup();
+    // Voice mode is live-only now — pin the engine to live.
+    if (next === "voice") voice.setSubMode("live");
     setIo(next);
-  }, [io, voice, abortStream]);
+  }, [io, voice, abortStream, stopBhavnaAudio]);
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -409,7 +428,15 @@ export function TeacherChat({ profile, chapterTitle, onClose, onSpeakingChange, 
       {/* ── Messages ── */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3" style={{ scrollbarWidth: "thin" }}>
         <style>{TC_MD_CSS}</style>
-        {messages.map((m, i) => (
+        {io === "voice" && (
+          <div className="flex flex-col items-center justify-center h-full gap-3 opacity-70 pointer-events-none text-center px-6">
+            <span className="text-2xl">🎧</span>
+            <p className="text-[12px] leading-relaxed" style={{ color: "rgba(244,236,215,0.6)" }}>
+              Voice mode — just talk to Ms. Bhavna.<br />Tap the orb below to start.
+            </p>
+          </div>
+        )}
+        {io !== "voice" && messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
             <div
               className="rounded-2xl px-3.5 py-2.5 max-w-[85%]"
@@ -479,7 +506,7 @@ export function TeacherChat({ profile, chapterTitle, onClose, onSpeakingChange, 
       )}
 
       {/* ── Voice panel ── */}
-      {io === "voice" && <VoicePanel voice={voice} streaming={streaming} onSend={send} />}
+      {io === "voice" && <VoicePanel voice={voice} streaming={streaming} onSend={send} orbAmp={orbAmp} />}
 
       <style jsx>{`
         @keyframes tcblink { from { opacity: 1; } to { opacity: 0; } }
@@ -489,132 +516,86 @@ export function TeacherChat({ profile, chapterTitle, onClose, onSpeakingChange, 
 }
 
 // ── VoicePanel ────────────────────────────────────────────────────────────────
-// tap + live sub-modes, mic visualizer, mute, and an "or type" fallback textarea.
+// Pure-audio LIVE mode (AI-188): Bhavna's golden orb listens / thinks / speaks.
+// No tap sub-mode, no karaoke. Mute + a mandatory mic-live indicator + an
+// "or type instead" fallback (for when STT keeps failing).
 function VoicePanel({
   voice,
   streaming,
   onSend,
+  orbAmp,
 }: {
   voice:    ReturnType<typeof useTeacherVoice>;
   streaming: boolean;
   onSend:   (text?: string) => void;
+  orbAmp:   number;
 }) {
-  const { voiceState, subMode, setSubMode, liveState, muted, toggleMute,
-          toggleTap, toggleLive, micStream, cleanup } = voice;
-  const canvasRef      = useRef<HTMLCanvasElement>(null);
+  const { liveState, muted, toggleMute, toggleLive } = voice;
   const [typeOpen,  setTypeOpen]  = useState(false);
   const [typeInput, setTypeInput] = useState("");
 
-  // Space bar = tap-to-talk toggle (when focus is not in an input)
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.code !== "Space") return;
-      const tag = (e.target as HTMLElement).tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "BUTTON") return;
-      e.preventDefault();
-      if (subMode === "tap") toggleTap();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [subMode, toggleTap]);
-
-  // Mic visualizer — runs while recording
-  useEffect(() => {
-    if (voiceState !== "listening" || !micStream) return;
-    let raf = 0, ctx: AudioContext | null = null;
-    try {
-      const ACtx = (window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext);
-      ctx = new ACtx();
-      const src      = ctx.createMediaStreamSource(micStream);
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 64;
-      analyser.smoothingTimeConstant = 0.78;
-      src.connect(analyser);
-      const data = new Uint8Array(analyser.frequencyBinCount);
-      const cv   = canvasRef.current!;
-      const c2   = cv.getContext("2d")!;
-      const draw = () => {
-        raf = requestAnimationFrame(draw);
-        analyser.getByteFrequencyData(data);
-        c2.clearRect(0, 0, cv.width, cv.height);
-        const BAR = 26, W = 3, GAP = 2;
-        const startX = (cv.width - (BAR * (W + GAP) - GAP)) / 2;
-        for (let i = 0; i < BAR; i++) {
-          const amp = data[Math.floor((i / BAR) * data.length * 0.55)] / 255;
-          const h   = Math.max(2, amp * cv.height);
-          c2.fillStyle = `rgba(224,177,76,${0.45 + amp * 0.55})`;
-          c2.fillRect(startX + i * (W + GAP), (cv.height - h) / 2, W, h);
-        }
-      };
-      draw();
-    } catch { /* visualizer is optional */ }
-    return () => { cancelAnimationFrame(raf); ctx?.close().catch(() => {}); };
-  }, [voiceState, micStream]);
-
-  const tapLabel: Record<string, string> = {
-    idle: "Tap mic to talk", listening: "Recording… tap to send",
-    processing: "Processing…", speaking: "Speaking…",
-  };
   const liveLabel: Record<string, string> = {
-    idle: "Tap to start a live call", arming: "Connecting…",
+    idle: "Tap the orb to talk 🎧", arming: "Connecting…",
     listening: "Listening… just talk", "user-speaking": "Heard you — keep going",
     "awaiting-end": "Catching the rest…", "llm-thinking": "Thinking…",
     "ai-speaking": "Speaking… (talk to interrupt)",
   };
-  const label  = subMode === "live" ? (liveLabel[liveState] ?? "") : (tapLabel[voiceState] ?? "");
-  const active = subMode === "tap"  ? voiceState !== "idle"         : liveState  !== "idle";
+  const active = liveState !== "idle";
 
-  const GOLD   = "#E0B14C";
-  const GOLD_GLOW = "rgba(224,177,76,0.45)";
-  const VIOLET = "#9D6BFF";
-  const TEXT_HI = "#F4ECD7";
+  const orbState =
+    liveState === "idle" || liveState === "arming" ? "idle" :
+    liveState === "llm-thinking"                    ? "thinking" :
+    liveState === "ai-speaking"                     ? "speaking" :
+    "listening" as const; // listening · user-speaking · awaiting-end
+
+  const GOLD     = "#E0B14C";
+  const TEXT_HI  = "#F4ECD7";
   const TEXT_MID = "rgba(244,236,215,0.78)";
   const TEXT_LO  = "rgba(244,236,215,0.50)";
 
   return (
-    <div className="px-3 py-3 flex flex-col items-center gap-2 border-t border-white/[0.08] flex-shrink-0"
+    <div className="px-3 py-4 flex flex-col items-center gap-2.5 border-t border-white/[0.08] flex-shrink-0"
       style={{ background: "rgba(0,0,0,0.18)" }}>
 
-      {/* Tap / Live sub-mode toggle */}
-      <div className="flex gap-0.5 rounded-full p-0.5" style={{ background: "rgba(255,255,255,0.06)" }}>
-        {(["tap", "live"] as const).map(s => (
-          <button key={s}
-            onClick={() => { if (s !== subMode) { cleanup(); setSubMode(s); } }}
-            disabled={streaming}
-            className="px-3 py-1 rounded-full text-[10px] font-bold transition-colors"
-            style={subMode === s
-              ? { background: `linear-gradient(135deg, ${GOLD}, ${VIOLET})`, color: TEXT_HI }
-              : { color: TEXT_LO, opacity: streaming ? 0.5 : 1 }}>
-            {s === "tap" ? "Tap to talk" : "Live call"}
-          </button>
-        ))}
-      </div>
+      {/* Orb is the button: tap to start / stop the live call. */}
+      <button
+        onClick={toggleLive}
+        disabled={liveState === "arming"}
+        aria-label={active ? "Stop" : "Start talking to Bhavna"}
+        className="rounded-full transition-transform active:scale-95 disabled:opacity-70"
+        style={{ lineHeight: 0 }}>
+        <VoiceOrb variant="bhavna" size={128} amplitude={orbAmp} state={orbState} />
+      </button>
 
-      <canvas ref={canvasRef} width={120} height={28} />
-      <p className="text-[11px]" style={{ color: TEXT_MID }}>{label}</p>
+      <p className="text-[11px] h-4" style={{ color: TEXT_MID }}>{liveLabel[liveState] ?? ""}</p>
 
-      <div className="flex items-center gap-3">
-        <button
-          onClick={subMode === "tap" ? toggleTap : toggleLive}
-          aria-label={active ? "Stop" : "Start"}
-          className="w-14 h-14 rounded-full flex items-center justify-center transition-transform active:scale-95"
-          style={{
-            background: `linear-gradient(135deg, ${GOLD}, ${VIOLET})`,
-            boxShadow:  `0 0 18px ${GOLD_GLOW}`,
-          }}>
-          {active ? <Square size={20} color="#fff" /> : <Mic size={22} color="#fff" />}
-        </button>
+      {/* Mandatory mic-live indicator + stop + mute. */}
+      <div className="flex items-center gap-2">
+        {active && (
+          <>
+            <span className="flex items-center gap-1.5 text-[10px]" style={{ color: GOLD }}>
+              <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: GOLD }} />
+              Mic is live
+            </span>
+            <button
+              onClick={toggleLive}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold"
+              style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.14)", color: TEXT_HI }}>
+              <PhoneOff size={11} /> Stop
+            </button>
+          </>
+        )}
         <button
           onClick={toggleMute}
           title={muted ? "Unmute Bhavna" : "Mute Bhavna"}
           aria-label={muted ? "Unmute Bhavna" : "Mute Bhavna"}
-          className="w-9 h-9 rounded-full flex items-center justify-center transition-colors"
+          className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
           style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${muted ? GOLD : "rgba(255,255,255,0.12)"}` }}>
-          {muted ? <VolumeX size={15} color={TEXT_HI} /> : <Volume2 size={15} color={TEXT_HI} />}
+          {muted ? <VolumeX size={14} color={TEXT_HI} /> : <Volume2 size={14} color={TEXT_HI} />}
         </button>
       </div>
 
-      {/* "or type" fallback — expands a textarea so STT failures don't brick input */}
+      {/* "or type instead" — fallback when STT keeps failing. */}
       <button
         onClick={() => setTypeOpen(v => !v)}
         className="text-[10px] underline underline-offset-2 transition-colors"
@@ -642,10 +623,10 @@ function VoicePanel({
             disabled={streaming || !typeInput.trim()}
             className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
             style={{
-              background: typeInput.trim() && !streaming ? `linear-gradient(135deg, ${GOLD}, ${VIOLET})` : "rgba(255,255,255,0.06)",
+              background: typeInput.trim() && !streaming ? GOLD : "rgba(255,255,255,0.06)",
               opacity: (streaming || !typeInput.trim()) ? 0.5 : 1,
             }}>
-            <Send size={13} color={TEXT_HI} />
+            <Send size={13} color={typeInput.trim() && !streaming ? "#2a1c00" : TEXT_HI} />
           </button>
         </div>
       )}

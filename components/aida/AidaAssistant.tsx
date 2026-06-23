@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { PromptPackCard, type PromptPack, type PromptPart } from "@/components/aida/PromptPackCard";
 import { usePathname } from "next/navigation";
-import { X, Send, Mic, Square, MessageSquare, Radio, PhoneOff } from "lucide-react";
+import { X, Send, Mic, MessageSquare, PhoneOff } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useWhiteboardReader, useValidatorReader, useWorksheetReader, useClassroomReader } from "@/lib/chatChannels";
 import { useLiveVoice } from "@/components/aida/voice/useLiveVoice";
@@ -109,13 +109,6 @@ type VoiceState        = "idle" | "listening" | "processing" | "speaking";
 type VoiceSubMode      = "tap" | "live";
 
 const HIDDEN_ON: string[] = [];
-
-const VOICE_LABEL: Record<VoiceState, string> = {
-  idle:       "Tap mic to start",
-  listening:  "Recording… tap stop to send",
-  processing: "Thinking…",
-  speaking:   "Speaking…",
-};
 
 // Live-mode UI strings + colors per state. Keeps the indicator coherent across
 // the conversation lifecycle (listening → user-speaking → thinking → ai-speaking).
@@ -1202,8 +1195,6 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
       if (t) { coreSend(t); setInput(""); }
     }
   };
-
-  const voicePulse = voiceState === "listening" || voiceState === "speaking";
 
   // On the playground, the floating button uses the bespoke assistant.png
   // sprite instead of the gradient ✦ disc — matches the JRPG-style room
