@@ -12,7 +12,13 @@ const AIDA_VOICE_ID      = process.env.ELEVENLABS_AIDA_VOICE_ID    ?? "AZnzlk1Xv
 const TEACHER_VOICE_ID   = process.env.ELEVENLABS_TEACHER_VOICE_ID ?? "JBFqnCBsd6RMkjVDRZzb";
 const CLASSROOM_VOICE_ID = process.env.ELEVENLABS_CLASSROOM_VOICE_ID ?? "1qEiC6qsybMkmnNdVMbK";
 
-const ELEVENLABS_MODEL = "eleven_turbo_v2_5";
+// Flash v2.5 — ~75ms first-byte vs ~275ms for Turbo. ElevenLabs recommends
+// Flash over Turbo for all conversational use; quality delta is in emotional
+// drama, not intelligibility (irrelevant for educational speech, and
+// sanitizeTtsText already handles symbol/term pronunciation). This is the
+// karaoke path shared by AIDA, SAGE and Bhavna — the switch cuts the
+// pre-speech dead zone for all three at once.
+const ELEVENLABS_MODEL = "eleven_flash_v2_5";
 
 const VOICE_SETTINGS = {
   aida:      { stability: 0.4,  similarity_boost: 0.7,  style: 0.3,  use_speaker_boost: true },

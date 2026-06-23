@@ -6,10 +6,11 @@ export interface Segment { speaker: "host" | "guest"; text: string; audioUrl: st
 
 const BATCH = 4;
 
-// Podcast lines render on Turbo v2.5 — far lower latency than multilingual_v2
-// while keeping enough expressiveness for kids. Audio Overview and every other
-// synthLine caller keep synthLine's own multilingual_v2 default.
-export const PODCAST_TTS_MODEL = "eleven_turbo_v2_5";
+// Podcast lines render on Flash v2.5 — ~3-4x lower latency than Turbo and far
+// lower than multilingual_v2, while keeping enough expressiveness for kids.
+// Audio Overview and every other synthLine caller keep synthLine's own
+// multilingual_v2 default.
+export const PODCAST_TTS_MODEL = "eleven_flash_v2_5";
 
 function voiceFor(speaker: "host" | "guest", persona: PodcastPersona): VoiceSpec {
   return speaker === "host" ? HOST_VOICE : persona.voice;

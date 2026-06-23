@@ -24,15 +24,16 @@ const DEFAULT_MODEL_ID = "eleven_multilingual_v2";
 // Expressive voice for the audio overview — warmer and more human than the flat
 // default. Lower stability = more natural intonation; higher style = more
 // expressiveness; speaker boost adds presence. Overview-only: podcast/AIDA
-// voices keep DEFAULT_SETTINGS. eleven_turbo_v2_5 is noticeably less robotic
-// than multilingual_v2 and still supports /with-timestamps word alignment.
+// voices keep DEFAULT_SETTINGS. eleven_flash_v2_5 is noticeably less robotic
+// than multilingual_v2, still supports /with-timestamps word alignment, and
+// is ~3-4x lower latency than turbo (EL-recommended for all conversational use).
 export const OVERVIEW_VOICE_SETTINGS = {
   stability: 0.3,
   similarity_boost: 0.75,
   style: 0.55,
   use_speaker_boost: true,
 };
-export const OVERVIEW_MODEL_ID = "eleven_turbo_v2_5";
+export const OVERVIEW_MODEL_ID = "eleven_flash_v2_5";
 
 // Convert maths symbols and Greek letters to spoken English before sending to
 // ElevenLabs. Without this, "=" is read as "e", "θ" as "tita", etc.

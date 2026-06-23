@@ -212,7 +212,7 @@ export class LiveVoiceSession {
       // on it — VAD does the primary cue). interim_results=true gives us
       // live transcript text to show under the indicator.
       const url = new URL("wss://api.deepgram.com/v1/listen");
-      url.searchParams.set("model",            "nova-2");
+      url.searchParams.set("model",            "nova-3");
       url.searchParams.set("encoding",         "linear16");
       url.searchParams.set("sample_rate",      "16000");
       url.searchParams.set("channels",         "1");

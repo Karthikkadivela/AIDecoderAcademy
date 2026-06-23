@@ -16,7 +16,7 @@ const TEACHER_VOICE_ID = process.env.ELEVENLABS_TEACHER_VOICE_ID ?? "JBFqnCBsd6R
 // Matches BHAVNA_VOICE_ID in lib/classroomAudio.ts so all Bhavna surfaces use the same voice.
 const CLASSROOM_VOICE_ID = process.env.ELEVENLABS_CLASSROOM_VOICE_ID ?? "21m00Tcm4TlvDq8ikWAM";
 
-const ELEVENLABS_MODEL = "eleven_turbo_v2_5"; // ~275ms first-byte latency, better voice quality
+const ELEVENLABS_MODEL = "eleven_flash_v2_5"; // ~75ms first-byte latency (vs ~275ms Turbo); EL-recommended for conversational use
 
 // Per-role voice tuning. Lower stability + higher style = more emotional
 // range (good for AIDA's friend energy). Higher stability + lower style =

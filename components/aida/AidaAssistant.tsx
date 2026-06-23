@@ -1014,6 +1014,18 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
           const a = audioRef.current;
           if (!a) return;
           const t = a.currentTime;
+          // Reveal NOTHING until audio is actually advancing. The audio element
+          // exists (currentTime === 0) for a real interval while the MP3 buffers
+          // before play() produces sound; revealing at t === 0 makes the first
+          // word(s) appear before any audio (the "words lead the voice" bug).
+          // teacherAudio.ts's spokenChars() already has this guard — AIDA's
+          // karaoke path was missing it. Gating on t > 0 keeps text tracking
+          // real playback position only.
+          if (t <= 0) {
+            setBubble(base); // hold at prior text — this sentence hasn't started
+            karaokeRafRef.current = requestAnimationFrame(revealLoop);
+            return;
+          }
           let active = -1;
           for (let k = 0; k < words.length; k++) {
             if (words[k].start <= t) active = k; else break;
