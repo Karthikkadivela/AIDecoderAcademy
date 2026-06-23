@@ -2,29 +2,25 @@
 
 // Shared client-side voice playback for AIDA / SAGE / Bhavna audio mode.
 //
-// Pure audio — NO text/karaoke. This is the replacement for the old per-sentence
-// `/api/aida/tts-timed` + word-timing reveal path. It does two things:
+// Pure audio — NO text/karaoke. Does two things:
 //
 //   1. Streams audio with the lowest latency available:
 //        • PRIMARY  → POST /api/aida/voice  (ElevenLabs WebSocket stream-input,
 //          one continuous MP3 fed into a MediaSource SourceBuffer — gapless,
 //          first audio ~75ms).
-//        • FALLBACK → POST /api/aida/tts     (sentence-chunked SSE; here we just
-//          concatenate the chunks and play once). Used when MediaSource/`audio/mpeg`
-//          is unsupported or the WS route fails — the kid is never left in silence.
+//        • FALLBACK → POST /api/aida/tts     (sentence-chunked SSE; concatenated
+//          and played once). Used when MediaSource/`audio/mpeg` is unsupported
+//          or the WS route fails — the kid is never left in silence.
 //
-//   2. Drives the VoiceOrb animation: routes the playing audio through a Web
-//      Audio AnalyserNode and reports a 0..1 amplitude every frame.
-//
-// One AudioContext is shared across calls. It is resumed on first use — voice
-// mode always begins from a user gesture (mic tap), so autoplay policy is satisfied.
+//   2. Drives the VoiceOrb animation via a synthetic oscillator while playing
+//      (no Web Audio graph — avoids AudioContext suspension silencing output).
 
 export type VoiceRole = "aida" | "teacher" | "classroom";
 
 export interface SpeakHandle {
   /** Stop immediately — barge-in, mute, or teardown. Idempotent. */
   stop: () => void;
-  /** Resolves when playback ends naturally OR is stopped. */
+  /** Resolves when playback ends naturally OR is stopped. Always resolves. */
   done: Promise<void>;
 }
 
@@ -44,7 +40,7 @@ function b64ToBytes(b64: string): Uint8Array {
 }
 
 export function speak(text: string, opts: SpeakOpts = {}): SpeakHandle {
-  const role = opts.role ?? "aida";
+  const role  = opts.role ?? "aida";
   const clean = (text ?? "").trim();
 
   let stopped = false;
@@ -55,12 +51,8 @@ export function speak(text: string, opts: SpeakOpts = {}): SpeakHandle {
   let resolveDone!: () => void;
   const done = new Promise<void>((r) => { resolveDone = r; });
 
-  // Orb amplitude — driven SYNTHETICALLY while the audio is playing. We do NOT
-  // route the <audio> element through a Web Audio AnalyserNode: that capture
-  // (createMediaElementSource) redirects the element's output into the audio
-  // graph, and if the AudioContext is suspended the result is total silence.
-  // Reliable playback matters more than a true waveform, so the element plays
-  // straight to the speakers and the orb pulses from a lively oscillator.
+  // Orb amplitude — driven synthetically while playing. No Web Audio AnalyserNode
+  // (createMediaElementSource suspends output when AudioContext is suspended).
   let raf = 0;
   let playing = false;
   let phase = 0;
@@ -87,18 +79,47 @@ export function speak(text: string, opts: SpeakOpts = {}): SpeakHandle {
     resolveDone();
   };
 
-  audio.onended  = cleanup;
-  audio.onerror  = cleanup;
-  audio.onpause  = () => { playing = false; };
+  audio.onended   = cleanup;
+  audio.onerror   = cleanup;
+  audio.onpause   = () => { playing = false; };
   audio.onplaying = () => { playing = true; opts.onStart?.(); };
 
   if (!clean) { cleanup(); return { stop: cleanup, done }; }
 
-  (async () => {
-    const ok = await streamViaWebSocket(clean, role, audio, abort.signal, () => stopped);
+  // Track whether audio.play() was ever attempted. If the IIFE completes
+  // without play() ever being called (e.g. ElevenLabs returned no audio data),
+  // we must resolve `done` explicitly — otherwise speakText() hangs forever.
+  let playAttempted = false;
+
+  // Called when audio.play() is rejected (autoplay policy, decode error, etc.).
+  // Without this, onended/onerror never fire on a rejected play() and `done`
+  // would hang indefinitely keeping the UI stuck on "speaking".
+  const onPlayFailed = (err?: unknown) => {
     if (stopped) return;
-    if (!ok) await playViaFallback(clean, role, audio, abort.signal, () => stopped);
-  })().catch(() => { if (!stopped) cleanup(); });
+    console.warn("[voiceTts] audio.play() rejected — recovering:", err);
+    cleanup();
+  };
+
+  // Wrapper used by both paths so play() rejections always resolve `done`.
+  const safePlay = () => {
+    playAttempted = true;
+    return audio.play().catch(onPlayFailed);
+  };
+
+  (async () => {
+    const ok = await streamViaWebSocket(clean, role, audio, abort.signal, () => stopped, safePlay);
+    if (stopped) return;
+    if (!ok) await playViaFallback(clean, role, audio, abort.signal, () => stopped, safePlay);
+  })()
+    .catch(() => { if (!stopped) cleanup(); })
+    .then(() => {
+      // IIFE completed normally. If play() was never even attempted (both
+      // routes returned no audio data), resolve `done` now.
+      if (!stopped && !playAttempted) {
+        console.warn("[voiceTts] no audio data received from either route — releasing speaking state");
+        cleanup();
+      }
+    });
 
   return { stop: cleanup, done };
 }
@@ -107,19 +128,23 @@ export function speak(text: string, opts: SpeakOpts = {}): SpeakHandle {
 async function streamViaWebSocket(
   text: string, role: VoiceRole, audio: HTMLAudioElement,
   signal: AbortSignal, isStopped: () => boolean,
+  safePlay: () => Promise<void>,
 ): Promise<boolean> {
   if (typeof MediaSource === "undefined" || !MediaSource.isTypeSupported("audio/mpeg")) return false;
 
   let res: Response;
   try {
     res = await fetch("/api/aida/voice", {
-      method: "POST",
+      method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, role }),
+      body:    JSON.stringify({ text, role }),
       signal,
     });
   } catch { return false; }
-  if (!res.ok || !res.body) return false;
+  if (!res.ok || !res.body) {
+    console.warn("[voiceTts] /api/aida/voice returned", res.status);
+    return false;
+  }
 
   const ms = new MediaSource();
   audio.src = URL.createObjectURL(ms);
@@ -127,16 +152,22 @@ async function streamViaWebSocket(
   let sb: SourceBuffer;
   try {
     sb = await new Promise<SourceBuffer>((resolve, reject) => {
+      // Guard: if sourceopen never fires (browser quirk), don't hang forever.
+      const timer = setTimeout(() => reject(new Error("sourceopen timeout")), 5000);
       ms.addEventListener("sourceopen", () => {
+        clearTimeout(timer);
         try { resolve(ms.addSourceBuffer("audio/mpeg")); } catch (e) { reject(e); }
       }, { once: true });
     });
-  } catch { return false; }
+  } catch (e) {
+    console.warn("[voiceTts] MediaSource setup failed:", e);
+    return false;
+  }
 
   const queue: Uint8Array[] = [];
-  let appending = false;
+  let appending   = false;
   let streamEnded = false;
-  let started = false;
+  let started     = false;
 
   const pump = () => {
     if (appending || sb.updating) return;
@@ -167,12 +198,10 @@ async function streamViaWebSocket(
         if (!payload || payload === "[DONE]") { if (payload === "[DONE]") streamEnded = true; continue; }
         queue.push(b64ToBytes(payload));
         pump();
-        if (!started) { started = true; audio.play().catch(() => { /* */ }); }
+        if (!started) { started = true; void safePlay(); }
       }
     }
   } catch {
-    // Mid-stream network failure: if we already started, let what we have play
-    // out; if nothing started, fall back.
     if (!started) return false;
   }
   streamEnded = true;
@@ -184,17 +213,21 @@ async function streamViaWebSocket(
 async function playViaFallback(
   text: string, role: VoiceRole, audio: HTMLAudioElement,
   signal: AbortSignal, isStopped: () => boolean,
+  safePlay: () => Promise<void>,
 ): Promise<void> {
   let res: Response;
   try {
     res = await fetch("/api/aida/tts", {
-      method: "POST",
+      method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, role }),
+      body:    JSON.stringify({ text, role }),
       signal,
     });
   } catch { return; }
-  if (!res.ok || !res.body) return;
+  if (!res.ok || !res.body) {
+    console.warn("[voiceTts] /api/aida/tts returned", res.status);
+    return;
+  }
 
   const reader  = res.body.getReader();
   const decoder = new TextDecoder();
@@ -217,8 +250,11 @@ async function playViaFallback(
     }
   } catch { /* keep whatever we collected */ }
 
-  if (isStopped() || parts.length === 0) return;
+  if (isStopped() || parts.length === 0) {
+    if (parts.length === 0) console.warn("[voiceTts] fallback returned no audio chunks");
+    return;
+  }
   const blob = new Blob(parts as BlobPart[], { type: "audio/mpeg" });
   audio.src = URL.createObjectURL(blob);
-  await audio.play().catch(() => { /* */ });
+  await safePlay();
 }
