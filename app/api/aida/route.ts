@@ -111,58 +111,42 @@ export async function POST(req: Request) {
     const profileId = profileRow?.id as string | undefined;
     const learnerModel = (profileRow?.learner_model as Record<string, unknown> | null) ?? null;
 
-    // ── Search relevant creations from Pinecone ───────────────────────────────
-    let creationsContext = "";
-    if (profileId) {
-      try {
-        const results = await queryContext({ profileId, query: message, topK: 5 });
-        if (results.length > 0) {
-          creationsContext = "\n\nStudent's relevant creations:\n" +
-            results.map(r =>
-              `- "${r.title}" (${r.outputType})${r.tags ? ` [tags: ${r.tags}]` : ""}${r.promptUsed ? ` — made with prompt: "${r.promptUsed}"` : ""}`
-            ).join("\n");
-        }
-      } catch {
-        // Pinecone failure is non-fatal
-      }
-    }
-
-    // ── Resolve the raw whiteboard transcript (live > DB fallback) ──────────
-    // We always RESOLVE the transcript so the read_whiteboard tool can serve
-    // it on demand. Whether we INJECT it into the system prompt up-front is
-    // a separate decision (see router below).
-    let rawWhiteboardTranscript = "";
-    if (playgroundSession && playgroundSession.trim()) {
-      rawWhiteboardTranscript = playgroundSession.trim();
-    } else if (profileId) {
+    // ── Pinecone + whiteboard transcript in parallel (saves ~150-300ms) ──────
+    // Previously sequential — Pinecone was blocking the LLM call.
+    const whiteboardDbFetch = async (): Promise<string> => {
+      if (playgroundSession?.trim()) return playgroundSession.trim();
+      if (!profileId) return "";
       try {
         const { data: session } = await supabase
-          .from("sessions")
-          .select("id")
-          .eq("profile_id", profileId)
-          .order("started_at", { ascending: false })
-          .limit(1)
-          .single();
+          .from("sessions").select("id").eq("profile_id", profileId)
+          .order("started_at", { ascending: false }).limit(1).single();
+        if (!session?.id) return "";
+        const { data: msgs } = await supabase
+          .from("chat_messages").select("role, content")
+          .eq("session_id", session.id).order("created_at", { ascending: false }).limit(6);
+        if (!msgs?.length) return "";
+        return [...msgs].reverse()
+          .map(m => `${m.role === "user" ? "Student" : "AI"}: ${String(m.content).slice(0, 300)}`)
+          .join("\n");
+      } catch { return ""; }
+    };
 
-        if (session?.id) {
-          const { data: msgs } = await supabase
-            .from("chat_messages")
-            .select("role, content")
-            .eq("session_id", session.id)
-            .order("created_at", { ascending: false })
-            .limit(6);
+    const pineconeSearch = async (): Promise<string> => {
+      if (!profileId) return "";
+      try {
+        const results = await queryContext({ profileId, query: message, topK: 5 });
+        if (!results.length) return "";
+        return "\n\nStudent's relevant creations:\n" +
+          results.map(r =>
+            `- "${r.title}" (${r.outputType})${r.tags ? ` [tags: ${r.tags}]` : ""}${r.promptUsed ? ` — made with prompt: "${r.promptUsed}"` : ""}`
+          ).join("\n");
+      } catch { return ""; }
+    };
 
-          if (msgs && msgs.length > 0) {
-            const recent = [...msgs].reverse();
-            rawWhiteboardTranscript = recent
-              .map(m => `${m.role === "user" ? "Student" : "AI"}: ${String(m.content).slice(0, 300)}`)
-              .join("\n");
-          }
-        }
-      } catch {
-        // Non-fatal
-      }
-    }
+    const [rawWhiteboardTranscript, creationsContext] = await Promise.all([
+      whiteboardDbFetch(),
+      pineconeSearch(),
+    ]);
 
     // ── Decide whether to inject the transcript at start (router) ───────────
     // - Regex pre-filter handles obvious cases for free.
@@ -301,17 +285,14 @@ export async function POST(req: Request) {
     ];
 
     // ── read_whiteboard tool ────────────────────────────────────────────────
-    // Always offered (even when the transcript is pre-attached) so AIDA can
-    // refresh mid-reasoning if it concludes it needs the whiteboard after
-    // the router said skip. The tool returns the same wrapped transcript we
-    // would have injected up front. If there's no transcript (student hasn't
-    // typed in the whiteboard yet) we still expose the tool so the LLM has a
-    // canonical way to discover that fact.
-    const tools: OpenAI.Chat.ChatCompletionTool[] = [{
+    // Only offered when the transcript was NOT pre-injected. If it was already
+    // in the system prompt, offering the tool invites a redundant round-trip
+    // (+200-600ms). When not pre-attached, the tool lets AIDA fetch it on demand.
+    const tools: OpenAI.Chat.ChatCompletionTool[] = preAttachedWhiteboard ? [] : [{
       type: "function",
       function: {
         name:        "read_whiteboard",
-        description: "Returns the current transcript of the student's separate whiteboard chat (the in-app creation tool they use to make images, audio, slides, stories, etc.). Call this when the student references their whiteboard work or it's needed to answer their question, AND the transcript isn't already shown in your system prompt.",
+        description: "Returns the current transcript of the student's separate whiteboard chat (the in-app creation tool they use to make images, audio, slides, stories, etc.). Call this when the student references their whiteboard work or it's needed to answer their question.",
         parameters: { type: "object", properties: {}, required: [] },
       },
     }];
@@ -333,8 +314,7 @@ export async function POST(req: Request) {
               stream:      true,
               temperature: 0.7,
               max_tokens:  isVoiceMode ? 300 : 800,
-              tools,
-              tool_choice: "auto",
+              ...(tools.length > 0 ? { tools, tool_choice: "auto" } : {}),
             });
 
             // Per-stream accumulators. Tool-calls arrive in deltas.

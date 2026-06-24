@@ -788,7 +788,9 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
         pendingTtsSentencesRef.current = 0;
         displayedTextRef.current       = "";
         setVS("speaking");
-        if (subModeRef.current === "live") liveSetAiSpeakingRef.current(true);
+        // NOTE: liveSetAiSpeaking(true) is NOT called here — it fires inside
+        // playSlot after the first SourceBuffer updateend, so the VAD state
+        // machine only enters "ai-speaking" once audio is actually buffered.
       }
 
       const reader  = res.body.getReader();
@@ -796,7 +798,7 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
 
       // Min chars before punctuation counts as a sentence boundary —
       // prevents "Mr." / "Dr." / "vs." abbreviations from splitting early.
-      const SENTENCE_MIN = 20;
+      const SENTENCE_MIN = 10;
 
       while (true) {
         const { done, value } = await reader.read();

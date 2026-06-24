@@ -146,8 +146,7 @@ export function TeacherChat({ profile, chapterTitle, onClose, onSpeakingChange, 
   const speakBhavna = useCallback((text: string) => {
     stopBhavnaAudio();
     if (!text.trim()) return;
-    setBhavnaSpeaking(true);
-    setAiSpeakingRef.current(true);
+    // setBhavnaSpeaking(true) moved to el.onplaying — fires when audio actually plays.
 
     // Call tts-timed directly — same path as classroom lessons (proven reliable).
     // voiceTts.ts tries the WebSocket route first; if that ElevenLabs voice ID
@@ -178,6 +177,9 @@ export function TeacherChat({ profile, chapterTitle, onClose, onSpeakingChange, 
 
       const attachHandlers = (el: HTMLAudioElement) => {
         el.onplaying = () => {
+          // Audio is actually playing — now safe to show "speaking" state.
+          setBhavnaSpeaking(true);
+          setAiSpeakingRef.current(true);
           const tick = () => {
             if (!active) return;
             phase += 0.09;
