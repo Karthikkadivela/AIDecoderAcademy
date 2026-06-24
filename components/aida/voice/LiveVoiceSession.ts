@@ -43,7 +43,7 @@ type Listener = (e: LiveEvent) => void;
 // for younger kids who pause mid-thought. If a new speech-start arrives during
 // this window we cancel and stay in user-speaking, so a pause never cuts them
 // off. Deepgram's final transcript reliably lands within this window too.
-const FINAL_DEBOUNCE_MS = 800;
+const FINAL_DEBOUNCE_MS = 300;
 
 // Reconnect backoff for Deepgram WS drops.
 const RECONNECT_DELAYS_MS = [500, 1500, 4000];
@@ -264,6 +264,11 @@ export class LiveVoiceSession {
           if (msg.is_final) {
             // Accumulate finals — Deepgram can split utterances.
             this.pendingFinal = (this.pendingFinal + " " + txt).trim();
+            // If VAD already declared end-of-speech, don't wait out the debounce —
+            // flush immediately. This saves up to FINAL_DEBOUNCE_MS of dead time.
+            if (this.state === "awaiting-end") {
+              this.flushFinalTranscript();
+            }
           } else {
             this.interimText = txt;
             this.emit({ type: "interim", text: this.interimText });

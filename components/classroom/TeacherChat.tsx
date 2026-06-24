@@ -173,7 +173,8 @@ export function TeacherChat({ profile, chapterTitle, onClose, onSpeakingChange, 
 
     (async () => {
       const MIME = "audio/mpeg";
-      const canStream = typeof MediaSource !== "undefined" && MediaSource.isTypeSupported(MIME);
+      // MediaSource/MP3 disabled — blob-collect is reliable everywhere (same reason as AIDA).
+      const canStream = false;
 
       const attachHandlers = (el: HTMLAudioElement) => {
         el.onplaying = () => {

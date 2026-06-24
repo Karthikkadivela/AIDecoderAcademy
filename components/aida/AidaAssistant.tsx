@@ -1114,8 +1114,13 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
     genRef:      { current: number },
   ): Promise<void> {
     const MIME = "audio/mpeg";
-    const canStream =
-      typeof MediaSource !== "undefined" && MediaSource.isTypeSupported(MIME);
+    // MediaSource/MP3 streaming disabled: isTypeSupported returns true in Chrome
+    // but addSourceBuffer("audio/mpeg") throws at runtime on many configs, causing
+    // the slot to be silently marked "failed" and liveSetAiSpeaking(true) to never
+    // fire — producing the "stuck on Thinking" + silent audio bug. Blob-collect is
+    // ~300ms slower to first audio but works reliably everywhere. Re-enable when
+    // confirmed stable in target browsers.
+    const canStream = false;
 
     if (!canStream) {
       // Fallback: collect all SSE chunks into a blob then play (same as voiceTts.ts primary path).
