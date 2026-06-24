@@ -80,7 +80,7 @@ export function VoiceOrb({ state, amplitude = 0, size = 160, variant = "aida", c
     const C0 = variant === "bhavna" ? GOLD_CORE : CYAN_CORE;
     const C1 = variant === "bhavna" ? GOLD_MID  : CYAN_MID;
     const C2 = variant === "bhavna" ? GOLD_DEEP : CYAN_DEEP;
-    const innerK = variant === "bhavna" ? 1.7 : 1; // >1 rounds the points into a halo
+    const innerK = 1; // sharp four-pointed star for both variants; colour differentiates them
 
     const cx = size / 2;
     const cy = size / 2;
