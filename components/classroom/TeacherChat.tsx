@@ -173,32 +173,136 @@ export function TeacherChat({ profile, chapterTitle, onClose, onSpeakingChange, 
     voiceHandleRef.current = handle;
 
     (async () => {
-      const res = await fetch("/api/aida/tts-timed", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, role: "classroom" }),
-      });
-      if (!active || !res.ok) { finish(); return; }
-      const data = await res.json() as { audioBase64?: string };
-      if (!active || !data.audioBase64) { finish(); return; }
+      const MIME = "audio/mpeg";
+      const canStream = typeof MediaSource !== "undefined" && MediaSource.isTypeSupported(MIME);
 
-      const bin = atob(data.audioBase64);
-      const bytes = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-      audioEl = new Audio(URL.createObjectURL(new Blob([bytes.buffer as ArrayBuffer], { type: "audio/mpeg" })));
-
-      audioEl.onplaying = () => {
-        const tick = () => {
-          if (!active) return;
-          phase += 0.09;
-          setOrbAmp(Math.max(0.05, Math.min(1, 0.4 + 0.22 * Math.sin(phase * 7) + 0.16 * Math.sin(phase * 13) + (Math.random() - 0.5) * 0.12)));
+      const attachHandlers = (el: HTMLAudioElement) => {
+        el.onplaying = () => {
+          const tick = () => {
+            if (!active) return;
+            phase += 0.09;
+            setOrbAmp(Math.max(0.05, Math.min(1, 0.4 + 0.22 * Math.sin(phase * 7) + 0.16 * Math.sin(phase * 13) + (Math.random() - 0.5) * 0.12)));
+            raf = requestAnimationFrame(tick);
+          };
           raf = requestAnimationFrame(tick);
         };
-        raf = requestAnimationFrame(tick);
+        el.onpause = () => { cancelAnimationFrame(raf); setOrbAmp(0); };
+        el.onended = () => { setOrbAmp(0); finish(); };
+        el.onerror = () => { setOrbAmp(0); finish(); };
       };
-      audioEl.onpause = () => { cancelAnimationFrame(raf); setOrbAmp(0); };
-      audioEl.onended = () => { setOrbAmp(0); finish(); };
-      audioEl.onerror = () => { setOrbAmp(0); finish(); };
+
+      if (!canStream) {
+        // Fallback: blob-collect then play (reliable on browsers without MSE).
+        const res = await fetch("/api/aida/voice", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, role: "classroom" }),
+        });
+        if (!active || !res.ok || !res.body) { finish(); return; }
+        const reader = res.body.getReader();
+        const dec = new TextDecoder();
+        let buf = ""; const parts: ArrayBuffer[] = [];
+        for (;;) {
+          if (!active) { try { await reader.cancel(); } catch {} break; }
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          const lines = buf.split("\n"); buf = lines.pop() ?? "";
+          for (const line of lines) {
+            if (!line.startsWith("data:")) continue;
+            const b64 = line.slice(5).trim();
+            if (!b64 || b64 === "[DONE]") continue;
+            const bin = atob(b64); const ab2 = new ArrayBuffer(bin.length);
+            const v = new Uint8Array(ab2);
+            for (let i = 0; i < bin.length; i++) v[i] = bin.charCodeAt(i);
+            parts.push(ab2);
+          }
+        }
+        if (!active || parts.length === 0) { finish(); return; }
+        audioEl = new Audio(URL.createObjectURL(new Blob(parts, { type: MIME })));
+        attachHandlers(audioEl);
+        audioEl.play().catch(() => finish());
+        return;
+      }
+
+      // MediaSource path — starts playing after first ~75ms chunk.
+      const ms = new MediaSource();
+      audioEl = new Audio(URL.createObjectURL(ms));
+      audioEl.preload = "auto";
+      attachHandlers(audioEl);
       audioEl.play().catch(() => finish());
+
+      let sb: SourceBuffer | null = null;
+      const msQueue: ArrayBuffer[] = [];
+      let msAppending = false;
+      let streamDone = false;
+      let chunksTotal = 0;
+      let msEnded = false;
+
+      const safeEnd = (err?: "network" | "decode") => {
+        if (msEnded || ms.readyState !== "open") return;
+        msEnded = true;
+        try { err ? ms.endOfStream(err) : ms.endOfStream(); } catch {}
+      };
+
+      const flushQueue = () => {
+        if (msAppending || msQueue.length === 0 || !sb || ms.readyState !== "open") return;
+        msAppending = true;
+        try { sb.appendBuffer(msQueue.shift()!); }
+        catch { msAppending = false; safeEnd("decode"); }
+      };
+
+      // 5s guard: if sourceopen never fires, audio.onerror → finish().
+      let soTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+        soTimer = null;
+        if (ms.readyState !== "open") finish();
+      }, 5000);
+
+      ms.addEventListener("sourceopen", () => {
+        if (soTimer) { clearTimeout(soTimer); soTimer = null; }
+        if (!active) { safeEnd(); return; }
+        try { sb = ms.addSourceBuffer(MIME); } catch { finish(); return; }
+        sb.addEventListener("updateend", () => {
+          msAppending = false;
+          if (msQueue.length > 0) { flushQueue(); return; }
+          if (streamDone && chunksTotal > 0) safeEnd();
+        });
+        flushQueue();
+      }, { once: true });
+
+      try {
+        const res = await fetch("/api/aida/voice", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, role: "classroom" }),
+        });
+        if (!active || !res.ok || !res.body) { finish(); return; }
+
+        const reader = res.body.getReader();
+        const dec = new TextDecoder();
+        let sseBuf = "";
+        for (;;) {
+          if (!active) { try { await reader.cancel(); } catch {} safeEnd(); break; }
+          const { done, value } = await reader.read();
+          if (done) break;
+          sseBuf += dec.decode(value, { stream: true });
+          const lines = sseBuf.split("\n"); sseBuf = lines.pop() ?? "";
+          for (const line of lines) {
+            if (!line.startsWith("data:")) continue;
+            const b64 = line.slice(5).trim();
+            if (!b64 || b64 === "[DONE]") continue;
+            const bin = atob(b64);
+            const arrBuf = new ArrayBuffer(bin.length);
+            const v = new Uint8Array(arrBuf);
+            for (let i = 0; i < bin.length; i++) v[i] = bin.charCodeAt(i);
+            msQueue.push(arrBuf); chunksTotal++; flushQueue();
+          }
+        }
+      } catch { /* network error — audio.onerror → finish() */ }
+      finally {
+        if (soTimer) { clearTimeout(soTimer); soTimer = null; }
+        streamDone = true;
+        if (!msAppending && msQueue.length === 0)
+          safeEnd(chunksTotal === 0 ? "decode" : undefined);
+      }
     })().catch(() => finish());
 
     handle.done.finally(() => {
