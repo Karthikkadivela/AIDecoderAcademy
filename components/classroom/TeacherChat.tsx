@@ -148,9 +148,8 @@ export function TeacherChat({ profile, chapterTitle, onClose, onSpeakingChange, 
     if (!text.trim()) return;
     // setBhavnaSpeaking(true) moved to el.onplaying — fires when audio actually plays.
 
-    // Fetch /api/aida/voice (ElevenLabs WS stream → mp3_44100_128 base64 chunks)
-    // and decode via Web Audio API. Avoids voiceTts.ts's audio element path which
-    // can't handle raw PCM.
+    // Fetch /api/aida/voice (ElevenLabs WS stream → mp3_44100_128 base64 chunks),
+    // concatenate them, then decode via Web Audio API for gapless playback.
     let active = true;
     let raf = 0, phase = 0;
     let resolveDone!: () => void;

@@ -33,9 +33,9 @@ const ELEVENLABS_MODEL = "eleven_flash_v2_5"; // ~75ms first-byte; EL-recommende
 // Per-role voice tuning (mirrors /api/aida/tts). `speed` is kept slightly slow
 // so younger kids can follow the audio (pure-audio mode has no text to read).
 const VOICE_SETTINGS = {
-  aida:      { stability: 0.4,  similarity_boost: 0.7,  style: 0.3,  use_speaker_boost: true, speed: 0.82 },
-  teacher:   { stability: 0.65, similarity_boost: 0.8,  style: 0.15, use_speaker_boost: true, speed: 0.82 },
-  classroom: { stability: 0.55, similarity_boost: 0.85, style: 0.25, use_speaker_boost: true, speed: 0.82 },
+  aida:      { stability: 0.30, similarity_boost: 0.70, style: 0.50, use_speaker_boost: true, speed: 0.92 },
+  teacher:   { stability: 0.50, similarity_boost: 0.80, style: 0.35, use_speaker_boost: true, speed: 0.92 },
+  classroom: { stability: 0.40, similarity_boost: 0.85, style: 0.45, use_speaker_boost: true, speed: 0.92 },
 } as const;
 
 export async function POST(req: Request) {

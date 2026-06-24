@@ -108,7 +108,7 @@ export function speak(text: string, opts: SpeakOpts = {}): SpeakHandle {
   };
 
   // PCM AudioContext playback for /api/aida/voice (pcm_16000 Int16LE).
-  async function playPcmInline(text: string, role: VoiceRole): Promise<boolean> {
+  async function playMp3Inline(text: string, role: VoiceRole): Promise<boolean> {
     let res: Response;
     try {
       res = await fetch("/api/aida/voice", {
@@ -167,7 +167,7 @@ export function speak(text: string, opts: SpeakOpts = {}): SpeakHandle {
     const src = ctx.createBufferSource();
     src.buffer = audioBuf;
     src.connect(ctx.destination);
-    src.start(0);
+    src.start(ctx.currentTime + 0.02); // 20ms offset suppresses click on playback start
     pcmSrc = src;
 
     playAttempted = true;
@@ -194,12 +194,12 @@ export function speak(text: string, opts: SpeakOpts = {}): SpeakHandle {
   let playAttempted = false;
 
   (async () => {
-    // ── PRIMARY: /api/aida/voice (ElevenLabs WS stream → PCM Int16LE) ──────
-    // Collect PCM chunks and play via AudioContext AudioBufferSourceNode.
-    // Note: the endpoint output_format was changed from mp3_44100_128 to
-    // pcm_16000 in commit 02d6ab6 — raw PCM cannot be fed to <audio>, so
-    // we use Web Audio API directly (no blob-collect delay, no gap).
-    const pcmOk = await playPcmInline(clean, role);
+    // ── PRIMARY: /api/aida/voice (ElevenLabs WS stream-input → MP3 chunks) ──
+    // Collects all base64-encoded MP3 chunks from the SSE stream, concatenates
+    // them, then decodes via AudioContext.decodeAudioData() and plays through
+    // an AudioBufferSourceNode. We use Web Audio API rather than <audio> so we
+    // can schedule gapless sentence playback with precise timing offsets.
+    const pcmOk = await playMp3Inline(clean, role);
     if (stopped || pcmOk) return;
 
     // ── FALLBACK: /api/aida/tts-timed (JSON blob + word timings → MP3) ─────

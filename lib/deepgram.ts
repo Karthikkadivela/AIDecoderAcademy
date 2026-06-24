@@ -5,7 +5,7 @@ export async function transcribeAudio(audio: Buffer, contentType: string): Promi
   const res = await fetch("https://api.deepgram.com/v1/listen?model=nova-3&smart_format=true", {
     method: "POST",
     headers: { Authorization: `Token ${key}`, "Content-Type": contentType },
-    body: audio as unknown as BodyInit,
+    body: new Blob([new Uint8Array(audio)], { type: contentType }),
   });
   if (!res.ok) throw new Error(`Deepgram ${res.status}: ${await res.text().catch(() => "")}`);
   const json = await res.json();

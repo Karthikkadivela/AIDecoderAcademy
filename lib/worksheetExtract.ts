@@ -26,7 +26,7 @@ export interface WorksheetExtractInput {
 //                          (for .pdf, since that gets visuals + text)
 export type WorksheetExtractResult =
   | { kind: "text";       text: string }
-  | { kind: "openaiFile"; fileId: string; filename: string };
+  | { kind: "openaiFile"; fileId: string; filename: string; cleanup: () => Promise<void> };
 
 export function detectWorksheetFormat(filename: string): WorksheetFormat | null {
   const ext = filename.split(".").pop()?.toLowerCase();
@@ -58,7 +58,7 @@ export async function uploadPdfToOpenAI(
   url:      string,
   filename: string,
   openai:   OpenAI,
-): Promise<{ fileId: string; filename: string }> {
+): Promise<{ fileId: string; filename: string; cleanup: () => Promise<void> }> {
   const buffer = await fetchAsBuffer(url);
   // OpenAI SDK's `openai.files.create()` takes a File-like or a stream.
   // In Node runtime we wrap the buffer in a File polyfill that the SDK
@@ -68,7 +68,8 @@ export async function uploadPdfToOpenAI(
     file,
     purpose: "user_data",   // intended for model inputs (vision/text reading)
   });
-  return { fileId: created.id, filename };
+  const cleanup = async () => { await openai.files.delete(created.id).catch(() => {}); };
+  return { fileId: created.id, filename, cleanup };
 }
 
 // ─── Top-level dispatch ─────────────────────────────────────────────────────
@@ -83,8 +84,8 @@ export async function extractWorksheet(
     return { kind: "text", text };
   }
   if (input.format === "pdf") {
-    const { fileId } = await uploadPdfToOpenAI(input.url, filename, openai);
-    return { kind: "openaiFile", fileId, filename };
+    const { fileId, cleanup } = await uploadPdfToOpenAI(input.url, filename, openai);
+    return { kind: "openaiFile", fileId, filename, cleanup };
   }
   throw new Error(`Unsupported worksheet format: ${input.format}`);
 }

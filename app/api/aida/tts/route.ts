@@ -23,23 +23,21 @@ const ELEVENLABS_MODEL = "eleven_flash_v2_5"; // ~75ms first-byte latency (vs ~2
 // more measured (good for the Teacher's mentor weight).
 const VOICE_SETTINGS = {
   aida: {
-    stability:        0.4,
-    similarity_boost: 0.7,
-    style:            0.3,
+    stability:        0.30, // low = natural intonation variation
+    similarity_boost: 0.70,
+    style:            0.50, // high = expressive, friendly energy
     use_speaker_boost: true,
   },
   teacher: {
-    stability:        0.65,
-    similarity_boost: 0.8,
-    style:            0.15,
+    stability:        0.50,
+    similarity_boost: 0.80,
+    style:            0.35,
     use_speaker_boost: true,
   },
   classroom: {
-    // Bhavna — warm, storytelling. Slightly looser stability than the
-    // skeptical-mentor validator voice to let warmth come through.
-    stability:        0.55,
+    stability:        0.40, // warm + natural, not flat
     similarity_boost: 0.85,
-    style:            0.25,
+    style:            0.45,
     use_speaker_boost: true,
   },
 } as const;
@@ -102,7 +100,7 @@ export async function POST(req: Request) {
                     text:           sanitizeTtsText(chunk),
                     model_id:       ELEVENLABS_MODEL,
                     voice_settings: voiceSettings,
-                    speed:          0.78,
+                    speed:          0.92,
                   }),
                 }
               );

@@ -18,23 +18,29 @@ import { SarvamAIClient }    from "sarvamai";
 import type { CorrectionIssue, CorrectionResult } from "@/types";
 import { annotateNotesSheets } from "@/lib/annotateNotesSheet";
 
-// OpenRouter — drop-in OpenAI-compatible client (same as evaluate-written)
-const openai = new OpenAI({
-  apiKey:  process.env.OPENROUTER_API_KEY!,
-  baseURL: "https://openrouter.ai/api/v1",
-  defaultHeaders: {
-    "HTTP-Referer": "https://ai-decoder-academy.vercel.app",
-    "X-Title":      "AI Decoder Academy",
-  },
-});
+function getOpenRouterClient(): OpenAI {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) throw new Error("OPENROUTER_API_KEY is not set in .env.local");
+  return new OpenAI({
+    apiKey:  key,
+    baseURL: "https://openrouter.ai/api/v1",
+    defaultHeaders: {
+      "HTTP-Referer": "https://ai-decoder-academy.vercel.app",
+      "X-Title":      "AI Decoder Academy",
+    },
+  });
+}
+
+const openai = getOpenRouterClient();
 
 // OpenRouter model (Gemini) — used for bbox detection + Chemistry/Maths correction
 const CLAUDE_MODEL = "google/gemini-3.5-flash";
 
-// Sarvam SDK client (OCR only — chat uses the existing OpenRouter client)
-const sarvamClient = new SarvamAIClient({
-  apiSubscriptionKey: process.env.SARVAM_API_KEY ?? "",
-});
+function getSarvamClient(): SarvamAIClient {
+  const key = process.env.SARVAM_API_KEY;
+  if (!key) throw new Error("SARVAM_API_KEY is not set in .env.local");
+  return new SarvamAIClient({ apiSubscriptionKey: key });
+}
 
 // ── Sarvam Vision: OCR one image URL using the official sarvamai JS SDK ──────
 // Flow: createJob → uploadFile(Blob) → start → waitUntilComplete
@@ -50,7 +56,7 @@ async function sarvamOCROnePage(imageUrl: string, pageNum: number): Promise<stri
   // Wrap in a File so the SDK uses the correct filename (not "document.pdf")
   const file = new File([imgBuffer], `page${pageNum}.${ext}`, { type: mime });
 
-  // Create job
+  const sarvamClient = getSarvamClient();
   const job = await sarvamClient.documentIntelligence.createJob({
     language:     "kn-IN",
     outputFormat: "md",
