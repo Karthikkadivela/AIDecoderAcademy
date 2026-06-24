@@ -1171,25 +1171,20 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
     const audio = new Audio(url);
     audio.preload = "auto";
 
-    // Slot filled BEFORE streaming — ordering queue can call play() immediately.
-    // Browser waits for the first chunk via MediaSource "waiting" state.
-    setBubble(sentence); // show full sentence text (no word-by-word in voice mode)
-    slotsRef.current.set(seq, {
-      state: "ready", audio, url, words: [],
-      precedingText: precedingText ?? "",
-      sentenceText: sentence,
-    });
-    maybePlay();
+    // NOTE: slot is NOT filled yet — play() must only be called after the first
+    // updateend fires (i.e. real decoded frames exist in the SourceBuffer).
+    // Calling play() on an empty MediaSource causes an immediate rejection on
+    // Safari / Firefox, which silently advances the queue with no audio.
 
     // ── SourceBuffer queue (one appendBuffer at a time) ───────────────────────
     let sb: SourceBuffer | null = null;
     const msQueue: ArrayBuffer[] = [];
-    let msAppending = false;
-    let streamDone  = false;
-    let chunksTotal = 0;
-    let msEnded     = false;
+    let msAppending  = false;
+    let streamDone   = false;
+    let chunksTotal  = 0;
+    let msEnded      = false;
+    let playStarted  = false; // true once slot is filled + maybePlay() called
 
-    // Single call-site for endOfStream — prevents double-call across concurrent paths.
     const safeEndStream = (err?: "network" | "decode") => {
       if (msEnded || ms.readyState !== "open") return;
       msEnded = true;
@@ -1202,14 +1197,11 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
       try { sb.appendBuffer(msQueue.shift()!); }
       catch {
         msAppending = false;
-        // appendBuffer threw (QuotaExceeded / detached) — force audio.onerror to advance queue.
         safeEndStream("decode");
       }
     };
 
-    // Fix: 5s timeout guards against sourceopen never firing (browser GC / MSE bug).
-    // If it fires, the slot is already "ready" but the MS is dead — mark failed so
-    // maybePlay() advances past this slot.
+    // 5s guard: if sourceopen never fires, mark slot failed so queue advances.
     let sourceOpenTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
       sourceOpenTimer = null;
       if (ms.readyState !== "open") {
@@ -1220,17 +1212,37 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
 
     ms.addEventListener("sourceopen", () => {
       if (sourceOpenTimer) { clearTimeout(sourceOpenTimer); sourceOpenTimer = null; }
-      if (genRef.current !== genId) { safeEndStream(); return; }
-      try { sb = ms.addSourceBuffer(MIME); } catch { return; }
+      if (genRef.current !== genId) {
+        safeEndStream();
+        slotsRef.current.set(seq, { state: "failed" }); maybePlay();
+        return;
+      }
+      try { sb = ms.addSourceBuffer(MIME); }
+      catch {
+        slotsRef.current.set(seq, { state: "failed" }); maybePlay();
+        return;
+      }
 
       sb.addEventListener("updateend", () => {
         msAppending = false;
         if (msQueue.length > 0) { flushQueue(); return; }
-        // All queued chunks flushed — close the stream if SSE is also done.
+
+        // First real chunk buffered — NOW it is safe to call play().
+        // Fill the slot here so maybePlay() picks it up with actual audio data.
+        if (!playStarted && chunksTotal > 0) {
+          playStarted = true;
+          setBubble(sentence);
+          slotsRef.current.set(seq, {
+            state: "ready", audio, url, words: [],
+            precedingText: precedingText ?? "",
+            sentenceText: sentence,
+          });
+          maybePlay();
+        }
+
         if (streamDone && chunksTotal > 0) { safeEndStream(); }
       });
 
-      // Drain any chunks that arrived before sourceopen fired.
       flushQueue();
     }, { once: true });
 
@@ -1288,9 +1300,13 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
       if (sourceOpenTimer) { clearTimeout(sourceOpenTimer); sourceOpenTimer = null; }
       streamDone = true;
       if (!msAppending && msQueue.length === 0) {
-        // Fix: 0 chunks → force decode error so audio.onerror advances the slot queue
-        // instead of stalling indefinitely waiting for data that will never arrive.
         safeEndStream(chunksTotal === 0 ? "decode" : undefined);
+      }
+      // If no chunks ever arrived, the slot was never filled — mark failed so
+      // the ordering queue doesn't stall waiting for a slot that never plays.
+      if (!playStarted) {
+        slotsRef.current.set(seq, { state: "failed" });
+        maybePlay();
       }
       pendingRef.current = Math.max(0, pendingRef.current - 1);
       finishIfDone();

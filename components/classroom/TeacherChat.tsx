@@ -224,19 +224,22 @@ export function TeacherChat({ profile, chapterTitle, onClose, onSpeakingChange, 
         return;
       }
 
-      // MediaSource path — starts playing after first ~75ms chunk.
+      // MediaSource path — play() deferred until first updateend (first real chunk
+      // buffered). Calling play() on an empty MediaSource rejects immediately on
+      // Safari/Firefox and silently kills audio — this is the root cause of the bug.
       const ms = new MediaSource();
       audioEl = new Audio(URL.createObjectURL(ms));
       audioEl.preload = "auto";
       attachHandlers(audioEl);
-      audioEl.play().catch(() => finish());
+      // NOTE: audioEl.play() is NOT called here — deferred to first updateend below.
 
       let sb: SourceBuffer | null = null;
       const msQueue: ArrayBuffer[] = [];
-      let msAppending = false;
-      let streamDone = false;
-      let chunksTotal = 0;
-      let msEnded = false;
+      let msAppending  = false;
+      let streamDone   = false;
+      let chunksTotal  = 0;
+      let msEnded      = false;
+      let playStarted  = false;
 
       const safeEnd = (err?: "network" | "decode") => {
         if (msEnded || ms.readyState !== "open") return;
@@ -251,7 +254,7 @@ export function TeacherChat({ profile, chapterTitle, onClose, onSpeakingChange, 
         catch { msAppending = false; safeEnd("decode"); }
       };
 
-      // 5s guard: if sourceopen never fires, audio.onerror → finish().
+      // 5s guard: if sourceopen never fires, call finish() to unblock.
       let soTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
         soTimer = null;
         if (ms.readyState !== "open") finish();
@@ -264,6 +267,13 @@ export function TeacherChat({ profile, chapterTitle, onClose, onSpeakingChange, 
         sb.addEventListener("updateend", () => {
           msAppending = false;
           if (msQueue.length > 0) { flushQueue(); return; }
+
+          // First real chunk is buffered — NOW it's safe to call play().
+          if (!playStarted && chunksTotal > 0) {
+            playStarted = true;
+            audioEl!.play().catch(() => finish());
+          }
+
           if (streamDone && chunksTotal > 0) safeEnd();
         });
         flushQueue();
@@ -296,12 +306,16 @@ export function TeacherChat({ profile, chapterTitle, onClose, onSpeakingChange, 
             msQueue.push(arrBuf); chunksTotal++; flushQueue();
           }
         }
-      } catch { /* network error — audio.onerror → finish() */ }
+      } catch { /* network error — safeEnd("decode") → audio.onerror → finish() */ }
       finally {
         if (soTimer) { clearTimeout(soTimer); soTimer = null; }
         streamDone = true;
         if (!msAppending && msQueue.length === 0)
           safeEnd(chunksTotal === 0 ? "decode" : undefined);
+        // If no chunks ever arrived and play() was never called, finish() must
+        // be called here to unblock the session (audio.onerror may not fire
+        // if the element never started loading).
+        if (!playStarted && chunksTotal === 0) finish();
       }
     })().catch(() => finish());
 
