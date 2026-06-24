@@ -1024,6 +1024,19 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
       audio.play().catch(advance);
     }
 
+    // Voice mode: stream via MediaSource — first audio after ~75ms (EL first chunk)
+    // instead of waiting for full synthesis. No karaoke in voice mode (user listens).
+    // Text mode: keep tts-timed which returns per-word timings for the karaoke reveal.
+    if (subModeRef.current === "live") {
+      await speakSentenceStream(
+        sentence, precedingText, seq, genId, ab,
+        sentenceSlotsRef, pendingTtsSentencesRef, maybePlay, finishIfDone,
+        setBubble, ttsGenRef,
+      );
+      return;
+    }
+
+    // ── Text mode: tts-timed (karaoke word-by-word reveal) ──────────────────
     try {
       // /api/aida/tts-timed returns the full sentence audio + per-word timings
       // in one JSON response, enabling karaoke word-by-word reveal.
@@ -1065,6 +1078,221 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
       maybePlay();
     } finally {
       pendingTtsSentencesRef.current = Math.max(0, pendingTtsSentencesRef.current - 1);
+      finishIfDone();
+    }
+  }
+
+  // ── MediaSource streaming TTS (voice mode, lower latency) ────────────────
+  // Called by speakSentence() when subMode === "live". Fills the slot with an
+  // Audio element backed by a MediaSource immediately, so the ordering queue
+  // can call audio.play() right away. Audio chunks stream in the background;
+  // the browser starts playing as soon as the first ~75ms chunk is buffered.
+  //
+  // Compared to tts-timed: saves ~200-350ms on first audio (no full-synthesis
+  // wait). Word timings are not available from this path, so karaoke is skipped
+  // in voice mode (user is listening, not reading).
+  //
+  // Bug mitigations vs the prior MediaSource attempt:
+  //   • endOfStream() is gated on chunksTotal > 0 + readyState === "open"
+  //   • appendBuffer() uses an update queue — only one append at a time
+  //   • slot is filled before streaming starts (ordering preserved)
+  //   • pendingTtsSentencesRef stays >0 until stream finishes (finishIfDone safe)
+  //   • if MediaSource is unsupported, falls back to blob-collect via /api/aida/voice
+  async function speakSentenceStream(
+    sentence:    string,
+    precedingText: string | undefined,
+    seq:         number,
+    genId:       number,
+    ab:          AbortController,
+    slotsRef:    { current: Map<number, SentenceSlot> },
+    pendingRef:  { current: number },
+    maybePlay:   () => void,
+    finishIfDone: () => void,
+    setBubble:   (c: string) => void,
+    genRef:      { current: number },
+  ): Promise<void> {
+    const MIME = "audio/mpeg";
+    const canStream =
+      typeof MediaSource !== "undefined" && MediaSource.isTypeSupported(MIME);
+
+    if (!canStream) {
+      // Fallback: collect all SSE chunks into a blob then play (same as voiceTts.ts primary path).
+      try {
+        const res = await fetch("/api/aida/voice", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: sentence, role: "aida" }),
+          signal: ab.signal,
+        });
+        if (genRef.current !== genId || !res.ok || !res.body) {
+          slotsRef.current.set(seq, { state: "failed" }); maybePlay(); return;
+        }
+        const reader = res.body.getReader();
+        const dec = new TextDecoder();
+        let buf = ""; const parts: ArrayBuffer[] = [];
+        for (;;) {
+          if (genRef.current !== genId) { try { await reader.cancel(); } catch {} break; }
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          const lines = buf.split("\n"); buf = lines.pop() ?? "";
+          for (const line of lines) {
+            if (!line.startsWith("data:")) continue;
+            const b64 = line.slice(5).trim();
+            if (!b64 || b64 === "[DONE]") continue;
+            const bin = atob(b64); const ab2 = new ArrayBuffer(bin.length);
+            const v = new Uint8Array(ab2);
+            for (let i = 0; i < bin.length; i++) v[i] = bin.charCodeAt(i);
+            parts.push(ab2);
+          }
+        }
+        if (genRef.current !== genId || parts.length === 0) {
+          slotsRef.current.set(seq, { state: "failed" }); maybePlay(); return;
+        }
+        const blob = new Blob(parts, { type: MIME });
+        const url  = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        setBubble(sentence); // show full sentence immediately (no karaoke in voice)
+        slotsRef.current.set(seq, { state: "ready", audio, url, words: [], precedingText: precedingText ?? "", sentenceText: sentence });
+        maybePlay();
+      } catch (err) {
+        if ((err as Error)?.name !== "AbortError") {
+          slotsRef.current.set(seq, { state: "failed" }); maybePlay();
+        }
+      } finally {
+        pendingRef.current = Math.max(0, pendingRef.current - 1);
+        finishIfDone();
+      }
+      return;
+    }
+
+    // ── MediaSource path ──────────────────────────────────────────────────────
+    const ms  = new MediaSource();
+    const url = URL.createObjectURL(ms);
+    const audio = new Audio(url);
+    audio.preload = "auto";
+
+    // Slot filled BEFORE streaming — ordering queue can call play() immediately.
+    // Browser waits for the first chunk via MediaSource "waiting" state.
+    setBubble(sentence); // show full sentence text (no word-by-word in voice mode)
+    slotsRef.current.set(seq, {
+      state: "ready", audio, url, words: [],
+      precedingText: precedingText ?? "",
+      sentenceText: sentence,
+    });
+    maybePlay();
+
+    // ── SourceBuffer queue (one appendBuffer at a time) ───────────────────────
+    let sb: SourceBuffer | null = null;
+    const msQueue: ArrayBuffer[] = [];
+    let msAppending = false;
+    let streamDone  = false;
+    let chunksTotal = 0;
+    let msEnded     = false;
+
+    // Single call-site for endOfStream — prevents double-call across concurrent paths.
+    const safeEndStream = (err?: "network" | "decode") => {
+      if (msEnded || ms.readyState !== "open") return;
+      msEnded = true;
+      try { err ? ms.endOfStream(err) : ms.endOfStream(); } catch {}
+    };
+
+    const flushQueue = () => {
+      if (msAppending || msQueue.length === 0 || !sb || ms.readyState !== "open") return;
+      msAppending = true;
+      try { sb.appendBuffer(msQueue.shift()!); }
+      catch {
+        msAppending = false;
+        // appendBuffer threw (QuotaExceeded / detached) — force audio.onerror to advance queue.
+        safeEndStream("decode");
+      }
+    };
+
+    // Fix: 5s timeout guards against sourceopen never firing (browser GC / MSE bug).
+    // If it fires, the slot is already "ready" but the MS is dead — mark failed so
+    // maybePlay() advances past this slot.
+    let sourceOpenTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+      sourceOpenTimer = null;
+      if (ms.readyState !== "open") {
+        slotsRef.current.set(seq, { state: "failed" });
+        maybePlay();
+      }
+    }, 5000);
+
+    ms.addEventListener("sourceopen", () => {
+      if (sourceOpenTimer) { clearTimeout(sourceOpenTimer); sourceOpenTimer = null; }
+      if (genRef.current !== genId) { safeEndStream(); return; }
+      try { sb = ms.addSourceBuffer(MIME); } catch { return; }
+
+      sb.addEventListener("updateend", () => {
+        msAppending = false;
+        if (msQueue.length > 0) { flushQueue(); return; }
+        // All queued chunks flushed — close the stream if SSE is also done.
+        if (streamDone && chunksTotal > 0) { safeEndStream(); }
+      });
+
+      // Drain any chunks that arrived before sourceopen fired.
+      flushQueue();
+    }, { once: true });
+
+    // ── SSE fetch (parallel with playback) ───────────────────────────────────
+    // pendingRef stays elevated until fetch finishes, so finishIfDone() won't
+    // fire prematurely while we're still streaming.
+    try {
+      const res = await fetch("/api/aida/voice", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: sentence, role: "aida" }),
+        signal: ab.signal,
+      });
+
+      if (!res.ok || !res.body || genRef.current !== genId) {
+        // Mark failed immediately rather than relying on the 5s sourceopen timeout.
+        slotsRef.current.set(seq, { state: "failed" });
+        maybePlay();
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let sseBuf = "";
+
+      for (;;) {
+        if (genRef.current !== genId || ab.signal.aborted) {
+          try { await reader.cancel(); } catch {}
+          // Cleanly close the MediaSource so stale audio doesn't keep buffering.
+          safeEndStream();
+          break;
+        }
+        const { done, value } = await reader.read();
+        if (done) break;
+        sseBuf += dec.decode(value, { stream: true });
+        const lines = sseBuf.split("\n");
+        sseBuf = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.startsWith("data:")) continue;
+          const b64 = line.slice(5).trim();
+          if (!b64 || b64 === "[DONE]") continue;
+          const bin = atob(b64);
+          const arrBuf = new ArrayBuffer(bin.length);
+          const v = new Uint8Array(arrBuf);
+          for (let i = 0; i < bin.length; i++) v[i] = bin.charCodeAt(i);
+          msQueue.push(arrBuf);
+          chunksTotal++;
+          flushQueue();
+        }
+      }
+    } catch (err) {
+      if ((err as Error)?.name === "AbortError") return;
+      // Network error on a partial stream — seal with decode error so audio.onerror fires.
+      if (chunksTotal > 0) safeEndStream("decode");
+    } finally {
+      if (sourceOpenTimer) { clearTimeout(sourceOpenTimer); sourceOpenTimer = null; }
+      streamDone = true;
+      if (!msAppending && msQueue.length === 0) {
+        // Fix: 0 chunks → force decode error so audio.onerror advances the slot queue
+        // instead of stalling indefinitely waiting for data that will never arrive.
+        safeEndStream(chunksTotal === 0 ? "decode" : undefined);
+      }
+      pendingRef.current = Math.max(0, pendingRef.current - 1);
       finishIfDone();
     }
   }
