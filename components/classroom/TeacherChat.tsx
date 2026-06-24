@@ -8,7 +8,7 @@
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Send, Mic, Volume2, VolumeX, X, BookOpen, MessageSquare, PhoneOff } from "lucide-react";
+import { Send, Mic, MicOff, Volume2, VolumeX, X, BookOpen, MessageSquare, PhoneOff } from "lucide-react";
 import { buildClassroomGreeting } from "@/lib/teacherPanelGreeting";
 import { useTeacherVoice } from "./useTeacherVoice";
 import { VoiceOrb } from "@/components/aida/VoiceOrb";
@@ -574,9 +574,23 @@ function VoicePanel({
   onSend:   (text?: string) => void;
   orbAmp:   number;
 }) {
-  const { liveState, muted, toggleMute, toggleLive } = voice;
+  const { liveState, muted, toggleMute, toggleLive, micStream } = voice;
   const [typeOpen,  setTypeOpen]  = useState(false);
   const [typeInput, setTypeInput] = useState("");
+  const [micMuted,  setMicMuted]  = useState(false);
+
+  // Apply mic mute to the live audio track whenever state changes.
+  useEffect(() => {
+    micStream?.getAudioTracks().forEach(t => { t.enabled = !micMuted; });
+  }, [micMuted, micStream]);
+
+  // Reset mic mute when the call ends.
+  useEffect(() => {
+    if (liveState === "idle") {
+      setMicMuted(false);
+      micStream?.getAudioTracks().forEach(t => { t.enabled = true; });
+    }
+  }, [liveState, micStream]);
 
   const liveLabel: Record<string, string> = {
     idle: "Tap the orb to talk 🎧", arming: "Connecting…",
@@ -636,6 +650,18 @@ function VoicePanel({
               className="w-7 h-7 rounded-full flex items-center justify-center transition-colors"
               style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${muted ? GOLD : "rgba(255,255,255,0.12)"}` }}>
               {muted ? <VolumeX size={13} color={TEXT_HI} /> : <Volume2 size={13} color={TEXT_HI} />}
+            </button>
+            {/* Mic mute — silences the student's own mic without stopping the call */}
+            <button
+              onClick={() => setMicMuted(v => !v)}
+              title={micMuted ? "Unmute mic" : "Mute mic"}
+              aria-label={micMuted ? "Unmute mic" : "Mute mic"}
+              className="w-7 h-7 rounded-full flex items-center justify-center transition-colors"
+              style={{
+                background: micMuted ? "rgba(255,45,120,0.18)" : "rgba(255,255,255,0.06)",
+                border: `1px solid ${micMuted ? "#FF2D78" : "rgba(255,255,255,0.12)"}`,
+              }}>
+              {micMuted ? <MicOff size={13} color="#FF2D78" /> : <Mic size={13} color={TEXT_HI} />}
             </button>
           </div>
 

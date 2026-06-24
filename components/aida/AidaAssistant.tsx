@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { PromptPackCard, type PromptPack, type PromptPart } from "@/components/aida/PromptPackCard";
 import { usePathname } from "next/navigation";
-import { X, Send, Mic, MessageSquare, PhoneOff } from "lucide-react";
+import { X, Send, Mic, MicOff, MessageSquare, PhoneOff } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useWhiteboardReader, useValidatorReader, useWorksheetReader, useClassroomReader } from "@/lib/chatChannels";
 import { useLiveVoice } from "@/components/aida/voice/useLiveVoice";
@@ -168,6 +168,10 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
   const [streamReady, setStreamReady] = useState(false);
   const [voiceOK, setVoiceOK]         = useState(false);
   const [voiceError, setVoiceError]   = useState<string | null>(null);
+  // Voice panel: typed input + mic mute + "Reading your message…" override label.
+  const [voiceInput, setVoiceInput]   = useState("");
+  const [micMuted,   setMicMuted]     = useState(false);
+  const [readingLabel, setReadingLabel] = useState<string | null>(null);
   // Seed from the window flag so an AidaAssistant that mounts after the
   // validator panel already auto-opened still starts hidden (the one-shot
   // "validator-panel-open" event would otherwise be missed).
@@ -553,6 +557,24 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
     },
   });
   liveSetAiSpeakingRef.current = liveVoice.setAiSpeaking;
+
+  // Keep live session in sync with mic mute toggle.
+  useEffect(() => {
+    liveVoice.setMicMuted(micMuted);
+  }, [micMuted, liveVoice.setMicMuted]);
+
+  // Clear "Reading your message…" label once AIDA starts speaking or session ends.
+  useEffect(() => {
+    const s = liveVoice.state;
+    if (s === "ai-speaking" || s === "listening" || s === "idle") {
+      setReadingLabel(null);
+    }
+  }, [liveVoice.state]);
+
+  // Reset mic-mute when live session goes idle (call ended).
+  useEffect(() => {
+    if (liveVoice.state === "idle") setMicMuted(false);
+  }, [liveVoice.state]);
 
   if (HIDDEN_ON.some(p => pathname.startsWith(p))) return null;
 
@@ -1606,8 +1628,7 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
       )}
 
       {/* ── Voice panel — orb fills the whole panel (AI-188) ────────────────
-           Pure-audio live mode. The Decoder Star orb is the only UI element
-           except for a short label and active-call controls below it. */}
+           Pure-audio live mode. Orb + label + controls + always-visible type-in. */}
       {mode === "voice" && (
         <div
           className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 px-3 py-4"
@@ -1634,14 +1655,23 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
           </button>
 
           <p className="text-[11px] text-white/60 text-center">
-            {voiceError ?? (liveVoice.state === "idle" ? "Tap to talk 🎧" : LIVE_LABEL[liveVoice.state])}
+            {voiceError ?? (
+              liveVoice.state === "idle"
+                ? "Tap to talk 🎧"
+                : (readingLabel && (liveVoice.state === "listening" || liveVoice.state === "llm-thinking"))
+                  ? readingLabel
+                  : LIVE_LABEL[liveVoice.state]
+            )}
           </p>
 
           {liveVoice.state !== "idle" && (
             <div className="flex items-center gap-2">
-              <span className="flex items-center gap-1.5 text-[10px]" style={{ color: "#7DD3FC" }}>
-                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#00D4FF" }} />
-                Mic is live
+              <span className="flex items-center gap-1.5 text-[10px]" style={{ color: micMuted ? "rgba(255,255,255,0.35)" : "#7DD3FC" }}>
+                <span
+                  className="w-1.5 h-1.5 rounded-full"
+                  style={{ background: micMuted ? "rgba(255,255,255,0.3)" : "#00D4FF", animation: micMuted ? "none" : "pulse 2s cubic-bezier(0.4,0,0.6,1) infinite" }}
+                />
+                {micMuted ? "Mic muted" : "Mic is live"}
               </span>
               <button
                 onClick={toggleLiveCall}
@@ -1650,8 +1680,72 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
               >
                 <PhoneOff size={11} /> Stop
               </button>
+              {/* Mic mute toggle */}
+              <button
+                onClick={() => setMicMuted(v => !v)}
+                title={micMuted ? "Unmute mic" : "Mute mic"}
+                aria-label={micMuted ? "Unmute mic" : "Mute mic"}
+                className="w-7 h-7 rounded-full flex items-center justify-center transition-colors"
+                style={{
+                  background: micMuted ? "rgba(255,45,120,0.18)" : "rgba(255,255,255,0.06)",
+                  border: `1px solid ${micMuted ? "#FF2D78" : "rgba(255,255,255,0.12)"}`,
+                }}
+              >
+                {micMuted
+                  ? <MicOff size={13} color="#FF2D78" />
+                  : <Mic    size={13} color="rgba(255,255,255,0.7)" />}
+              </button>
             </div>
           )}
+
+          {/* Always-visible type-in input — mic + interruption stay active */}
+          <div
+            className="flex items-center gap-2 w-full max-w-[280px]"
+            style={{ marginTop: 4 }}
+          >
+            <input
+              value={voiceInput}
+              onChange={e => setVoiceInput(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === "Enter" && voiceInput.trim() && !streaming && liveVoice.state !== "idle") {
+                  const t = voiceInput.trim();
+                  setVoiceInput("");
+                  setReadingLabel("Reading your message…");
+                  coreSend(t);
+                }
+              }}
+              placeholder={liveVoice.state === "idle" ? "Start a call to type…" : "Type a message…"}
+              disabled={streaming || liveVoice.state === "idle"}
+              className="flex-1 bg-transparent outline-none text-[11px] px-3 py-1.5 rounded-lg"
+              style={{
+                border: "1px solid rgba(125,211,252,0.2)",
+                background: "rgba(125,211,252,0.04)",
+                color: "#E0F2FE",
+                opacity: liveVoice.state === "idle" ? 0.4 : 1,
+              }}
+            />
+            <button
+              onClick={() => {
+                const t = voiceInput.trim();
+                if (!t || streaming || liveVoice.state === "idle") return;
+                setVoiceInput("");
+                setReadingLabel("Reading your message…");
+                coreSend(t);
+              }}
+              disabled={!voiceInput.trim() || streaming || liveVoice.state === "idle"}
+              className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-200 active:scale-90"
+              style={{
+                background: voiceInput.trim() && !streaming && liveVoice.state !== "idle"
+                  ? "linear-gradient(180deg, #7DD3FC 0%, #00D4FF 50%, #0284C7 100%)"
+                  : "rgba(255,255,255,0.06)",
+                boxShadow: voiceInput.trim() && !streaming && liveVoice.state !== "idle"
+                  ? "0 0 14px rgba(0,212,255,0.55), inset 0 1px 0 rgba(255,255,255,0.4)"
+                  : "none",
+              }}
+            >
+              <Send size={12} style={{ color: voiceInput.trim() && !streaming && liveVoice.state !== "idle" ? "#031024" : "rgba(255,255,255,0.4)" }} />
+            </button>
+          </div>
         </div>
       )}
     </>

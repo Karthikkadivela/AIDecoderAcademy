@@ -69,6 +69,13 @@ export class LiveVoiceSession {
 
   getState() { return this.state; }
 
+  // Disables / re-enables the mic audio tracks without tearing down the session.
+  // VAD + Deepgram receive silence, so no spurious transcripts while muted.
+  setMicMuted(muted: boolean) {
+    if (this.destroyed) return;
+    this.stream?.getAudioTracks().forEach(t => { t.enabled = !muted; });
+  }
+
   // Called from the React layer when TTS playback begins / ends.
   setAiSpeaking(speaking: boolean) {
     if (this.destroyed) return;
