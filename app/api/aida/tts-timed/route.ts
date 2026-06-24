@@ -1,4 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
+import { sanitizeTtsText } from "@/lib/classroomAudio";
 
 export const runtime = "nodejs";
 
@@ -10,14 +11,12 @@ export const runtime = "nodejs";
 
 const AIDA_VOICE_ID      = process.env.ELEVENLABS_AIDA_VOICE_ID    ?? "AZnzlk1XvdvUeBnXmlld";
 const TEACHER_VOICE_ID   = process.env.ELEVENLABS_TEACHER_VOICE_ID ?? "JBFqnCBsd6RMkjVDRZzb";
-const CLASSROOM_VOICE_ID = process.env.ELEVENLABS_CLASSROOM_VOICE_ID ?? "1qEiC6qsybMkmnNdVMbK";
+// Rachel — same voice used by classroom lessons (classroomAudio.ts); clear
+// articulation of maths/science terms (sine, theta, hypotenuse, H₂O etc.).
+const CLASSROOM_VOICE_ID = process.env.ELEVENLABS_CLASSROOM_VOICE_ID ?? "21m00Tcm4TlvDq8ikWAM";
 
-// Flash v2.5 — ~75ms first-byte vs ~275ms for Turbo. ElevenLabs recommends
-// Flash over Turbo for all conversational use; quality delta is in emotional
-// drama, not intelligibility (irrelevant for educational speech, and
-// sanitizeTtsText already handles symbol/term pronunciation). This is the
-// karaoke path shared by AIDA, SAGE and Bhavna — the switch cuts the
-// pre-speech dead zone for all three at once.
+// Flash v2.5 — ~75ms first-byte vs ~275ms for Turbo. Fast enough for
+// conversational voice mode; sanitizeTtsText handles symbol pronunciation.
 const ELEVENLABS_MODEL = "eleven_flash_v2_5";
 
 const VOICE_SETTINGS = {
@@ -86,7 +85,7 @@ export async function POST(req: Request) {
           "Accept":       "application/json",
         },
         body: JSON.stringify({
-          text:           text.slice(0, 4096),
+          text:           sanitizeTtsText(text).slice(0, 4096),
           model_id:       ELEVENLABS_MODEL,
           voice_settings: voiceSettings,
         }),

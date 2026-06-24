@@ -221,6 +221,7 @@ export class LiveVoiceSession {
       url.searchParams.set("interim_results",  "true");
       url.searchParams.set("smart_format",     "true");
       url.searchParams.set("language",         "en");
+      url.searchParams.set("endpointing",      "100");
 
       // Deepgram supports passing the token via WS subprotocols.
       const ws = new WebSocket(url.toString(), ["token", token]);
