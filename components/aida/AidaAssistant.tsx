@@ -1304,9 +1304,10 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
       if (!msAppending && msQueue.length === 0) {
         safeEndStream(chunksTotal === 0 ? "decode" : undefined);
       }
-      // If no chunks ever arrived, the slot was never filled — mark failed so
-      // the ordering queue doesn't stall waiting for a slot that never plays.
-      if (!playStarted) {
+      // Only mark failed if NO chunks arrived — if chunks exist, updateend will
+      // fire asynchronously and fill the slot itself. Marking failed here when
+      // chunksTotal > 0 causes a race where finally wins before updateend.
+      if (!playStarted && chunksTotal === 0) {
         slotsRef.current.set(seq, { state: "failed" });
         maybePlay();
       }

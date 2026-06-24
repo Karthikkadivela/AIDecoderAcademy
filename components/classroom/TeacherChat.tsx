@@ -753,9 +753,9 @@ function VoicePanel({
       {active && (
         <div className="flex flex-col items-center gap-2">
           <div className="flex items-center gap-2">
-            <span className="flex items-center gap-1.5 text-[10px]" style={{ color: GOLD }}>
-              <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: GOLD }} />
-              Mic is live
+            <span className="flex items-center gap-1.5 text-[10px]" style={{ color: micMuted ? "#FF2D78" : GOLD }}>
+              <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: micMuted ? "#FF2D78" : GOLD }} />
+              {micMuted ? "Mic muted" : "Mic is live"}
             </span>
             <button
               onClick={toggleLive}
