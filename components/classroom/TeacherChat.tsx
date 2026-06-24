@@ -148,9 +148,9 @@ export function TeacherChat({ profile, chapterTitle, onClose, onSpeakingChange, 
     if (!text.trim()) return;
     // setBhavnaSpeaking(true) moved to el.onplaying — fires when audio actually plays.
 
-    // Call tts-timed directly — same path as classroom lessons (proven reliable).
-    // voiceTts.ts tries the WebSocket route first; if that ElevenLabs voice ID
-    // isn't on the plan, it silently produces no audio. Direct is unambiguous.
+    // Fetch /api/aida/voice (ElevenLabs WS stream → mp3_44100_128 base64 chunks)
+    // and decode via Web Audio API. Avoids voiceTts.ts's audio element path which
+    // can't handle raw PCM.
     let active = true;
     let raf = 0, phase = 0;
     let resolveDone!: () => void;
@@ -170,10 +170,10 @@ export function TeacherChat({ profile, chapterTitle, onClose, onSpeakingChange, 
     voiceHandleRef.current = handle;
 
     (async () => {
-      // PCM path: ElevenLabs pcm_16000 (Int16LE, 16kHz mono) → AudioContext.
+      // MP3 path: /api/aida/voice returns mp3_44100_128 chunks (SSE base64).
+      // Collect raw bytes, decode via AudioContext.decodeAudioData.
       let pcmSrc: AudioBufferSourceNode | null = null;
       let pcmCtx: AudioContext | null = null;
-      // Allow stop() to tear down audio immediately on barge-in.
       handle.stop = () => {
         try { pcmSrc?.stop(); } catch {}
         try { pcmCtx?.close(); } catch {}
@@ -188,7 +188,7 @@ export function TeacherChat({ profile, chapterTitle, onClose, onSpeakingChange, 
         const reader     = res.body.getReader();
         const dec        = new TextDecoder();
         let sseBuf       = "";
-        const int16Parts: Int16Array[] = [];
+        const rawParts: Uint8Array[] = [];
         for (;;) {
           if (!active) { try { await reader.cancel(); } catch {} break; }
           const { done, value } = await reader.read();
@@ -202,24 +202,26 @@ export function TeacherChat({ profile, chapterTitle, onClose, onSpeakingChange, 
             const bin = atob(b64);
             const bytes = new Uint8Array(bin.length);
             for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-            int16Parts.push(new Int16Array(bytes.buffer));
+            rawParts.push(bytes);
           }
         }
-        if (!active || int16Parts.length === 0) { finish(); return; }
-        const totalSamples = int16Parts.reduce((s, a) => s + a.length, 0);
-        const f32 = new Float32Array(totalSamples);
+        if (!active || rawParts.length === 0) { finish(); return; }
+        // Concat MP3 frames → decode via Web Audio API
+        const totalLen = rawParts.reduce((s, a) => s + a.length, 0);
+        const mp3Bytes = new Uint8Array(totalLen);
         let off = 0;
-        for (const chunk of int16Parts) {
-          for (let i = 0; i < chunk.length; i++) f32[off++] = chunk[i] / 32768;
-        }
-        pcmCtx = new AudioContext();
-        const audioBuf = pcmCtx.createBuffer(1, f32.length, 16000);
-        audioBuf.getChannelData(0).set(f32);
+        for (const c of rawParts) { mp3Bytes.set(c, off); off += c.length; }
+        const ACtx = (window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext) as typeof AudioContext;
+        pcmCtx = new ACtx();
+        if (pcmCtx.state === "suspended") { try { await pcmCtx.resume(); } catch { pcmCtx.close().catch(() => {}); finish(); return; } }
+        let decodedBuf: AudioBuffer;
+        try {
+          decodedBuf = await pcmCtx.decodeAudioData(mp3Bytes.buffer.slice(0));
+        } catch { pcmCtx.close().catch(() => {}); finish(); return; }
+        if (!active) { pcmCtx.close().catch(() => {}); finish(); return; }
         pcmSrc = pcmCtx.createBufferSource();
-        pcmSrc.buffer = audioBuf;
+        pcmSrc.buffer = decodedBuf;
         pcmSrc.connect(pcmCtx.destination);
-        if (pcmCtx.state === "suspended") await pcmCtx.resume();
-        if (!active) { finish(); return; }
         setBhavnaSpeaking(true);
         setAiSpeakingRef.current(true);
         const tick = () => {
@@ -230,7 +232,7 @@ export function TeacherChat({ profile, chapterTitle, onClose, onSpeakingChange, 
         };
         raf = requestAnimationFrame(tick);
         pcmSrc.onended = () => { cancelAnimationFrame(raf); setOrbAmp(0); try { pcmCtx?.close(); } catch {} finish(); };
-        pcmSrc.start();
+        pcmSrc.start(0);
       } catch {
         finish();
       }

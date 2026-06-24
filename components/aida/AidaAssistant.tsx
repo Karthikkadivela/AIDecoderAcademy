@@ -622,6 +622,7 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
     if (ttsAbortRef.current) { ttsAbortRef.current.abort(); ttsAbortRef.current = null; }
     abortAllTtsSentences();
     if (voiceHandleRef.current) { try { voiceHandleRef.current.stop(); } catch {} voiceHandleRef.current = null; }
+    closePcmContext();
     setOrbAmp(0);
     ++sendIdRef.current; // invalidate any in-flight coreSend stream
     ++ttsGenRef.current;
@@ -656,6 +657,14 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
       cancelAnimationFrame(karaokeRafRef.current);
       karaokeRafRef.current = null;
     }
+  }
+
+  function closePcmContext() {
+    if (pcmCtxRef.current && pcmCtxRef.current.state !== "closed") {
+      try { pcmCtxRef.current.close(); } catch { /* */ }
+    }
+    pcmCtxRef.current = null;
+    nextPcmTimeRef.current = 0;
   }
 
   function abortAiResponse() {
@@ -1044,7 +1053,15 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
 
     function playPcmSlot(slot: Extract<SentenceSlot, { state: "ready-pcm" }>) {
       const { samples, sampleRate, sentenceText, precedingText } = slot;
-      if (!pcmCtxRef.current) pcmCtxRef.current = new AudioContext();
+      // Recreate if torn down — decodeAudioData already used this context, so
+      // creating a fresh one here would produce an orphan buffer. In practice this
+      // branch only fires if a barge-in+cleanup raced with maybePlay(); the new
+      // context will have currentTime=0 which is fine for a single source.
+      if (!pcmCtxRef.current || pcmCtxRef.current.state === "closed") {
+        const ACtx = (window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext) as typeof AudioContext;
+        pcmCtxRef.current = new ACtx();
+        nextPcmTimeRef.current = 0;
+      }
       const ctx = pcmCtxRef.current;
       if (ctx.state === "suspended") { ctx.resume().catch(() => {}); }
       if (subModeRef.current === "live") liveSetAiSpeakingRef.current(true);
@@ -1168,7 +1185,7 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
       const reader      = res.body.getReader();
       const dec         = new TextDecoder();
       let sseBuf        = "";
-      const int16Parts: Int16Array[] = [];
+      const rawParts: Uint8Array[] = [];
       for (;;) {
         if (genRef.current !== genId) { try { await reader.cancel(); } catch {} break; }
         const { done, value } = await reader.read();
@@ -1182,21 +1199,38 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
           const bin   = atob(b64);
           const bytes = new Uint8Array(bin.length);
           for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-          int16Parts.push(new Int16Array(bytes.buffer));
+          rawParts.push(bytes);
         }
       }
-      if (genRef.current !== genId || int16Parts.length === 0) {
+      if (genRef.current !== genId || rawParts.length === 0) {
         slotsRef.current.set(seq, { state: "failed" }); maybePlay(); return;
       }
-      // Concatenate Int16 PCM chunks → Float32 (-1..1)
-      const totalSamples = int16Parts.reduce((s, a) => s + a.length, 0);
-      const samples      = new Float32Array(totalSamples);
-      let offset = 0;
-      for (const chunk of int16Parts) {
-        for (let i = 0; i < chunk.length; i++) samples[offset++] = chunk[i] / 32768;
+      // Concat MP3 frames → single buffer, decode via Web Audio API
+      const totalLen = rawParts.reduce((s, a) => s + a.length, 0);
+      const mp3Bytes = new Uint8Array(totalLen);
+      let off = 0;
+      for (const c of rawParts) { mp3Bytes.set(c, off); off += c.length; }
+      // Ensure AudioContext exists; recreate if it was torn down by a prior barge-in
+      if (!pcmCtxRef.current || pcmCtxRef.current.state === "closed") {
+        const ACtx = (window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext) as typeof AudioContext;
+        pcmCtxRef.current = new ACtx();
+        nextPcmTimeRef.current = 0;
       }
+      if (pcmCtxRef.current.state === "suspended") {
+        try { await pcmCtxRef.current.resume(); } catch { /* */ }
+      }
+      if (genRef.current !== genId) { slotsRef.current.set(seq, { state: "failed" }); maybePlay(); return; }
+      let decodedBuf: AudioBuffer;
+      try {
+        decodedBuf = await pcmCtxRef.current.decodeAudioData(mp3Bytes.buffer.slice(0));
+      } catch {
+        slotsRef.current.set(seq, { state: "failed" }); maybePlay(); return;
+      }
+      if (genRef.current !== genId) { slotsRef.current.set(seq, { state: "failed" }); maybePlay(); return; }
+      const samples = new Float32Array(decodedBuf.length);
+      samples.set(decodedBuf.getChannelData(0));
       slotsRef.current.set(seq, {
-        state: "ready-pcm", samples, sampleRate: 16000,
+        state: "ready-pcm", samples, sampleRate: decodedBuf.sampleRate,
         precedingText: precedingText ?? "", sentenceText: sentence,
       });
       maybePlay();
@@ -1385,6 +1419,18 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
 
   async function toggleLiveCall() {
     if (liveVoice.state === "idle") {
+      // Create the AudioContext during the user's orb-tap gesture so it is
+      // never suspended — browser autoplay policy only permits AudioContext
+      // creation/resume within a user-initiated event handler. This avoids
+      // the race where playPcmSlot later calls ctx.resume() fire-and-forget
+      // and src.start() fires against a suspended clock (currentTime === 0).
+      if (!pcmCtxRef.current || pcmCtxRef.current.state === "closed") {
+        pcmCtxRef.current = new AudioContext();
+      }
+      if (pcmCtxRef.current.state === "suspended") {
+        await pcmCtxRef.current.resume();
+      }
+      nextPcmTimeRef.current = 0;
       await liveVoice.start();
     } else {
       // Any other state = active session; tapping ends the call.

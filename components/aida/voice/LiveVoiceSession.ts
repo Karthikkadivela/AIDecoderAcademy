@@ -81,8 +81,8 @@ export class LiveVoiceSession {
     if (this.destroyed) return;
     if (speaking) {
       this.transition("ai-speaking");
-    } else if (this.state === "ai-speaking") {
-      // TTS finished naturally; back to listening.
+    } else if (this.state === "ai-speaking" || this.state === "llm-thinking") {
+      // TTS finished (or failed before any audio played) — back to listening.
       this.transition("listening");
     }
   }

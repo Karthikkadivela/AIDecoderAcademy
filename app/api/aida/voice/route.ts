@@ -71,7 +71,7 @@ export async function POST(req: Request) {
       start(controller) {
         const url =
           `wss://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream-input` +
-          `?model_id=${ELEVENLABS_MODEL}&output_format=pcm_16000`;
+          `?model_id=${ELEVENLABS_MODEL}&output_format=mp3_44100_128`;
         const ws = new WebSocket(url, { headers: { "xi-api-key": apiKey } });
 
         let done = false;
