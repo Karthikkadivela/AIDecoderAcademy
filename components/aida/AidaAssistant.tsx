@@ -282,6 +282,9 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
   // ── Stable refs (avoid stale closures in async callbacks) ─────────────────
   const messagesRef        = useRef<ChatMessage[]>([]);
   const audioRef           = useRef<HTMLAudioElement | null>(null);
+  const pcmCtxRef          = useRef<AudioContext | null>(null);
+  const nextPcmTimeRef     = useRef<number>(0);
+  const pcmSourcesRef      = useRef<AudioBufferSourceNode[]>([]);
   const voiceStateRef      = useRef<VoiceState>("idle");
   const modeRef            = useRef<"text" | "voice">("text");
   const subModeRef         = useRef<VoiceSubMode>("live");
@@ -324,6 +327,8 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
   type SentenceSlot =
     | { state: "ready"; audio: HTMLAudioElement; url: string;
         words: { text: string; start: number; end: number }[];
+        precedingText: string; sentenceText: string }
+    | { state: "ready-pcm"; samples: Float32Array; sampleRate: number;
         precedingText: string; sentenceText: string }
     | { state: "failed" };
   const ttsSeqRef          = useRef(0);
@@ -635,6 +640,9 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
     ttsSentenceAbortRefs.current = [];
     pendingTtsSentencesRef.current = 0;
     // Drop any queued/ready sentence audio so it can't play after a barge-in.
+    for (const src of pcmSourcesRef.current) { try { src.stop(); } catch {} }
+    pcmSourcesRef.current = [];
+    nextPcmTimeRef.current = 0;
     for (const slot of sentenceSlotsRef.current.values()) {
       if (slot.state === "ready") {
         try { slot.audio.pause(); } catch {}
@@ -934,6 +942,7 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
       if (
         pendingTtsSentencesRef.current === 0 &&
         !audioRef.current &&
+        pcmSourcesRef.current.length === 0 &&
         sentenceSlotsRef.current.size === 0 &&
         voiceStateRef.current === "speaking"
       ) {
@@ -947,10 +956,17 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
     // ones — so a sentence whose audio fetch resolved early never jumps ahead.
     function maybePlay() {
       if (ttsGenRef.current !== genId) return;
-      if (audioRef.current) return; // something already playing
       const i = nextPlayIndexRef.current;
       const slot = sentenceSlotsRef.current.get(i);
-      if (!slot) { finishIfDone(); return; } // not ready yet (or all done)
+      if (!slot) { finishIfDone(); return; }
+      if (slot.state === "ready-pcm") {
+        sentenceSlotsRef.current.delete(i);
+        nextPlayIndexRef.current++;
+        playPcmSlot(slot);
+        maybePlay(); // pre-schedule next sentence for gapless playback
+        return;
+      }
+      if (audioRef.current) return; // HTML Audio already playing
       sentenceSlotsRef.current.delete(i);
       if (slot.state === "failed") {
         nextPlayIndexRef.current++;
@@ -1024,6 +1040,30 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
       audio.onended = advance;
       audio.onerror = advance;
       audio.play().catch(advance);
+    }
+
+    function playPcmSlot(slot: Extract<SentenceSlot, { state: "ready-pcm" }>) {
+      const { samples, sampleRate, sentenceText, precedingText } = slot;
+      if (!pcmCtxRef.current) pcmCtxRef.current = new AudioContext();
+      const ctx = pcmCtxRef.current;
+      if (ctx.state === "suspended") { ctx.resume().catch(() => {}); }
+      if (subModeRef.current === "live") liveSetAiSpeakingRef.current(true);
+      const base = precedingText ? precedingText.replace(/\s+$/, "") + " " : "";
+      setBubble(base + sentenceText);
+      const audioBuf = ctx.createBuffer(1, samples.length, sampleRate);
+      audioBuf.getChannelData(0).set(samples);
+      const src = ctx.createBufferSource();
+      src.buffer = audioBuf;
+      src.connect(ctx.destination);
+      const startAt = Math.max(ctx.currentTime + 0.02, nextPcmTimeRef.current);
+      src.start(startAt);
+      nextPcmTimeRef.current = startAt + audioBuf.duration;
+      pcmSourcesRef.current.push(src);
+      src.onended = () => {
+        pcmSourcesRef.current = pcmSourcesRef.current.filter(s => s !== src);
+        if (ttsGenRef.current !== genId) return;
+        finishIfDone();
+      };
     }
 
     // Voice mode: stream via MediaSource — first audio after ~75ms (EL first chunk)
@@ -1113,212 +1153,63 @@ export function AidaAssistant({ profile }: { profile: Profile | null }) {
     setBubble:   (c: string) => void,
     genRef:      { current: number },
   ): Promise<void> {
-    const MIME = "audio/mpeg";
-    // MediaSource/MP3 streaming disabled: isTypeSupported returns true in Chrome
-    // but addSourceBuffer("audio/mpeg") throws at runtime on many configs, causing
-    // the slot to be silently marked "failed" and liveSetAiSpeaking(true) to never
-    // fire — producing the "stuck on Thinking" + silent audio bug. Blob-collect is
-    // ~300ms slower to first audio but works reliably everywhere. Re-enable when
-    // confirmed stable in target browsers.
-    const canStream = false;
-
-    if (!canStream) {
-      // Fallback: collect all SSE chunks into a blob then play (same as voiceTts.ts primary path).
-      try {
-        const res = await fetch("/api/aida/voice", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: sentence, role: "aida" }),
-          signal: ab.signal,
-        });
-        if (genRef.current !== genId || !res.ok || !res.body) {
-          slotsRef.current.set(seq, { state: "failed" }); maybePlay(); return;
-        }
-        const reader = res.body.getReader();
-        const dec = new TextDecoder();
-        let buf = ""; const parts: ArrayBuffer[] = [];
-        for (;;) {
-          if (genRef.current !== genId) { try { await reader.cancel(); } catch {} break; }
-          const { done, value } = await reader.read();
-          if (done) break;
-          buf += dec.decode(value, { stream: true });
-          const lines = buf.split("\n"); buf = lines.pop() ?? "";
-          for (const line of lines) {
-            if (!line.startsWith("data:")) continue;
-            const b64 = line.slice(5).trim();
-            if (!b64 || b64 === "[DONE]") continue;
-            const bin = atob(b64); const ab2 = new ArrayBuffer(bin.length);
-            const v = new Uint8Array(ab2);
-            for (let i = 0; i < bin.length; i++) v[i] = bin.charCodeAt(i);
-            parts.push(ab2);
-          }
-        }
-        if (genRef.current !== genId || parts.length === 0) {
-          slotsRef.current.set(seq, { state: "failed" }); maybePlay(); return;
-        }
-        const blob = new Blob(parts, { type: MIME });
-        const url  = URL.createObjectURL(blob);
-        const audio = new Audio(url);
-        setBubble(sentence); // show full sentence immediately (no karaoke in voice)
-        slotsRef.current.set(seq, { state: "ready", audio, url, words: [], precedingText: precedingText ?? "", sentenceText: sentence });
-        maybePlay();
-      } catch (err) {
-        if ((err as Error)?.name !== "AbortError") {
-          slotsRef.current.set(seq, { state: "failed" }); maybePlay();
-        }
-      } finally {
-        pendingRef.current = Math.max(0, pendingRef.current - 1);
-        finishIfDone();
-      }
-      return;
-    }
-
-    // ── MediaSource path ──────────────────────────────────────────────────────
-    const ms  = new MediaSource();
-    const url = URL.createObjectURL(ms);
-    const audio = new Audio(url);
-    audio.preload = "auto";
-
-    // NOTE: slot is NOT filled yet — play() must only be called after the first
-    // updateend fires (i.e. real decoded frames exist in the SourceBuffer).
-    // Calling play() on an empty MediaSource causes an immediate rejection on
-    // Safari / Firefox, which silently advances the queue with no audio.
-
-    // ── SourceBuffer queue (one appendBuffer at a time) ───────────────────────
-    let sb: SourceBuffer | null = null;
-    const msQueue: ArrayBuffer[] = [];
-    let msAppending  = false;
-    let streamDone   = false;
-    let chunksTotal  = 0;
-    let msEnded      = false;
-    let playStarted  = false; // true once slot is filled + maybePlay() called
-
-    const safeEndStream = (err?: "network" | "decode") => {
-      if (msEnded || ms.readyState !== "open") return;
-      msEnded = true;
-      try { err ? ms.endOfStream(err) : ms.endOfStream(); } catch {}
-    };
-
-    const flushQueue = () => {
-      if (msAppending || msQueue.length === 0 || !sb || ms.readyState !== "open") return;
-      msAppending = true;
-      try { sb.appendBuffer(msQueue.shift()!); }
-      catch {
-        msAppending = false;
-        safeEndStream("decode");
-      }
-    };
-
-    // 5s guard: if sourceopen never fires, mark slot failed so queue advances.
-    let sourceOpenTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
-      sourceOpenTimer = null;
-      if (ms.readyState !== "open") {
-        slotsRef.current.set(seq, { state: "failed" });
-        maybePlay();
-      }
-    }, 5000);
-
-    ms.addEventListener("sourceopen", () => {
-      if (sourceOpenTimer) { clearTimeout(sourceOpenTimer); sourceOpenTimer = null; }
-      if (genRef.current !== genId) {
-        safeEndStream();
-        slotsRef.current.set(seq, { state: "failed" }); maybePlay();
-        return;
-      }
-      try { sb = ms.addSourceBuffer(MIME); }
-      catch {
-        slotsRef.current.set(seq, { state: "failed" }); maybePlay();
-        return;
-      }
-
-      sb.addEventListener("updateend", () => {
-        msAppending = false;
-        if (msQueue.length > 0) { flushQueue(); return; }
-
-        // First real chunk buffered — NOW it is safe to call play().
-        // Fill the slot here so maybePlay() picks it up with actual audio data.
-        if (!playStarted && chunksTotal > 0) {
-          playStarted = true;
-          setBubble(sentence);
-          slotsRef.current.set(seq, {
-            state: "ready", audio, url, words: [],
-            precedingText: precedingText ?? "",
-            sentenceText: sentence,
-          });
-          maybePlay();
-        }
-
-        if (streamDone && chunksTotal > 0) { safeEndStream(); }
-      });
-
-      flushQueue();
-    }, { once: true });
-
-    // ── SSE fetch (parallel with playback) ───────────────────────────────────
-    // pendingRef stays elevated until fetch finishes, so finishIfDone() won't
-    // fire prematurely while we're still streaming.
+    // PCM streaming: ElevenLabs returns pcm_16000 (Int16LE, 16kHz mono) as
+    // base64 SSE chunks. We collect, convert to Float32, and schedule on
+    // AudioContext for gapless sentence concatenation.
     try {
       const res = await fetch("/api/aida/voice", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: sentence, role: "aida" }),
         signal: ab.signal,
       });
-
-      if (!res.ok || !res.body || genRef.current !== genId) {
-        // Mark failed immediately rather than relying on the 5s sourceopen timeout.
-        slotsRef.current.set(seq, { state: "failed" });
-        maybePlay();
-        return;
+      if (genRef.current !== genId || !res.ok || !res.body) {
+        slotsRef.current.set(seq, { state: "failed" }); maybePlay(); return;
       }
-
-      const reader = res.body.getReader();
-      const dec = new TextDecoder();
-      let sseBuf = "";
-
+      const reader      = res.body.getReader();
+      const dec         = new TextDecoder();
+      let sseBuf        = "";
+      const int16Parts: Int16Array[] = [];
       for (;;) {
-        if (genRef.current !== genId || ab.signal.aborted) {
-          try { await reader.cancel(); } catch {}
-          // Cleanly close the MediaSource so stale audio doesn't keep buffering.
-          safeEndStream();
-          break;
-        }
+        if (genRef.current !== genId) { try { await reader.cancel(); } catch {} break; }
         const { done, value } = await reader.read();
         if (done) break;
         sseBuf += dec.decode(value, { stream: true });
-        const lines = sseBuf.split("\n");
-        sseBuf = lines.pop() ?? "";
+        const lines = sseBuf.split("\n"); sseBuf = lines.pop() ?? "";
         for (const line of lines) {
           if (!line.startsWith("data:")) continue;
           const b64 = line.slice(5).trim();
           if (!b64 || b64 === "[DONE]") continue;
-          const bin = atob(b64);
-          const arrBuf = new ArrayBuffer(bin.length);
-          const v = new Uint8Array(arrBuf);
-          for (let i = 0; i < bin.length; i++) v[i] = bin.charCodeAt(i);
-          msQueue.push(arrBuf);
-          chunksTotal++;
-          flushQueue();
+          const bin   = atob(b64);
+          const bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          int16Parts.push(new Int16Array(bytes.buffer));
         }
       }
+      if (genRef.current !== genId || int16Parts.length === 0) {
+        slotsRef.current.set(seq, { state: "failed" }); maybePlay(); return;
+      }
+      // Concatenate Int16 PCM chunks → Float32 (-1..1)
+      const totalSamples = int16Parts.reduce((s, a) => s + a.length, 0);
+      const samples      = new Float32Array(totalSamples);
+      let offset = 0;
+      for (const chunk of int16Parts) {
+        for (let i = 0; i < chunk.length; i++) samples[offset++] = chunk[i] / 32768;
+      }
+      slotsRef.current.set(seq, {
+        state: "ready-pcm", samples, sampleRate: 16000,
+        precedingText: precedingText ?? "", sentenceText: sentence,
+      });
+      maybePlay();
     } catch (err) {
-      if ((err as Error)?.name === "AbortError") return;
-      // Network error on a partial stream — seal with decode error so audio.onerror fires.
-      if (chunksTotal > 0) safeEndStream("decode");
+      if ((err as Error)?.name !== "AbortError") {
+        slotsRef.current.set(seq, { state: "failed" }); maybePlay();
+      }
     } finally {
-      if (sourceOpenTimer) { clearTimeout(sourceOpenTimer); sourceOpenTimer = null; }
-      streamDone = true;
-      if (!msAppending && msQueue.length === 0) {
-        safeEndStream(chunksTotal === 0 ? "decode" : undefined);
-      }
-      // Only mark failed if NO chunks arrived — if chunks exist, updateend will
-      // fire asynchronously and fill the slot itself. Marking failed here when
-      // chunksTotal > 0 causes a race where finally wins before updateend.
-      if (!playStarted && chunksTotal === 0) {
-        slotsRef.current.set(seq, { state: "failed" });
-        maybePlay();
-      }
       pendingRef.current = Math.max(0, pendingRef.current - 1);
       finishIfDone();
     }
+    return;
+
   }
 
   // ── MediaRecorder-based STT (audio → Deepgram via /api/aida/stt) ─────────

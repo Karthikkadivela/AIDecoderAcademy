@@ -153,7 +153,6 @@ export function TeacherChat({ profile, chapterTitle, onClose, onSpeakingChange, 
     // isn't on the plan, it silently produces no audio. Direct is unambiguous.
     let active = true;
     let raf = 0, phase = 0;
-    let audioEl: HTMLAudioElement | null = null;
     let resolveDone!: () => void;
     const done = new Promise<void>(r => { resolveDone = r; });
 
@@ -161,139 +160,37 @@ export function TeacherChat({ profile, chapterTitle, onClose, onSpeakingChange, 
       if (!active) return;
       active = false;
       cancelAnimationFrame(raf);
-      if (audioEl?.src.startsWith("blob:")) { try { URL.revokeObjectURL(audioEl.src); } catch { /* */ } }
       resolveDone();
     };
 
     const handle: SpeakHandle = {
-      stop: () => { if (audioEl) { try { audioEl.pause(); } catch { /* */ } } finish(); },
+      stop: () => { finish(); }, // overridden inside async IIFE to also stop PCM source
       done,
     };
     voiceHandleRef.current = handle;
 
     (async () => {
-      const MIME = "audio/mpeg";
-      // MediaSource/MP3 disabled — blob-collect is reliable everywhere (same reason as AIDA).
-      const canStream = false;
-
-      const attachHandlers = (el: HTMLAudioElement) => {
-        el.onplaying = () => {
-          // Audio is actually playing — now safe to show "speaking" state.
-          setBhavnaSpeaking(true);
-          setAiSpeakingRef.current(true);
-          const tick = () => {
-            if (!active) return;
-            phase += 0.09;
-            setOrbAmp(Math.max(0.05, Math.min(1, 0.4 + 0.22 * Math.sin(phase * 7) + 0.16 * Math.sin(phase * 13) + (Math.random() - 0.5) * 0.12)));
-            raf = requestAnimationFrame(tick);
-          };
-          raf = requestAnimationFrame(tick);
-        };
-        el.onpause = () => { cancelAnimationFrame(raf); setOrbAmp(0); };
-        el.onended = () => { setOrbAmp(0); finish(); };
-        el.onerror = () => { setOrbAmp(0); finish(); };
+      // PCM path: ElevenLabs pcm_16000 (Int16LE, 16kHz mono) → AudioContext.
+      let pcmSrc: AudioBufferSourceNode | null = null;
+      let pcmCtx: AudioContext | null = null;
+      // Allow stop() to tear down audio immediately on barge-in.
+      handle.stop = () => {
+        try { pcmSrc?.stop(); } catch {}
+        try { pcmCtx?.close(); } catch {}
+        finish();
       };
-
-      if (!canStream) {
-        // Fallback: blob-collect then play (reliable on browsers without MSE).
-        const res = await fetch("/api/aida/voice", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, role: "classroom" }),
-        });
-        if (!active || !res.ok || !res.body) { finish(); return; }
-        const reader = res.body.getReader();
-        const dec = new TextDecoder();
-        let buf = ""; const parts: ArrayBuffer[] = [];
-        for (;;) {
-          if (!active) { try { await reader.cancel(); } catch {} break; }
-          const { done, value } = await reader.read();
-          if (done) break;
-          buf += dec.decode(value, { stream: true });
-          const lines = buf.split("\n"); buf = lines.pop() ?? "";
-          for (const line of lines) {
-            if (!line.startsWith("data:")) continue;
-            const b64 = line.slice(5).trim();
-            if (!b64 || b64 === "[DONE]") continue;
-            const bin = atob(b64); const ab2 = new ArrayBuffer(bin.length);
-            const v = new Uint8Array(ab2);
-            for (let i = 0; i < bin.length; i++) v[i] = bin.charCodeAt(i);
-            parts.push(ab2);
-          }
-        }
-        if (!active || parts.length === 0) { finish(); return; }
-        audioEl = new Audio(URL.createObjectURL(new Blob(parts, { type: MIME })));
-        attachHandlers(audioEl);
-        audioEl.play().catch(() => finish());
-        return;
-      }
-
-      // MediaSource path — play() deferred until first updateend (first real chunk
-      // buffered). Calling play() on an empty MediaSource rejects immediately on
-      // Safari/Firefox and silently kills audio — this is the root cause of the bug.
-      const ms = new MediaSource();
-      audioEl = new Audio(URL.createObjectURL(ms));
-      audioEl.preload = "auto";
-      attachHandlers(audioEl);
-      // NOTE: audioEl.play() is NOT called here — deferred to first updateend below.
-
-      let sb: SourceBuffer | null = null;
-      const msQueue: ArrayBuffer[] = [];
-      let msAppending  = false;
-      let streamDone   = false;
-      let chunksTotal  = 0;
-      let msEnded      = false;
-      let playStarted  = false;
-
-      const safeEnd = (err?: "network" | "decode") => {
-        if (msEnded || ms.readyState !== "open") return;
-        msEnded = true;
-        try { err ? ms.endOfStream(err) : ms.endOfStream(); } catch {}
-      };
-
-      const flushQueue = () => {
-        if (msAppending || msQueue.length === 0 || !sb || ms.readyState !== "open") return;
-        msAppending = true;
-        try { sb.appendBuffer(msQueue.shift()!); }
-        catch { msAppending = false; safeEnd("decode"); }
-      };
-
-      // 5s guard: if sourceopen never fires, call finish() to unblock.
-      let soTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
-        soTimer = null;
-        if (ms.readyState !== "open") finish();
-      }, 5000);
-
-      ms.addEventListener("sourceopen", () => {
-        if (soTimer) { clearTimeout(soTimer); soTimer = null; }
-        if (!active) { safeEnd(); return; }
-        try { sb = ms.addSourceBuffer(MIME); } catch { finish(); return; }
-        sb.addEventListener("updateend", () => {
-          msAppending = false;
-          if (msQueue.length > 0) { flushQueue(); return; }
-
-          // First real chunk is buffered — NOW it's safe to call play().
-          if (!playStarted && chunksTotal > 0) {
-            playStarted = true;
-            audioEl!.play().catch(() => finish());
-          }
-
-          if (streamDone && chunksTotal > 0) safeEnd();
-        });
-        flushQueue();
-      }, { once: true });
-
       try {
         const res = await fetch("/api/aida/voice", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ text, role: "classroom" }),
         });
         if (!active || !res.ok || !res.body) { finish(); return; }
-
-        const reader = res.body.getReader();
-        const dec = new TextDecoder();
-        let sseBuf = "";
+        const reader     = res.body.getReader();
+        const dec        = new TextDecoder();
+        let sseBuf       = "";
+        const int16Parts: Int16Array[] = [];
         for (;;) {
-          if (!active) { try { await reader.cancel(); } catch {} safeEnd(); break; }
+          if (!active) { try { await reader.cancel(); } catch {} break; }
           const { done, value } = await reader.read();
           if (done) break;
           sseBuf += dec.decode(value, { stream: true });
@@ -303,23 +200,41 @@ export function TeacherChat({ profile, chapterTitle, onClose, onSpeakingChange, 
             const b64 = line.slice(5).trim();
             if (!b64 || b64 === "[DONE]") continue;
             const bin = atob(b64);
-            const arrBuf = new ArrayBuffer(bin.length);
-            const v = new Uint8Array(arrBuf);
-            for (let i = 0; i < bin.length; i++) v[i] = bin.charCodeAt(i);
-            msQueue.push(arrBuf); chunksTotal++; flushQueue();
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            int16Parts.push(new Int16Array(bytes.buffer));
           }
         }
-      } catch { /* network error — safeEnd("decode") → audio.onerror → finish() */ }
-      finally {
-        if (soTimer) { clearTimeout(soTimer); soTimer = null; }
-        streamDone = true;
-        if (!msAppending && msQueue.length === 0)
-          safeEnd(chunksTotal === 0 ? "decode" : undefined);
-        // If no chunks ever arrived and play() was never called, finish() must
-        // be called here to unblock the session (audio.onerror may not fire
-        // if the element never started loading).
-        if (!playStarted && chunksTotal === 0) finish();
+        if (!active || int16Parts.length === 0) { finish(); return; }
+        const totalSamples = int16Parts.reduce((s, a) => s + a.length, 0);
+        const f32 = new Float32Array(totalSamples);
+        let off = 0;
+        for (const chunk of int16Parts) {
+          for (let i = 0; i < chunk.length; i++) f32[off++] = chunk[i] / 32768;
+        }
+        pcmCtx = new AudioContext();
+        const audioBuf = pcmCtx.createBuffer(1, f32.length, 16000);
+        audioBuf.getChannelData(0).set(f32);
+        pcmSrc = pcmCtx.createBufferSource();
+        pcmSrc.buffer = audioBuf;
+        pcmSrc.connect(pcmCtx.destination);
+        if (pcmCtx.state === "suspended") await pcmCtx.resume();
+        if (!active) { finish(); return; }
+        setBhavnaSpeaking(true);
+        setAiSpeakingRef.current(true);
+        const tick = () => {
+          if (!active) return;
+          phase += 0.09;
+          setOrbAmp(Math.max(0.05, Math.min(1, 0.4 + 0.22 * Math.sin(phase * 7) + 0.16 * Math.sin(phase * 13) + (Math.random() - 0.5) * 0.12)));
+          raf = requestAnimationFrame(tick);
+        };
+        raf = requestAnimationFrame(tick);
+        pcmSrc.onended = () => { cancelAnimationFrame(raf); setOrbAmp(0); try { pcmCtx?.close(); } catch {} finish(); };
+        pcmSrc.start();
+      } catch {
+        finish();
       }
+      return;
     })().catch(() => finish());
 
     handle.done.finally(() => {
