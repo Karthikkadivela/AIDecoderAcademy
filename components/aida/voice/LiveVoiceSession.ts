@@ -38,10 +38,11 @@ export type LiveEvent =
 
 type Listener = (e: LiveEvent) => void;
 
-// How long after VAD declares end-of-speech we wait for Deepgram's final
-// transcript to land. If a new speech-start arrives during this window, we
-// cancel and stay in user-speaking.
-const FINAL_DEBOUNCE_MS = 1500;
+// End-of-speech patience (AI-188): after VAD declares the kid stopped, we wait
+// this long before sending the transcript. 300ms is enough for Deepgram's final
+// transcript to arrive; if a new speech-start fires during this window we cancel
+// and stay in user-speaking so a brief pause never cuts them off mid-thought.
+const FINAL_DEBOUNCE_MS = 300;
 
 // Reconnect backoff for Deepgram WS drops.
 const RECONNECT_DELAYS_MS = [500, 1500, 4000];
@@ -67,13 +68,20 @@ export class LiveVoiceSession {
 
   getState() { return this.state; }
 
+  // Disables / re-enables the mic audio tracks without tearing down the session.
+  // VAD + Deepgram receive silence, so no spurious transcripts while muted.
+  setMicMuted(muted: boolean) {
+    if (this.destroyed) return;
+    this.stream?.getAudioTracks().forEach(t => { t.enabled = !muted; });
+  }
+
   // Called from the React layer when TTS playback begins / ends.
   setAiSpeaking(speaking: boolean) {
     if (this.destroyed) return;
     if (speaking) {
       this.transition("ai-speaking");
-    } else if (this.state === "ai-speaking") {
-      // TTS finished naturally; back to listening.
+    } else if (this.state === "ai-speaking" || this.state === "llm-thinking") {
+      // TTS finished (or failed before any audio played) — back to listening.
       this.transition("listening");
     }
   }
@@ -212,13 +220,14 @@ export class LiveVoiceSession {
       // on it — VAD does the primary cue). interim_results=true gives us
       // live transcript text to show under the indicator.
       const url = new URL("wss://api.deepgram.com/v1/listen");
-      url.searchParams.set("model",            "nova-2");
+      url.searchParams.set("model",            "nova-3");
       url.searchParams.set("encoding",         "linear16");
       url.searchParams.set("sample_rate",      "16000");
       url.searchParams.set("channels",         "1");
       url.searchParams.set("interim_results",  "true");
       url.searchParams.set("smart_format",     "true");
       url.searchParams.set("language",         "en");
+      url.searchParams.set("endpointing",      "100");
 
       // Deepgram supports passing the token via WS subprotocols.
       const ws = new WebSocket(url.toString(), ["token", token]);
@@ -254,6 +263,11 @@ export class LiveVoiceSession {
           if (msg.is_final) {
             // Accumulate finals — Deepgram can split utterances.
             this.pendingFinal = (this.pendingFinal + " " + txt).trim();
+            // If VAD already declared end-of-speech, don't wait out the debounce —
+            // flush immediately. This saves up to FINAL_DEBOUNCE_MS of dead time.
+            if (this.state === "awaiting-end") {
+              this.flushFinalTranscript();
+            }
           } else {
             this.interimText = txt;
             this.emit({ type: "interim", text: this.interimText });

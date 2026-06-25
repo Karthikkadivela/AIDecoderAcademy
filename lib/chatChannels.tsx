@@ -6,6 +6,8 @@ import {
 } from "react";
 import type { Message } from "@/components/playground/useChat";
 
+const nowISO = () => new Date().toISOString();
+
 // ── public types ────────────────────────────────────────────────────────────
 
 export interface WhiteboardSnapshot {
@@ -129,7 +131,7 @@ export function useWorksheetWriter() {
   const { setWorksheet } = useCtx("useWorksheetWriter");
   return useMemo(() => ({
     setDraft: (lmsId: string, data: Record<string, string | boolean>) =>
-      setWorksheet({ lmsId, data, updatedAt: new Date().toISOString(), status: "saved" }),
+      setWorksheet({ lmsId, data, updatedAt: nowISO(), status: "saved" }),
     // Functional update — doesn't capture worksheet state in closure, so
     // the function reference stays stable.
     setStatus: (status: WorksheetSnapshot["status"]) =>
@@ -160,21 +162,21 @@ export function useClassroomWriter() {
       setClassroom(prev => ({
         ...prev,
         status: "in_lesson",
-        lastInteraction: new Date().toISOString(),
+        lastInteraction: nowISO(),
         liveTurns: [],
       })),
     appendTurn: (turn: Omit<ClassroomTurn, "at">) =>
       setClassroom(prev => ({
         ...prev,
         status: "in_lesson",
-        lastInteraction: new Date().toISOString(),
-        liveTurns: [...prev.liveTurns, { ...turn, at: new Date().toISOString() }].slice(-40),
+        lastInteraction: nowISO(),
+        liveTurns: [...prev.liveTurns, { ...turn, at: nowISO() }].slice(-40),
       })),
     endLesson: (lesson: NonNullable<ClassroomSnapshot["lastLesson"]>) =>
       setClassroom(prev => ({
         ...prev,
         status: "lesson_ended",
-        lastInteraction: new Date().toISOString(),
+        lastInteraction: nowISO(),
         lastLesson: lesson,
       })),
     reset: () => setClassroom(EMPTY_CLASSROOM),

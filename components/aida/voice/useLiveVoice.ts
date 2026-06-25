@@ -25,6 +25,8 @@ export interface UseLiveVoiceReturn {
   // Parent calls this when TTS playback begins / ends so the state machine
   // can transition to/from "ai-speaking" — needed for interruption detection.
   setAiSpeaking: (speaking: boolean) => void;
+  // Mute/unmute the student's mic without ending the session.
+  setMicMuted: (muted: boolean) => void;
 }
 
 export function useLiveVoice(opts: UseLiveVoiceOptions): UseLiveVoiceReturn {
@@ -86,6 +88,10 @@ export function useLiveVoice(opts: UseLiveVoiceOptions): UseLiveVoiceReturn {
     sessionRef.current?.setAiSpeaking(speaking);
   }, []);
 
+  const setMicMuted = useCallback((muted: boolean) => {
+    sessionRef.current?.setMicMuted(muted);
+  }, []);
+
   // Tear down on unmount or page navigation.
   useEffect(() => {
     return () => {
@@ -94,5 +100,5 @@ export function useLiveVoice(opts: UseLiveVoiceOptions): UseLiveVoiceReturn {
     };
   }, []);
 
-  return { state, interim, start, stop, setAiSpeaking };
+  return { state, interim, start, stop, setAiSpeaking, setMicMuted };
 }

@@ -77,6 +77,10 @@ export interface UseTeacherVoiceReturn {
   liveState:    LiveState;
   toggleTap:    () => void;
   toggleLive:   () => void;
+  /** Tell the live VAD engine whether the teacher is currently speaking, so
+   *  barge-in fires. Needed when a caller drives TTS itself (audio mode) instead
+   *  of via speak(). No-op outside live sub-mode. */
+  setAiSpeaking:(speaking: boolean) => void;
   speak:        (text: string) => Promise<void>;
   /** Char count to reveal for the line being spoken (word-boundary, audio-synced).
    *  Returns -1 when no word timings are available. */
@@ -321,7 +325,8 @@ export function useTeacherVoice(opts: Options): UseTeacherVoiceReturn {
 
   return {
     voiceState, subMode, setSubMode, voiceOK, voiceError, muted, toggleMute,
-    micStream, liveState: live.state, toggleTap, toggleLive, speak,
+    micStream, liveState: live.state, toggleTap, toggleLive,
+    setAiSpeaking: live.setAiSpeaking, speak,
     spokenChars: teacherSpokenChars, cleanup,
   };
 }

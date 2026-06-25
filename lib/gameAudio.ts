@@ -48,13 +48,11 @@ function createCtx(): AudioContext | null {
 }
 
 function scheduleClose(ctx: AudioContext, ms: number) {
-  window.setTimeout(() => {
-    try {
-      void ctx.close();
-    } catch {
-      /* ignore */
-    }
-  }, ms);
+  let closed = false;
+  const close = () => { if (closed) return; closed = true; try { void ctx.close(); } catch { /* ignore */ } };
+  const timer = window.setTimeout(close, ms);
+  const onVis = () => { if (document.hidden) { close(); window.clearTimeout(timer); } };
+  window.addEventListener("visibilitychange", onVis, { once: true });
 }
 
 /** Root (Hz) per arena — used for a short major arpeggio. */

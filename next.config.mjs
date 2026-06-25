@@ -9,6 +9,8 @@ const nextConfig = {
       { protocol: "https", hostname: "storage.googleapis.com" },
     ],
   },
+  // ws uses native addon (bufferUtil) that webpack can't bundle
+  serverExternalPackages: ["ws"],
 };
 
 export default nextConfig;

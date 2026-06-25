@@ -25,7 +25,9 @@ async function getHost(): Promise<string> {
 }
 
 function apiKey(): string {
-  return process.env.PINECONE_API_KEY!;
+  const key = process.env.PINECONE_API_KEY;
+  if (!key) throw new Error("PINECONE_API_KEY not set in .env.local");
+  return key;
 }
 
 // ─── Upsert a creation ────────────────────────────────────────────────────────

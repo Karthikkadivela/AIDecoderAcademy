@@ -1,6 +1,10 @@
 import { createAdminClient } from "@/lib/supabase";
 
-const ELEVEN_KEY = process.env.ELEVENLABS_API_KEY!;
+function getElevenKey(): string {
+  const key = process.env.ELEVENLABS_API_KEY;
+  if (!key) throw new Error("ELEVENLABS_API_KEY is not set in .env.local");
+  return key;
+}
 // Rachel (21m00Tcm4TlvDq8ikWAM) — clear articulation of maths/science terms
 // (sine, cosine, theta, hypotenuse etc.) without mispronunciation.
 // Alternatives to A/B test: Charlotte XB0fDUnXU5powFXDhCwa (UK), Serena pMsXgVXv3BLzUgSXRplE
@@ -24,21 +28,85 @@ const DEFAULT_MODEL_ID = "eleven_multilingual_v2";
 // Expressive voice for the audio overview — warmer and more human than the flat
 // default. Lower stability = more natural intonation; higher style = more
 // expressiveness; speaker boost adds presence. Overview-only: podcast/AIDA
-// voices keep DEFAULT_SETTINGS. eleven_turbo_v2_5 is noticeably less robotic
-// than multilingual_v2 and still supports /with-timestamps word alignment.
+// voices keep DEFAULT_SETTINGS. eleven_flash_v2_5 is noticeably less robotic
+// than multilingual_v2, still supports /with-timestamps word alignment, and
+// is ~3-4x lower latency than turbo (EL-recommended for all conversational use).
 export const OVERVIEW_VOICE_SETTINGS = {
   stability: 0.3,
   similarity_boost: 0.75,
   style: 0.55,
   use_speaker_boost: true,
 };
-export const OVERVIEW_MODEL_ID = "eleven_turbo_v2_5";
+export const OVERVIEW_MODEL_ID = "eleven_flash_v2_5";
 
-// Convert maths symbols and Greek letters to spoken English before sending to
-// ElevenLabs. Without this, "=" is read as "e", "θ" as "tita", etc.
+// Convert maths/science symbols to spoken English before sending to ElevenLabs.
+// Without this: θ → "tita", cos → "coss", H₂O → garbled, x^2 → "x caret 2".
 export function sanitizeTtsText(raw: string): string {
   return raw
-    // Greek letters (Unicode)
+    // ── Named chemical compounds (longest/most-specific first) ───────────────
+    .replace(/\bH₂SO₄\b|\bH2SO4\b/g, "sulfuric acid")
+    .replace(/\bHNO₃\b|\bHNO3\b/g, "nitric acid")
+    .replace(/\bH₃PO₄\b|\bH3PO4\b/g, "phosphoric acid")
+    .replace(/\bH₂CO₃\b|\bH2CO3\b/g, "carbonic acid")
+    .replace(/\bCH₃COOH\b|\bCH3COOH\b/g, "acetic acid")
+    .replace(/\bC₆H₁₂O₆\b|\bC6H12O6\b/g, "glucose")
+    .replace(/\bC₁₂H₂₂O₁₁\b|\bC12H22O11\b/g, "sucrose")
+    .replace(/Ca\(OH\)₂|Ca\(OH\)2/g, "calcium hydroxide")
+    .replace(/\bFe₂O₃\b|\bFe2O3\b/g, "iron three oxide")
+    .replace(/\bAl₂O₃\b|\bAl2O3\b/g, "aluminium oxide")
+    .replace(/\bNa₂O\b|\bNa2O\b/g, "sodium oxide")
+    .replace(/\bCaCl₂\b|\bCaCl2\b/g, "calcium chloride")
+    .replace(/\bH₂O₂\b|\bH2O2\b/g, "hydrogen peroxide")
+    .replace(/\bNH₃\b|\bNH3\b/g, "ammonia")
+    .replace(/\bCH₄\b|\bCH4\b/g, "methane")
+    .replace(/\bCl₂\b|\bCl2\b/g, "chlorine gas")
+    .replace(/\bBr₂\b|\bBr2\b/g, "bromine")
+    .replace(/\bI₂\b|\bI2\b/g, "iodine")
+    .replace(/\bSO₃\b|\bSO3\b/g, "sulfur trioxide")
+    .replace(/\bSO₂\b|\bSO2\b/g, "sulfur dioxide")
+    .replace(/\bNO₂\b|\bNO2\b/g, "nitrogen dioxide")
+    .replace(/\bCO₂\b|\bCO2\b/g, "carbon dioxide")
+    .replace(/\bH₂O\b|\bH2O\b/g, "water")
+    .replace(/\bNaCl\b/g, "sodium chloride")
+    .replace(/\bKCl\b/g, "potassium chloride")
+    .replace(/\bNaOH\b/g, "sodium hydroxide")
+    .replace(/\bKOH\b/g, "potassium hydroxide")
+    .replace(/\bHCl\b/g, "hydrochloric acid")
+    .replace(/\bHF\b/g, "hydrogen fluoride")
+    .replace(/\bHBr\b/g, "hydrogen bromide")
+    .replace(/\bMgO\b/g, "magnesium oxide")
+    .replace(/\bCaO\b/g, "calcium oxide")
+    .replace(/\bFeO\b/g, "iron two oxide")
+    .replace(/\bCO\b/g, "carbon monoxide")
+    .replace(/\bNO\b/g, "nitrogen monoxide")
+    .replace(/\bO₂\b|\bO2\b/g, "oxygen")
+    .replace(/\bN₂\b|\bN2\b/g, "nitrogen")
+    .replace(/\bH₂\b|\bH2\b/g, "hydrogen")
+    // ── Chemical reaction / equilibrium arrows ───────────────────────────────
+    .replace(/⇌/g, "is in equilibrium with")
+    .replace(/→/g, "produces")
+    // ── Subscript unicode digits → ASCII (catches unnamed formulas) ──────────
+    .replace(/[₀-₉]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x2080 + 0x30))
+    // ── Caret exponents: x^2, x^{n}, x^-1 ──────────────────────────────────
+    .replace(/\^(?:\{([^}]+)\}|(-?\d+(?:\.\d*)?|[a-zA-Z]))/g, (_, braced, bare) => {
+      const e = (braced ?? bare ?? "").trim();
+      if (e === "2") return " squared";
+      if (e === "3") return " cubed";
+      if (e === "-1") return " to the power of negative one";
+      return ` to the power of ${e}`;
+    })
+    // ── Trig / math function abbreviations (word-boundary safe) ─────────────
+    .replace(/\barctan\b/gi, "arc tangent")
+    .replace(/\barccos\b/gi, "arc cosine")
+    .replace(/\barcsin\b/gi, "arc sine")
+    .replace(/\bcsc\b/gi, "cosecant")
+    .replace(/\bsec\b/gi, "secant")
+    .replace(/\bcot\b/gi, "cotangent")
+    .replace(/\btan\b/gi, "tangent")
+    .replace(/\bcos\b/gi, "cosine")
+    .replace(/\bsin\b/gi, "sine")
+    .replace(/\bln\b/g, "natural log")
+    // ── Greek letters (Unicode) ──────────────────────────────────────────────
     .replace(/θ|Θ/g, "theta")
     .replace(/α|Α/g, "alpha")
     .replace(/β|Β/g, "beta")
@@ -50,23 +118,26 @@ export function sanitizeTtsText(raw: string): string {
     .replace(/σ|Σ/g, "sigma")
     .replace(/φ|Φ/g, "phi")
     .replace(/ω|Ω/g, "omega")
-    // Operators and relations
+    // ── Operators and relations ──────────────────────────────────────────────
     .replace(/≈/g, "approximately equals")
     .replace(/≠/g, "does not equal")
     .replace(/≤/g, "less than or equal to")
     .replace(/≥/g, "greater than or equal to")
     .replace(/=/g, " equals ")
     .replace(/\+/g, " plus ")
-    .replace(/−/g, " minus ")   // Unicode minus
+    .replace(/−/g, " minus ")
     .replace(/×/g, " times ")
     .replace(/÷/g, " divided by ")
     .replace(/√/g, "square root of ")
     .replace(/∞/g, "infinity")
-    // Superscripts
+    // ── Superscripts ─────────────────────────────────────────────────────────
     .replace(/²/g, " squared")
     .replace(/³/g, " cubed")
+    .replace(/⁴/g, " to the power of 4")
+    .replace(/⁵/g, " to the power of 5")
+    .replace(/⁶/g, " to the power of 6")
     .replace(/°/g, " degrees")
-    // Clean up any double-spaces introduced above
+    // ── Clean up double-spaces ────────────────────────────────────────────────
     .replace(/ {2,}/g, " ")
     .trim();
 }
@@ -84,7 +155,7 @@ export async function synthLine(
     {
       method: "POST",
       headers: {
-        "xi-api-key": ELEVEN_KEY,
+        "xi-api-key": getElevenKey(),
         "Content-Type": "application/json",
         Accept: "audio/mpeg",
       },
@@ -135,15 +206,13 @@ export async function synthLineWithTimestamps(
   text: string,
   voice: VoiceSpec,
 ): Promise<{ mp3: Buffer; words: WordTiming[] }> {
-  if (!ELEVEN_KEY) {
-    throw new Error("ELEVENLABS_API_KEY is not set — classroom audio cannot be generated.");
-  }
+  const key = getElevenKey();
   const res = await fetch(
     `https://api.elevenlabs.io/v1/text-to-speech/${voice.voiceId}/with-timestamps`,
     {
       method: "POST",
       headers: {
-        "xi-api-key": ELEVEN_KEY,
+        "xi-api-key": key,
         "Content-Type": "application/json",
         Accept: "application/json",
       },
