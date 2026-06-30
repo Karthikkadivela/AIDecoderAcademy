@@ -505,13 +505,15 @@ export default function ClassroomPage() {
           chapter={selectedChapter}
           onBack={() => setView("objective")}
         />
-        {/* Avatar variant — small circular companion so she never overlaps the
-            toolbar / My Creations panel / chat in the chapter view. */}
+        {/* Avatar variant — small circular companion, docked bottom-right
+            (stacked above the global AIDA button) so she never overlaps the
+            Learning Library / canvas / AI Tools rail in the chapter view. */}
         <TeacherCharacter
           profile={profile}
           hidden={teacherHidden}
           chapterTitle={selectedChapter?.chapter_title}
           variant="avatar"
+          anchor="right"
         />
       </>
     );

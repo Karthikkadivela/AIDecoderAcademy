@@ -30,6 +30,10 @@ interface Props {
   // "avatar" = small circular head/face companion (classroom chapter/arena view)
   //            so she never overlaps the toolbar, My Creations panel, or chat.
   variant?: "full" | "avatar";
+  // Which corner the avatar variant docks in. "right" stacks her above the
+  // global AIDA button (bottom-right); the hint bubble flips to open leftward
+  // so it doesn't run off the viewport edge. Only used when variant="avatar".
+  anchor?: "left" | "right";
 }
 
 const GOLD      = "#E0B14C";
@@ -79,7 +83,7 @@ function deriveLearnerHints(profile: Profile | null): string[] {
 // and re-greets — the desired behaviour.
 let _bhavnaWelcomed = false;
 
-export function TeacherCharacter({ profile, chapterTitle, hidden, variant = "full" }: Props) {
+export function TeacherCharacter({ profile, chapterTitle, hidden, variant = "full", anchor = "left" }: Props) {
   const [chatOpen,    setChatOpen]    = useState(false);
   const [lectureOpen, setLectureOpen] = useState(false);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
@@ -254,7 +258,12 @@ export function TeacherCharacter({ profile, chapterTitle, hidden, variant = "ful
         transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
         className="fixed z-30 pointer-events-none"
         style={variant === "avatar"
-          ? { left: "1.5%", bottom: "3%", height: "clamp(72px, 9vh, 112px)", width: "auto" }
+          ? (anchor === "right"
+              // Sits beside (left of) the global AIDA button, same bottom line —
+              // offset = AIDA's right-gap + AIDA's own width + a small gap.
+              ? { right: "calc(clamp(16px, 1.5vw, 32px) + clamp(48px, 3.6vw, 64px) + 12px)",
+                  bottom: "clamp(16px, 2vh, 32px)", height: "clamp(64px, 7.5vh, 92px)", width: "auto" }
+              : { left: "1.5%", bottom: "3%", height: "clamp(72px, 9vh, 112px)", width: "auto" })
           : { left: "13%", bottom: "0px", height: "clamp(280px, 38vh, 460px)", width: "auto" }}
       >
         {/* Floor / avatar glow — wider pulse range when speaking */}
@@ -310,8 +319,9 @@ export function TeacherCharacter({ profile, chapterTitle, hidden, variant = "ful
               className="absolute pointer-events-auto cursor-pointer flex items-start gap-2"
               style={{
                 top: "16%",
-                left: "100%",
-                marginLeft: 10,
+                ...(anchor === "right"
+                  ? { right: "100%", marginRight: 10 }
+                  : { left: "100%", marginLeft: 10 }),
                 maxWidth: 230,
                 background: "linear-gradient(180deg, rgba(21,34,78,0.97), rgba(10,18,48,0.97))",
                 color: "#F4ECD7",

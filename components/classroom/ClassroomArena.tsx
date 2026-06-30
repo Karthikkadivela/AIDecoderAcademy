@@ -118,6 +118,80 @@ const PODCAST_CANCEL_LINES = [
 // ── Set to true to see all clickable zone outlines for positioning ─────────────
 const DEBUG_ZONES = false;
 
+// ── AI Tools rail — bespoke icon family (spark / compass / lightbulb / gears /
+//    trophy / bookmark), one per tool, each rendered as a small coloured tile.
+//    Reuses the exact `key` strings TILES used so handleToolClick (the switch
+//    extracted below) needs no changes. ─────────────────────────────────────
+function IconFlashcards() {
+  return (<svg viewBox="0 0 24 24" fill="none" width="100%" height="100%"><rect x="3" y="5" width="13" height="9" rx="2" stroke="currentColor" strokeWidth="1.8"/><rect x="8" y="10" width="13" height="9" rx="2" stroke="currentColor" strokeWidth="1.8"/></svg>);
+}
+function IconMindmap() {
+  return (<svg viewBox="0 0 24 24" fill="none" width="100%" height="100%"><circle cx="12" cy="6" r="2.4" stroke="currentColor" strokeWidth="1.8"/><circle cx="6" cy="17" r="2.4" stroke="currentColor" strokeWidth="1.8"/><circle cx="18" cy="17" r="2.4" stroke="currentColor" strokeWidth="1.8"/><path d="M12 8.4v3.6M11 13.5l-3.4 2M13 13.5l3.4 2" stroke="currentColor" strokeWidth="1.7"/></svg>);
+}
+function IconBlogs() {
+  return (<svg viewBox="0 0 24 24" fill="none" width="100%" height="100%"><path d="M5 4h11l3 3v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><path d="M8 10h8M8 14h5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/></svg>);
+}
+function IconExplainer() {
+  return (<svg viewBox="0 0 24 24" fill="none" width="100%" height="100%"><rect x="3" y="5" width="14" height="14" rx="3" stroke="currentColor" strokeWidth="1.8"/><path d="M17 10l4-2.5v9L17 14M9 9.5l4 2.5-4 2.5v-5z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"/></svg>);
+}
+function IconComic() {
+  return (<svg viewBox="0 0 24 24" fill="none" width="100%" height="100%"><path d="M4 6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H8l-4 3V6z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"/><path d="M20 11v6a2 2 0 0 1-2 2h-5l-2 1.5V18" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"/></svg>);
+}
+function IconAudioOverview() {
+  return (<svg viewBox="0 0 24 24" fill="none" width="100%" height="100%"><path d="M5 13a7 7 0 0 1 14 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><rect x="3.5" y="13" width="4" height="6" rx="1.6" stroke="currentColor" strokeWidth="1.8"/><rect x="16.5" y="13" width="4" height="6" rx="1.6" stroke="currentColor" strokeWidth="1.8"/></svg>);
+}
+function IconInfographic() {
+  return (<svg viewBox="0 0 24 24" fill="none" width="100%" height="100%"><path d="M12 12V4a8 8 0 1 1-8 8h8z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><path d="M12 12l5.6 5.6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/></svg>);
+}
+function IconPodcast() {
+  return (<svg viewBox="0 0 24 24" fill="none" width="100%" height="100%"><rect x="9" y="3" width="6" height="11" rx="3" stroke="currentColor" strokeWidth="1.8"/><path d="M6 11a6 6 0 0 0 12 0M12 17v3M9 20h6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>);
+}
+function IconNotes() {
+  return (<svg viewBox="0 0 24 24" fill="none" width="100%" height="100%"><path d="M6 3h9l3 3v15H6V3z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><path d="M9 9h6M9 13h6M9 17h4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/></svg>);
+}
+
+const AI_TOOLS = [
+  { key: "flashcards",  label: "Flashcards",       active: true,  color: "#3b82f6", Icon: IconFlashcards },
+  { key: "mindmap",     label: "Mind Maps",        active: true,  color: "#10b981", Icon: IconMindmap },
+  { key: "blogs",       label: "Blogs",            active: true,  color: "#f59e0b", Icon: IconBlogs },
+  { key: "explainer",   label: "Explainer Videos", active: true,  color: "#2563eb", Icon: IconExplainer },
+  { key: "comic",       label: "Comic Creations",  active: false, color: "#ec4899", Icon: IconComic },
+  { key: "audio",       label: "Audio Overview",   active: true,  color: "#06b6d4", Icon: IconAudioOverview },
+  { key: "infographic", label: "Infographic",      active: false, color: "#8b5cf6", Icon: IconInfographic },
+  { key: "podcast",     label: "Audio Podcast",    active: true,  color: "#f97316", Icon: IconPodcast },
+  { key: "notes",       label: "Notes",            active: true,  color: "#7c3aed", Icon: IconNotes },
+] as const;
+
+// ── Learning Journey — purely visual progression strip (no backing data yet).
+//    Six bespoke icons: spark / compass / lightbulb / gears / trophy / bookmark.
+function IconEngagement() {
+  return (<svg viewBox="0 0 24 24" fill="none" width="100%" height="100%"><path d="M12 3.6c.6 3.9 1.9 5.2 5.8 5.8-3.9.6-5.2 1.9-5.8 5.8-.6-3.9-1.9-5.2-5.8-5.8 3.9-.6 5.2-1.9 5.8-5.8z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"/><circle cx="12" cy="9.4" r="0.6" fill="currentColor"/></svg>);
+}
+function IconExploration() {
+  return (<svg viewBox="0 0 24 24" fill="none" width="100%" height="100%"><circle cx="12" cy="12" r="8.4" stroke="currentColor" strokeWidth="1.7"/><path d="M15.2 8.8l-2.1 4.3-4.3 2.1 2.1-4.3 4.3-2.1z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>);
+}
+function IconUnderstanding() {
+  return (<svg viewBox="0 0 24 24" fill="none" width="100%" height="100%"><path d="M12 3.2a6.2 6.2 0 0 0-3.8 11.1c.5.4.8 1 .8 1.7v.5h6v-.5c0-.7.3-1.3.8-1.7A6.2 6.2 0 0 0 12 3.2z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"/><path d="M9.5 19h5M10.6 21.2h2.8" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/></svg>);
+}
+function IconThinking() {
+  return (<svg viewBox="0 0 24 24" fill="none" width="100%" height="100%"><circle cx="12" cy="12" r="3.3" stroke="currentColor" strokeWidth="1.7"/><path d="M12 3.6v2.3M12 18.1v2.3M3.6 12h2.3M18.1 12h2.3M6.1 6.1l1.6 1.6M16.3 16.3l1.6 1.6M17.9 6.1l-1.6 1.6M6.1 17.9l1.6-1.6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/></svg>);
+}
+function IconMastery() {
+  return (<svg viewBox="0 0 24 24" fill="none" width="100%" height="100%"><path d="M7.6 4.5h8.8v3.4a4.4 4.4 0 0 1-8.8 0V4.5z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"/><path d="M7.6 6.1H5.3v.9a2.8 2.8 0 0 0 2.8 2.8M16.4 6.1h2.3v.9a2.8 2.8 0 0 1-2.8 2.8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/><path d="M12 12.3v3.9M8.7 20.4h6.6M10.1 20.4l.6-2.4h2.6l.6 2.4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/></svg>);
+}
+function IconRetention() {
+  return (<svg viewBox="0 0 24 24" fill="none" width="100%" height="100%"><path d="M7.4 4h9.2a1 1 0 0 1 1 1v14.4a.6.6 0 0 1-.94.5L12 16.7l-4.46 3.2A.6.6 0 0 1 6.4 19.4V5a1 1 0 0 1 1-1z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"/></svg>);
+}
+
+const JOURNEY_PHASES = [
+  { id: "engagement",    step: "Phase 01", title: "Engagement",       color: "#FB7185", Icon: IconEngagement },
+  { id: "exploration",   step: "Phase 02", title: "Exploration",      color: "#14B8A6", Icon: IconExploration },
+  { id: "understanding", step: "Phase 03", title: "Understanding",    color: "#F59E0B", Icon: IconUnderstanding },
+  { id: "thinking",      step: "Phase 04", title: "Thinking Process", color: "#3B82F6", Icon: IconThinking },
+  { id: "mastery",       step: "Phase 05", title: "Mastery",          color: "#EAB308", Icon: IconMastery },
+  { id: "retention",     step: "Phase 06", title: "Retention",        color: "#8B5CF6", Icon: IconRetention },
+] as const;
+
 export function ClassroomArena({ chapter, onBack }: Props) {
   const [profile,    setProfile]    = useState<Profile | null>(null);
   const [input,      setInput]      = useState("");
@@ -151,6 +225,8 @@ export function ClassroomArena({ chapter, onBack }: Props) {
   const [mindmapResults,   setMindmapResults]   = useState<Record<string, MindmapResult>>({});
   const [mindmapModalData, setMindmapModalData] = useState<{ topic: string; root: MindMapNode } | null>(null);
   const [panelFilter,   setPanelFilter]   = useState<"notes" | "flashcards" | "blog" | "mindmap">("notes");
+  // Learning Journey — purely visual for now (no progress tracking wired yet).
+  const [journeyPhase, setJourneyPhase] = useState<string>("understanding");
 
   const classroomWriter = useClassroomWriter();
   useEffect(() => {
@@ -789,14 +865,127 @@ export function ClassroomArena({ chapter, onBack }: Props) {
       .catch(() => {});
   }, [chapter.chapter_title, flashcardResults]);
 
+  // AI Tools rail click handler — identical logic to what previously lived
+  // inline on the TILES.map hotspot divs, just extracted so the new real
+  // tool-card buttons (right rail) can call it directly. No behaviour change.
+  const handleToolClick = useCallback((key: string) => {
+    switch (key) {
+      case "notes": {
+        if (!flashcardMode && !blogMode && !mindmapMode && panelFilter === "notes" && mode === "notes") return;
+        setMode("notes"); setPanelFilter("notes"); setFlashcardMode(false); setBlogMode(false); setMindmapMode(false); setAudioOverviewMode(false); setMessages([]);
+        break;
+      }
+      case "flashcards": {
+        if (flashcardMode) return;
+        setMode("notes"); setPanelFilter("flashcards");
+        setBlogMode(false); setMindmapMode(false); setAudioOverviewMode(false); setFlashcardMode(true);
+        setMessages([{
+          id: crypto.randomUUID(), role: "assistant",
+          content: `✏️ Flashcard mode is on — type a topic from "${chapter.chapter_title}" below and I'll build a flashcard deck for it.`,
+          outputType: "text", createdAt: new Date(),
+        }]);
+        break;
+      }
+      case "mindmap": {
+        if (mindmapMode) return;
+        setMode("notes"); setPanelFilter("mindmap");
+        setFlashcardMode(false); setBlogMode(false); setAudioOverviewMode(false); setMindmapMode(true);
+        setMessages([{
+          id: crypto.randomUUID(), role: "assistant",
+          content: `🧠 Mind Map mode is on — type a topic from "${chapter.chapter_title}" below and I'll build an interactive mind map for it.`,
+          outputType: "text", createdAt: new Date(),
+        }]);
+        break;
+      }
+      case "blogs": {
+        if (blogMode) return;
+        setMode("notes"); setPanelFilter("blog");
+        setFlashcardMode(false); setMindmapMode(false); setAudioOverviewMode(false); setBlogMode(true);
+        setMessages([{
+          id: crypto.randomUUID(), role: "assistant",
+          content: `🎨 Blog mode is on — type a topic from "${chapter.chapter_title}" below and I'll create an illustrated comic blog for it.`,
+          outputType: "text", createdAt: new Date(),
+        }]);
+        break;
+      }
+      case "explainer": {
+        if (mode === "videos") return;
+        setFlashcardMode(false); setBlogMode(false); setMindmapMode(false); setAudioOverviewMode(false);
+        setMode("videos");
+        break;
+      }
+      case "audio": {
+        if (isStreaming) return;
+        if (audioOverviewMode) {
+          setAudioOverviewMode(false);
+          setMessages(prev => [...prev, {
+            id: crypto.randomUUID(), role: "assistant", outputType: "text",
+            content: "✅ Exited Audio Overview mode — back to normal chat.",
+            createdAt: new Date(),
+          } as ClassroomMessage]);
+          return;
+        }
+        setMode("notes");
+        setAudioOverviewMode(true);
+        setMessages(prev => [...prev, {
+          id: crypto.randomUUID(), role: "assistant", outputType: "text",
+          content: `🎧 **Audio Overview mode is ON.** Every message becomes an overview of *${chapter.chapter_title}* — the whole chapter, or any subtopic. (This chapter only 😄) Tap Audio Overview again to exit.`,
+          createdAt: new Date(),
+        } as ClassroomMessage]);
+        break;
+      }
+      case "podcast": {
+        setAudioOverviewMode(false);
+        runPodcast(input.trim() || chapter.chapter_title);
+        setInput("");
+        break;
+      }
+      case "comic": {
+        setMessages(prev => [...prev, {
+          id: crypto.randomUUID(), role: "assistant", outputType: "text",
+          content: `🦸 **Comic Creations is coming soon!** Picture your whole chapter turned into a comic strip — superhero scientists, sneaky math villains, and cliff-hanger plot twists made of pure physics. 👀 Keep your eyes peeled… this one's going to be *legendary*.`,
+          createdAt: new Date(),
+        } as ClassroomMessage]);
+        break;
+      }
+      case "infographic": {
+        setMessages(prev => [...prev, {
+          id: crypto.randomUUID(), role: "assistant", outputType: "text",
+          content: `📊 **Infographics are coming soon!** Soon you'll snap any topic into one colourful, scroll-stopping cheat-sheet you'll actually want on your wall. Stay tuned! ✨`,
+          createdAt: new Date(),
+        } as ClassroomMessage]);
+        break;
+      }
+    }
+  }, [flashcardMode, blogMode, mindmapMode, panelFilter, mode, audioOverviewMode, isStreaming, input, runPodcast, chapter.chapter_title]);
+
+  // Active tool key — same precedence the old highlight used. Drives both the
+  // right-rail "is-active" styling and the canvas mode chip's label.
+  const selectedToolKey =
+    audioOverviewMode                              ? "audio" :
+    mode === "videos"                              ? "explainer" :
+    flashcardMode                                  ? "flashcards" :
+    mindmapMode                                    ? "mindmap" :
+    blogMode                                       ? "blogs" :
+    (mode === "notes" && panelFilter === "notes")  ? "notes" :
+    null;
+
+  const TOOL_MODE_LABEL: Record<string, string> = {
+    audio: "Audio Overview Mode", explainer: "Explainer Video Mode",
+    flashcards: "Flashcards Mode", mindmap: "Mind Maps Mode",
+    blogs: "Blog Mode", notes: "Notes Mode",
+  };
+
+  const activeJourneyPhase = JOURNEY_PHASES.find(p => p.id === journeyPhase) ?? JOURNEY_PHASES[2];
+
   const canSend = input.trim().length > 0 && !isStreaming && !!profile;
 
   if (!profile) {
     return (
       <div className="relative flex items-center justify-center" style={{ height:"100dvh" }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/classroom/classroom/background.png" alt="" aria-hidden
-          style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"fill" }} />
+        <img src="/classroom/classroom-bg-v2.png" alt="" aria-hidden
+          style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover" }} />
         <div className="relative z-10 flex items-center gap-2" style={{ color:"rgba(255,255,255,0.55)" }}>
           <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
           <span className="text-sm">Loading…</span>
@@ -808,186 +997,174 @@ export function ClassroomArena({ chapter, onBack }: Props) {
   return (
     <div className="relative overflow-hidden" style={{ height:"100dvh" }}>
 
+      {/* Scoped hover polish for the journey strip + AI tools rail */}
+      <style>{`
+        .ca-phase, .ca-tool { transition: transform 200ms cubic-bezier(.16,1,.3,1), box-shadow 200ms ease, border-color 200ms ease; }
+        .ca-phase:hover { transform: translateY(-2px) scale(1.03); }
+        .ca-tool:hover  { transform: translateY(-2px) scale(1.02); }
+        .ca-tool:hover .ca-tool-icon { transform: scale(1.08); }
+        .ca-tool-icon { transition: transform 200ms cubic-bezier(.16,1,.3,1); }
+
+        /* Learning Journey timeline rail — line + dot under each phase */
+        .ca-rail { position: relative; display: flex; height: 10px; }
+        .ca-rail::before {
+          content: ""; position: absolute; top: 50%; left: 8.333%; right: 8.333%;
+          height: 2px; transform: translateY(-50%); background: rgba(255,255,255,0.18);
+        }
+        .ca-rail-fill {
+          position: absolute; top: 50%; left: 8.333%; height: 2px;
+          transform: translateY(-50%); background: linear-gradient(90deg, #0284c7, #00d4ff);
+          box-shadow: 0 0 10px rgba(0,212,255,0.6); border-radius: 2px; z-index: 1;
+          transition: width 380ms cubic-bezier(.16,1,.3,1);
+        }
+        .ca-dot { position: relative; z-index: 2; flex: 1; display: flex; justify-content: center; }
+        .ca-dot::before {
+          content: ""; width: 8px; height: 8px; border-radius: 50%;
+          background: rgba(255,255,255,0.4); border: 1.5px solid rgba(255,255,255,0.25);
+          box-shadow: 0 0 0 3px rgba(10,6,30,0.25);
+          transition: transform 220ms cubic-bezier(.16,1.3,.4,1), background 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
+        }
+        .ca-dot.is-active::before {
+          background: linear-gradient(180deg, #7dd3fc, #00d4ff);
+          border-color: #b4eeff; transform: scale(1.55);
+          box-shadow: 0 0 0 4px rgba(0,212,255,0.18), 0 0 12px rgba(0,212,255,0.75);
+        }
+      `}</style>
+
       {/* Background */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/classroom/classroom/background.png" alt="" aria-hidden draggable={false}
-        style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"fill", zIndex:0 }} />
+      <img src="/classroom/classroom-bg-v2.png" alt="" aria-hidden draggable={false}
+        style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover", zIndex:0 }} />
+      <div className="absolute inset-0 pointer-events-none"
+        style={{ zIndex:0,
+          background:"radial-gradient(1200px 420px at 50% 115%, rgba(124,58,237,0.16), transparent), radial-gradient(900px 320px at 50% -10%, rgba(0,180,255,0.10), transparent)" }} />
 
-      {/* Back */}
-      <button onClick={onBack}
-        className="absolute flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-xl hover:opacity-80 transition-opacity"
-        style={{ top:12, left:14, zIndex:30,
-          background:"rgba(0,0,0,0.5)", backdropFilter:"blur(10px)",
-          color:"rgba(255,255,255,0.8)", border:"1px solid rgba(255,255,255,0.15)" }}>
-        <ChevronLeft className="w-3.5 h-3.5" /> Back
-      </button>
+      {/* ── Foreground layout: header+journey on top, 3-column workspace below ── */}
+      <div className="relative" style={{ zIndex:1, height:"100%", display:"flex", flexDirection:"column", padding:"14px 18px", gap:12, boxSizing:"border-box" }}>
 
-      {/* ── Chapter title — bigger, centered top ─────────────────────────────── */}
-      <div className="absolute flex flex-col items-center"
-        style={{ top:10, left:"50%", transform:"translateX(-50%)", zIndex:25 }}>
-        <div className="px-5 py-2 rounded-2xl"
-          style={{ background:"rgba(0,0,0,0.55)", backdropFilter:"blur(12px)",
-            border:"1px solid rgba(255,255,255,0.15)" }}>
-          <p className="font-display font-black text-base whitespace-nowrap"
-            style={{ color:"#fff", letterSpacing:"0.01em" }}>
-            {chapter.chapter_title}
-          </p>
-          <p className="text-[11px] font-mono text-center mt-0.5" style={{ color:"rgba(255,255,255,0.45)" }}>
-            CBSE Class 10 · Science
-          </p>
+        {/* Header row — back button + a clearly visible, appealing chapter title */}
+        <div style={{ display:"flex", alignItems:"center", gap:14, flexShrink:0 }}>
+          <button onClick={onBack}
+            className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-xl hover:opacity-80 transition-opacity"
+            style={{ flexShrink:0,
+              background:"rgba(0,0,0,0.5)", backdropFilter:"blur(10px)",
+              color:"rgba(255,255,255,0.8)", border:"1px solid rgba(255,255,255,0.15)" }}>
+            <ChevronLeft className="w-3.5 h-3.5" /> Back
+          </button>
+
+          <div style={{ display:"flex", alignItems:"center", gap:8, padding:"4px 13px",
+            borderRadius:14, background:"linear-gradient(180deg, rgba(255,255,255,0.16), rgba(255,255,255,0.05))",
+            backdropFilter:"blur(14px)", border:"1px solid rgba(255,255,255,0.22)",
+            boxShadow:"0 6px 16px rgba(0,0,0,0.3), 0 0 18px rgba(0,180,255,0.18), inset 0 1px 0 rgba(255,255,255,0.25)" }}>
+            <span style={{ width:6, height:6, borderRadius:"50%", flexShrink:0,
+              background:"linear-gradient(150deg, #7dd3fc, #00d4ff)", boxShadow:"0 0 8px rgba(0,212,255,0.8)" }} />
+            <p className="font-display font-black whitespace-nowrap"
+              style={{ fontSize:15, color:"#fff", letterSpacing:"0.01em", textShadow:"0 2px 12px rgba(0,180,255,0.35)" }}>
+              {chapter.chapter_title}
+            </p>
+            <span style={{ width:1, height:12, background:"rgba(255,255,255,0.2)", flexShrink:0 }} />
+            <p className="font-mono whitespace-nowrap" style={{ fontSize:9, letterSpacing:"0.05em", color:"rgba(180,220,255,0.75)" }}>
+              {chapter.board} Class {chapter.grade} · {chapter.subject}
+            </p>
+          </div>
         </div>
-      </div>
 
-      {/* ── Toolbar hotspots — mapped from TILES so click targets always track
-              the background art. Each div is centred on its tile via
-              translateY(-50%). Inactive tiles (comic, infographic) show a
-              Bhavna "coming soon" teaser instead of a mode. ──────────────────── */}
-      {TILES.map(({ key, top, active, debug }) => (
-        <div
-          key={key}
-          onClick={() => {
-            switch (key) {
-              case "notes": {
-                if (!flashcardMode && !blogMode && !mindmapMode && panelFilter === "notes" && mode === "notes") return;
-                setMode("notes"); setPanelFilter("notes"); setFlashcardMode(false); setBlogMode(false); setMindmapMode(false); setAudioOverviewMode(false); setMessages([]);
-                break;
-              }
-              case "flashcards": {
-                if (flashcardMode) return;
-                setMode("notes"); setPanelFilter("flashcards");
-                setBlogMode(false); setMindmapMode(false); setAudioOverviewMode(false); setFlashcardMode(true);
-                setMessages([{
-                  id: crypto.randomUUID(), role: "assistant",
-                  content: `✏️ Flashcard mode is on — type a topic from "${chapter.chapter_title}" below and I'll build a flashcard deck for it.`,
-                  outputType: "text", createdAt: new Date(),
-                }]);
-                break;
-              }
-              case "mindmap": {
-                if (mindmapMode) return;
-                setMode("notes"); setPanelFilter("mindmap");
-                setFlashcardMode(false); setBlogMode(false); setAudioOverviewMode(false); setMindmapMode(true);
-                setMessages([{
-                  id: crypto.randomUUID(), role: "assistant",
-                  content: `🧠 Mind Map mode is on — type a topic from "${chapter.chapter_title}" below and I'll build an interactive mind map for it.`,
-                  outputType: "text", createdAt: new Date(),
-                }]);
-                break;
-              }
-              case "blogs": {
-                if (blogMode) return;
-                setMode("notes"); setPanelFilter("blog");
-                setFlashcardMode(false); setMindmapMode(false); setAudioOverviewMode(false); setBlogMode(true);
-                setMessages([{
-                  id: crypto.randomUUID(), role: "assistant",
-                  content: `🎨 Blog mode is on — type a topic from "${chapter.chapter_title}" below and I'll create an illustrated comic blog for it.`,
-                  outputType: "text", createdAt: new Date(),
-                }]);
-                break;
-              }
-              case "explainer": {
-                if (mode === "videos") return;
-                setFlashcardMode(false); setBlogMode(false); setMindmapMode(false); setAudioOverviewMode(false);
-                setMode("videos");
-                break;
-              }
-              case "audio": {
-                if (isStreaming) return;
-                if (audioOverviewMode) {
-                  setAudioOverviewMode(false);
-                  setMessages(prev => [...prev, {
-                    id: crypto.randomUUID(), role: "assistant", outputType: "text",
-                    content: "✅ Exited Audio Overview mode — back to normal chat.",
-                    createdAt: new Date(),
-                  } as ClassroomMessage]);
-                  return;
-                }
-                setMode("notes");
-                setAudioOverviewMode(true);
-                setMessages(prev => [...prev, {
-                  id: crypto.randomUUID(), role: "assistant", outputType: "text",
-                  content: `🎧 **Audio Overview mode is ON.** Every message becomes an overview of *${chapter.chapter_title}* — the whole chapter, or any subtopic. (This chapter only 😄) Tap Audio Overview again to exit.`,
-                  createdAt: new Date(),
-                } as ClassroomMessage]);
-                break;
-              }
-              case "podcast": {
-                setAudioOverviewMode(false);
-                runPodcast(input.trim() || chapter.chapter_title);
-                setInput("");
-                break;
-              }
-              case "comic": {
-                // Coming soon — Bhavna teases it (curiosity hook for 6–16 yr olds)
-                setMessages(prev => [...prev, {
-                  id: crypto.randomUUID(), role: "assistant", outputType: "text",
-                  content: `🦸 **Comic Creations is coming soon!** Picture your whole chapter turned into a comic strip — superhero scientists, sneaky math villains, and cliff-hanger plot twists made of pure physics. 👀 Keep your eyes peeled… this one's going to be *legendary*.`,
-                  createdAt: new Date(),
-                } as ClassroomMessage]);
-                break;
-              }
-              case "infographic": {
-                // Coming soon teaser
-                setMessages(prev => [...prev, {
-                  id: crypto.randomUUID(), role: "assistant", outputType: "text",
-                  content: `📊 **Infographics are coming soon!** Soon you'll snap any topic into one colourful, scroll-stopping cheat-sheet you'll actually want on your wall. Stay tuned! ✨`,
-                  createdAt: new Date(),
-                } as ClassroomMessage]);
-                break;
-              }
-            }
-          }}
-          className="absolute"
-          style={{
-            left: "1%", top, width: "13%", height: "7%",
-            transform: "translateY(-50%)", zIndex: 20, cursor: "pointer",
-            ...(DEBUG_ZONES ? { border: `2px solid ${debug}`, background: `${debug}26`, borderRadius: 6 } : {}),
-          }}
-          title={`${key} hotspot`}
-        >
-          {DEBUG_ZONES && (
-            <span style={{ position:"absolute", top:2, left:4, fontSize:9, fontWeight:700, color:debug, fontFamily:"monospace", pointerEvents:"none" }}>
-              {key.toUpperCase()}{active ? "" : " (soon)"}
-            </span>
-          )}
+        {/* Learning Journey — arrow chevrons (neutral · cyan accent on active),
+            with a timeline rail (line + dot under each phase) below. */}
+        <div style={{ display:"flex", flexDirection:"column", gap:9, flexShrink:0 }}>
+          <div style={{ display:"flex", gap:7, height:40 }}>
+            {JOURNEY_PHASES.map((p, idx) => {
+              const isActive = journeyPhase === p.id;
+              const clip = idx === 0
+                ? "polygon(0 0, calc(100% - 13px) 0, 100% 50%, calc(100% - 13px) 100%, 0 100%)"
+                : "polygon(0 0, calc(100% - 13px) 0, 100% 50%, calc(100% - 13px) 100%, 0 100%, 13px 50%)";
+              return (
+                <div key={p.id} onClick={() => setJourneyPhase(p.id)} className="ca-phase"
+                  style={{
+                    flex:1, minWidth:0, padding:"1.5px", clipPath:clip, cursor:"pointer",
+                    background: isActive
+                      ? "linear-gradient(135deg, #7dd3fc, #00d4ff)"
+                      : "linear-gradient(180deg, rgba(255,255,255,0.42), rgba(255,255,255,0.16))",
+                    filter: isActive
+                      ? "drop-shadow(0 10px 24px rgba(0,212,255,0.6))"
+                      : "drop-shadow(0 2px 5px rgba(18,10,48,0.22))",
+                    transform: isActive ? "scale(1.1)" : "none",
+                    zIndex: isActive ? 4 : 1,
+                  }}>
+                  <div style={{
+                    width:"100%", height:"100%", display:"flex", alignItems:"center", gap:7, clipPath:clip,
+                    padding: idx === 0 ? "0 11px 0 13px" : "0 11px 0 18px",
+                    background: isActive
+                      ? "linear-gradient(180deg, #ffffff 0%, #e8f8ff 100%)"
+                      : "linear-gradient(180deg, rgba(255,255,255,0.97) 0%, rgba(244,246,252,0.84) 100%)",
+                  }}>
+                    <span style={{
+                      flexShrink:0, width:21, height:21, borderRadius:7,
+                      display:"flex", alignItems:"center", justifyContent:"center",
+                      fontFamily:"'JetBrains Mono',monospace", fontSize:10, fontWeight:700,
+                      color: isActive ? "#04121f" : "#4a4368",
+                      background: isActive ? "linear-gradient(150deg, #7dd3fc, #00d4ff 55%, #0284c7)" : "linear-gradient(180deg, #ffffff, #e7e7f0)",
+                      boxShadow: isActive ? "0 0 0 3px rgba(0,212,255,0.18), 0 0 14px rgba(0,212,255,0.55)" : "inset 0 1px 0 rgba(255,255,255,0.9), 0 1px 2px rgba(40,30,90,0.18)",
+                      transform: isActive ? "scale(1.12)" : "none",
+                    }}>
+                      {idx + 1}
+                    </span>
+                    <span className="ca-tool-icon" style={{
+                      flexShrink:0, width:22, height:22, padding:5.5, borderRadius:7,
+                      display:"flex", alignItems:"center", justifyContent:"center", color:"#fff",
+                      background:`linear-gradient(150deg, ${p.color}c8, ${p.color})`,
+                      boxShadow: isActive
+                        ? `0 0 0 2px ${p.color}38, 0 4px 14px ${p.color}99`
+                        : `0 2px 6px ${p.color}66`,
+                      transform: isActive ? "scale(1.1)" : "none",
+                    }}>
+                      <p.Icon />
+                    </span>
+                    <span style={{ display:"flex", flexDirection:"column", gap:0, minWidth:0 }}>
+                      <span style={{ fontSize:9, fontFamily:"'JetBrains Mono',monospace", fontWeight:600, letterSpacing:"0.1em", textTransform:"uppercase", color:"#7c3aed" }}>
+                        {p.step}
+                      </span>
+                      <span style={{ fontSize:13, fontWeight: isActive ? 800 : 700, fontFamily:"'DM Sans',sans-serif", color: isActive ? "#04121f" : "#16122b", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                        {p.title}
+                      </span>
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* timeline rail — connecting line + a dot under each phase */}
+          <div className="ca-rail">
+            <span className="ca-rail-fill" style={{
+              width: `${JOURNEY_PHASES.findIndex(p => p.id === journeyPhase) * (100 / 6)}%`,
+            }} />
+            {JOURNEY_PHASES.map(p => (
+              <span key={p.id} className={`ca-dot${journeyPhase === p.id ? " is-active" : ""}`} />
+            ))}
+          </div>
         </div>
-      ))}
 
-      {/* ── Selected-tile highlight — dark-glass marker over the active mode's
-              tile. Tracks whichever mode is on (notes/flashcards/mindmap/blog/
-              explainer/audio); podcast is a one-shot action so it has no
-              persistent selected state. ──────────────────────────────────────── */}
-      {(() => {
-        const selectedKey =
-          audioOverviewMode                              ? "audio" :
-          mode === "videos"                              ? "explainer" :
-          flashcardMode                                  ? "flashcards" :
-          mindmapMode                                    ? "mindmap" :
-          blogMode                                       ? "blogs" :
-          (mode === "notes" && panelFilter === "notes")  ? "notes" :
-          null;
-        if (!selectedKey) return null;
-        const tile = TILES.find(t => t.key === selectedKey);
-        if (!tile) return null;
-        return (
-          <motion.div
-            className="absolute pointer-events-none"
-            style={{
-              left:"1.5%", top: `calc(${tile.top} - 0.5%)`, width:"13%", height:"7.7%",
-              transform:"translateY(-50%)", zIndex:19, borderRadius:14,
-              border:"2px solid rgba(224,177,76,0.95)",
-              boxShadow:"0 0 16px rgba(224,177,76,0.60), 0 0 38px rgba(224,177,76,0.26), inset 0 0 12px rgba(224,177,76,0.18)",
-            }}
-            animate={{ opacity:[0.55,1,0.55] }}
-            transition={{ duration:1.8, repeat:Infinity, ease:"easeInOut" }}
-          />
-        );
-      })()}
+        {/* Workspace row: Learning Library · Canvas · AI Tools rail */}
+        <div style={{ display:"flex", flex:1, minHeight:0, gap:14 }}>
 
-      {/* ── My Creations / Videos panel — overlaid on left wall panel ─────────── */}
-      <div className="absolute overflow-y-auto"
-        style={{ left:"17.6%", top:"14%", width:"16.7%", height:"68%",
-          zIndex:18, scrollbarWidth:"none" }}>
+          {/* LEFT — Learning Library (restyled My Creations — same data/logic).
+              Stays stretched to fill the column (its tall-card look) —
+              maxHeight caps that stretch just short of the (now smaller)
+              Dustbin's footprint, so the bottom edge lines up with the
+              canvas's chat-input level instead of stopping much higher. */}
+          <div style={{ width:230, flexShrink:0, display:"flex", flexDirection:"column",
+            minHeight:0, maxHeight:"calc(100% - 105px)", overflow:"hidden", borderRadius:18,
+            background:"rgba(255,255,255,0.72)", backdropFilter:"blur(20px)",
+            border:"1px solid rgba(255,255,255,0.6)", boxShadow:"0 10px 30px rgba(20,8,60,0.18)",
+            padding:"12px 10px", gap:8 }}>
+            <p className="font-display font-bold" style={{ fontSize:13, color:"#0f1c4d", padding:"0 4px", flexShrink:0 }}>
+              Learning Library
+            </p>
+
+
+      {/* ── Learning Library content (formerly "My Creations") — same data/logic ── */}
+      <div className="overflow-y-auto" style={{ flex:1, minHeight:0, scrollbarWidth:"none" }}>
 
         <AnimatePresence mode="wait">
 
@@ -1230,120 +1407,7 @@ export function ClassroomArena({ chapter, onBack }: Props) {
 
         </AnimatePresence>
       </div>
-
-      {/* ── Dustbin — drop a note card here to delete it ──────────────────── */}
-      <div
-        onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setBinDragOver(true); }}
-        onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setBinDragOver(false); }}
-        onDrop={e => {
-          e.preventDefault();
-          setBinDragOver(false);
-          const id = e.dataTransfer.getData("application/classroom-item");
-          if (!id) return;
-          setSavedItems(prev => prev.filter(item => item.id !== id));
-          fetch("/api/creations", {
-            method:  "DELETE",
-            headers: { "Content-Type": "application/json" },
-            body:    JSON.stringify({ id }),
-          }).catch(() => {});
-        }}
-        style={{
-          position: "absolute",
-          bottom: "2%",
-          left:   "18%",
-          width:  "6.5%",
-          zIndex: 18,
-          display: "flex",
-          alignItems: "flex-end",
-          justifyContent: "center",
-          cursor: "copy",
-          transition: "transform 0.2s ease",
-          transform: binDragOver ? "scale(1.18) translateY(-6px)" : "scale(1)",
-        }}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/arena1/bin.png"
-          alt="Delete"
-          draggable={false}
-          style={{
-            width: "100%", height: "auto", objectFit: "contain",
-            filter: binDragOver
-              ? "brightness(1.6) drop-shadow(0 0 14px rgba(255,80,80,0.9)) drop-shadow(0 0 32px rgba(255,80,80,0.5))"
-              : "brightness(0.75) saturate(0.7)",
-            transition: "filter 0.2s ease",
-          }}
-        />
-        {binDragOver && (
-          <div style={{
-            position: "absolute", bottom: "50%", left: "50%", transform: "translateX(-50%)",
-            background: "rgba(8,4,22,0.92)", border: "1px solid rgba(255,80,80,0.5)",
-            borderRadius: 10, padding: "4px 10px", whiteSpace: "nowrap",
-            fontSize: 10, fontWeight: 700, color: "rgba(255,120,120,1)",
-            boxShadow: "0 0 16px rgba(255,80,80,0.4)", backdropFilter: "blur(8px)",
-            pointerEvents: "none",
-          }}>
-            Drop to delete
           </div>
-        )}
-      </div>
-
-      {/* ── Dustbin — drop a note card here to delete it ──────────────────── */}
-      <div
-        onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setBinDragOver(true); }}
-        onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setBinDragOver(false); }}
-        onDrop={e => {
-          e.preventDefault();
-          setBinDragOver(false);
-          const id = e.dataTransfer.getData("application/classroom-item");
-          if (!id) return;
-          setSavedItems(prev => prev.filter(item => item.id !== id));
-          fetch("/api/creations", {
-            method:  "DELETE",
-            headers: { "Content-Type": "application/json" },
-            body:    JSON.stringify({ id }),
-          }).catch(() => {});
-        }}
-        style={{
-          position: "absolute",
-          bottom: "2%",
-          left:   "18%",
-          width:  "6.5%",
-          zIndex: 18,
-          display: "flex",
-          alignItems: "flex-end",
-          justifyContent: "center",
-          cursor: "copy",
-          transition: "transform 0.2s ease",
-          transform: binDragOver ? "scale(1.18) translateY(-6px)" : "scale(1)",
-        }}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/arena1/bin.png"
-          alt="Delete"
-          draggable={false}
-          style={{
-            width: "100%", height: "auto", objectFit: "contain",
-            filter: binDragOver
-              ? "brightness(1.6) drop-shadow(0 0 14px rgba(255,80,80,0.9)) drop-shadow(0 0 32px rgba(255,80,80,0.5))"
-              : "brightness(0.75) saturate(0.7)",
-            transition: "filter 0.2s ease",
-          }}
-        />
-        {binDragOver && (
-          <div style={{
-            position: "absolute", bottom: "50%", left: "50%", transform: "translateX(-50%)",
-            background: "rgba(8,4,22,0.92)", border: "1px solid rgba(255,80,80,0.5)",
-            borderRadius: 10, padding: "4px 10px", whiteSpace: "nowrap",
-            fontSize: 10, fontWeight: 700, color: "rgba(255,120,120,1)",
-            boxShadow: "0 0 16px rgba(255,80,80,0.4)", backdropFilter: "blur(8px)",
-            pointerEvents: "none",
-          }}>
-            Drop to delete
-          </div>
-        )}
-      </div>
 
       {/* ── Chat overlay — transparent bg, floats on whiteboard ────────────── */}
       {/* Override Syne display font on all markdown headings inside this pane */}
@@ -1354,19 +1418,46 @@ export function ClassroomArena({ chapter, onBack }: Props) {
           font-weight: 700;
         }
       `}</style>
-      <div className="absolute flex flex-col classroom-chat"
-        style={{ left:"38%", top:"12%", width:"59%", height:"70%", zIndex:15 }}>
+      <div className="flex flex-col classroom-chat"
+        style={{ position:"relative", flex:1, minWidth:0, minHeight:0, borderRadius:18,
+          background:"rgba(255,255,255,0.94)", backdropFilter:"blur(20px)",
+          border:"1px solid rgba(255,255,255,0.9)",
+          boxShadow:"0 24px 64px rgba(20,8,60,0.22), inset 0 1px 0 rgba(255,255,255,0.9)" }}>
 
-        {/* Message list — no background, messages float on the whiteboard */}
+        {/* ── Canvas head: mode chip · phase chip (chapter title lives in the page header) ── */}
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, padding:"14px 16px 0", flexShrink:0 }}>
+          <span style={{
+            display:"inline-flex", alignItems:"center", gap:7, flexShrink:0,
+            padding:"5px 12px 5px 10px", borderRadius:999,
+            fontFamily:"'JetBrains Mono',monospace", fontSize:10, letterSpacing:"0.04em",
+            color:"#fff",
+            background: selectedToolKey ? `linear-gradient(150deg, ${AI_TOOLS.find(t=>t.key===selectedToolKey)?.color}cc, ${AI_TOOLS.find(t=>t.key===selectedToolKey)?.color})` : "rgba(15,28,77,0.5)",
+            boxShadow: selectedToolKey ? `0 4px 12px ${AI_TOOLS.find(t=>t.key===selectedToolKey)?.color}66` : "none",
+          }}>
+            <span style={{ width:6, height:6, borderRadius:"50%", background:"#fff" }} />
+            {selectedToolKey ? TOOL_MODE_LABEL[selectedToolKey] : "Select a tool"}
+          </span>
+
+          <span style={{ flexShrink:0, display:"flex", flexDirection:"column", alignItems:"flex-end", gap:2, textAlign:"right" }}>
+            <span style={{ fontFamily:"'JetBrains Mono',monospace", fontWeight:700, fontSize:10.5, letterSpacing:"0.1em", textTransform:"uppercase", color:"rgba(15,28,77,0.65)" }}>
+              Current Learning Phase
+            </span>
+            <span style={{ fontFamily:"'DM Sans',sans-serif", fontWeight:900, fontSize:19, color: activeJourneyPhase.color }}>
+              {activeJourneyPhase.title}
+            </span>
+          </span>
+        </div>
+
+        {/* Message list */}
         <div className="flex-1 min-h-0 overflow-y-auto"
-          style={{ padding:"12px 14px 6px", display:"flex", flexDirection:"column",
+          style={{ padding:"10px 14px 6px", display:"flex", flexDirection:"column",
             gap:8, scrollbarWidth:"none" }}>
 
           {messages.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full gap-3 opacity-35 pointer-events-none">
               <span style={{ fontSize:32 }}>✏️</span>
               <p className="text-sm text-center font-medium" style={{ color:"#1e3a8a", lineHeight:1.7 }}>
-                Click <strong>Notes</strong> or <strong>Flashcards</strong> on the left,<br/>
+                Click <strong>Notes</strong> or <strong>Flashcards</strong> on the right,<br/>
                 or type a question below
               </p>
             </div>
@@ -1565,6 +1656,127 @@ export function ClassroomArena({ chapter, onBack }: Props) {
             </button>
           </div>
         </div>
+      </div>
+
+          {/* RIGHT — AI Tools rail: compact text-only buttons, no icons.
+              Stretched (not hug-content) to match the Learning Library's
+              bottom edge — same maxHeight reservation as Library, which also
+              comfortably clears AIDA's own footprint (~96px) underneath. */}
+          <div style={{ width:130, flexShrink:0, display:"flex", flexDirection:"column", gap:8,
+            minHeight:0, maxHeight:"calc(100% - 105px)",
+            overflow:"hidden", borderRadius:18,
+            background:"rgba(255,255,255,0.72)", backdropFilter:"blur(20px)",
+            border:"1px solid rgba(255,255,255,0.6)", boxShadow:"0 10px 30px rgba(20,8,60,0.18)",
+            padding:"12px 10px" }}>
+            <p className="font-display font-bold text-center" style={{ fontSize:10, letterSpacing:"0.04em", textTransform:"uppercase", color:"#6d28d9", flexShrink:0 }}>
+              AI Tools
+            </p>
+            {/* flex:1 buttons evenly fill the now-taller rail — no leftover
+                empty space at the bottom; overflow:hidden on the outer rail
+                still means an extreme-short window clips silently, never scrolls. */}
+            <div style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column", gap:6, overflow:"hidden" }}>
+            {AI_TOOLS.map(tool => {
+              const isActive = selectedToolKey === tool.key;
+              return (
+                <button key={tool.key} type="button" className="ca-tool"
+                  onClick={() => handleToolClick(tool.key)}
+                  style={{
+                    position:"relative", overflow:"hidden",
+                    display:"flex", alignItems:"center", justifyContent:"center", textAlign:"center",
+                    padding:"5px 7px", flex:"1 1 0", minHeight:0, borderRadius:9, cursor:"pointer",
+                    border: isActive ? `1px solid ${tool.color}` : "1px solid rgba(255,255,255,0.75)",
+                    background: isActive
+                      ? `radial-gradient(130% 170% at 0% 50%, color-mix(in srgb, ${tool.color} 24%, transparent), transparent 60%), linear-gradient(180deg, color-mix(in srgb, ${tool.color} 16%, white), color-mix(in srgb, ${tool.color} 7%, white))`
+                      : `radial-gradient(130% 150% at 0% 50%, color-mix(in srgb, ${tool.color} 12%, transparent), transparent 55%), linear-gradient(180deg, rgba(255,255,255,0.94), rgba(255,255,255,0.68))`,
+                    boxShadow: isActive
+                      ? `inset 0 1px 0 rgba(255,255,255,0.9), inset 0 0 12px color-mix(in srgb, ${tool.color} 16%, transparent), 0 0 0 1px ${tool.color}, 0 8px 20px color-mix(in srgb, ${tool.color} 36%, transparent), 0 0 20px color-mix(in srgb, ${tool.color} 30%, transparent)`
+                      : `inset 3px 0 0 color-mix(in srgb, ${tool.color} 30%, transparent), inset 0 1px 0 rgba(255,255,255,0.9), 0 3px 10px rgba(80,60,160,0.08), 0 0 12px color-mix(in srgb, ${tool.color} 13%, transparent)`,
+                  }}>
+                  {isActive && (
+                    <span style={{
+                      position:"absolute", left:3, top:"50%", transform:"translateY(-50%)",
+                      width:3, height:14, borderRadius:3,
+                      background:`linear-gradient(180deg, color-mix(in srgb, ${tool.color} 60%, white), ${tool.color})`,
+                      boxShadow:`0 0 8px ${tool.color}`,
+                    }} />
+                  )}
+                  <span aria-hidden style={{
+                    position:"absolute", inset:0, borderRadius:"inherit", pointerEvents:"none",
+                    background:"linear-gradient(152deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.06) 30%, transparent 52%)",
+                    opacity:0.65,
+                  }} />
+                  <span style={{
+                    fontFamily:"'DM Sans',sans-serif", fontWeight: isActive ? 700 : 600, fontSize:11.5,
+                    lineHeight:1.15, minWidth:0,
+                    color: isActive ? tool.color : `color-mix(in srgb, ${tool.color} 32%, #16122b)`,
+                  }}>
+                    {tool.label}
+                  </span>
+                </button>
+              );
+            })}
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      {/* ── Dustbin — bottom-left (where Bhavna's avatar used to sit); drop a
+              saved Learning Library card here to delete it. Same drag/drop logic. ── */}
+      <div
+        onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setBinDragOver(true); }}
+        onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setBinDragOver(false); }}
+        onDrop={e => {
+          e.preventDefault();
+          setBinDragOver(false);
+          const id = e.dataTransfer.getData("application/classroom-item");
+          if (!id) return;
+          setSavedItems(prev => prev.filter(item => item.id !== id));
+          fetch("/api/creations", {
+            method:  "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({ id }),
+          }).catch(() => {});
+        }}
+        style={{
+          position: "absolute",
+          bottom: "3%",
+          left:   "1.5%",
+          width:  "clamp(46px, 4.9vw, 70px)",  /* 18% smaller, frees room for the Library panel below */
+          zIndex: 18,
+          display: "flex",
+          alignItems: "flex-end",
+          justifyContent: "center",
+          cursor: "copy",
+          transition: "transform 0.2s ease",
+          transform: binDragOver ? "scale(1.18) translateY(-6px)" : "scale(1)",
+        }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/arena1/bin.png"
+          alt="Delete"
+          draggable={false}
+          style={{
+            width: "100%", height: "auto", objectFit: "contain",
+            filter: binDragOver
+              ? "brightness(1.6) drop-shadow(0 0 14px rgba(255,80,80,0.9)) drop-shadow(0 0 32px rgba(255,80,80,0.5))"
+              : "brightness(0.75) saturate(0.7)",
+            transition: "filter 0.2s ease",
+          }}
+        />
+        {binDragOver && (
+          <div style={{
+            position: "absolute", bottom: "50%", left: "50%", transform: "translateX(-50%)",
+            background: "rgba(8,4,22,0.92)", border: "1px solid rgba(255,80,80,0.5)",
+            borderRadius: 10, padding: "4px 10px", whiteSpace: "nowrap",
+            fontSize: 10, fontWeight: 700, color: "rgba(255,120,120,1)",
+            boxShadow: "0 0 16px rgba(255,80,80,0.4)", backdropFilter: "blur(8px)",
+            pointerEvents: "none",
+          }}>
+            Drop to delete
+          </div>
+        )}
       </div>
 
       {/* ── Video player modal ──────────────────────────────────────────────── */}
