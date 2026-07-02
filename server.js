@@ -278,8 +278,7 @@ app.prepare().then(() => {
         language:         'en-US',
         smart_format:     true,
         interim_results:  true,
-        endpointing:      200,
-        utterance_end_ms: 1000,
+        endpointing:      10,
         vad_events:       true,
       });
 
@@ -401,7 +400,7 @@ app.prepare().then(() => {
     function openDG() {
       dgConn = deepgramClient.listen.live({
         model: 'nova-2', language: 'en-US', smart_format: true,
-        interim_results: true, endpointing: 200, utterance_end_ms: 1000, vad_events: true,
+        interim_results: true, endpointing: 10, vad_events: true,
       });
       dgConn.on(LiveTranscriptionEvents.Open, () => { console.log('[VA:DG] connected'); sendJSON({ type: 'ready' }); });
       dgConn.on(LiveTranscriptionEvents.Transcript, (data) => {

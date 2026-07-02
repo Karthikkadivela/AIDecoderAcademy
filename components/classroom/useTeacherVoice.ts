@@ -42,6 +42,8 @@ interface Options {
   onTranscript: (text: string) => void;
   /** Called when the user barges in during live mode — caller aborts streams. */
   onInterrupt?: () => void;
+  /** Cartesia role to use for TTS (default: "classroom"). */
+  ttsRole?: string;
 }
 
 export interface UseTeacherVoiceReturn {
@@ -64,6 +66,7 @@ export interface UseTeacherVoiceReturn {
 }
 
 export function useTeacherVoice(opts: Options): UseTeacherVoiceReturn {
+  const ttsRole = opts.ttsRole ?? "classroom";
   const [voiceState, setVoiceStateRaw] = useState<VoiceState>("idle");
   const [subMode,    setSubMode]       = useState<VoiceSubMode>("tap");
   const [voiceOK,    setVoiceOK]       = useState(false);
@@ -139,7 +142,7 @@ export function useTeacherVoice(opts: Options): UseTeacherVoiceReturn {
       const res = await fetch("/api/aida/tts", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ text, role: "classroom" }),
+        body:    JSON.stringify({ text, role: ttsRole }),
         signal:  mySignal,
       });
       if (ttsGen !== myGen) return;

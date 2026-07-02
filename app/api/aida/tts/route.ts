@@ -7,6 +7,7 @@ const VOICE_IDS: Record<string, string> = {
   aida:      process.env.CARTESIA_VOICE_ID           ?? "",
   teacher:   process.env.CARTESIA_TEACHER_VOICE_ID   ?? process.env.CARTESIA_VOICE_ID ?? "",
   classroom: process.env.CARTESIA_CLASSROOM_VOICE_ID ?? process.env.CARTESIA_VOICE_ID ?? "",
+  learn:     process.env.CARTESIA_LEARN_VOICE_ID     ?? process.env.CARTESIA_CLASSROOM_VOICE_ID ?? process.env.CARTESIA_VOICE_ID ?? "",
 };
 
 export async function POST(req: Request) {

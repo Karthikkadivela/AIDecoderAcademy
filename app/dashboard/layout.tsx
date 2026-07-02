@@ -118,6 +118,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </Link>
 
 
+          {/* Nav links */}
+          <div className="flex items-center gap-1 ml-6">
+            {[
+              { href: "/dashboard/playground", label: "Studio" },
+              { href: "/dashboard/classroom",  label: "Classroom" },
+              { href: "/dashboard/learn",       label: "Learn" },
+              { href: "/dashboard/progress",    label: "Creations" },
+            ].map(({ href, label }) => (
+              <Link key={href} href={href}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+                style={{ color: "rgba(0,0,0,0.5)", fontFamily: "'DM Sans',sans-serif" }}
+              >
+                {label}
+              </Link>
+            ))}
+          </div>
+
           <div className="flex-1" />
 
           {/* Right — XP + level + avatar */}
