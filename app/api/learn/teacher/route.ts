@@ -26,6 +26,19 @@ function buildSystemPrompt(ctx: {
   activeCardOptions?: string[];
   studentName: string;
   awaitingConfidenceAck?: boolean;
+  // Blog context (phase 2)
+  blogPhase?: string;
+  blogConceptCardTitle?: string;
+  blogConceptCardHook?: string;
+  blogConceptCardBody?: string[];
+  blogConceptCards?: { title: string; hook: string }[];
+  blogStepInstruction?: string;
+  blogStepWhy?: string;
+  blogProblemIdx?: number;
+  blogStepIdx?: number;
+  // Cross-section navigation
+  activeSectionId?: string;
+  crossSectionContext?: { sectionId: string; sectionTitle: string; conceptCards: { title: string; hook: string }[] }[];
 }) {
   const phase = PHASE_NAMES[ctx.phaseId] ?? "Study";
 
@@ -43,10 +56,76 @@ Your job: acknowledge their reasoning warmly in 1–2 sentences, then say someth
 Be enthusiastic. No markdown. Spoken language only.
 
 ALWAYS respond with valid JSON (no markdown, no code fences):
-{"reply":"your spoken reply here","answerDetected":false,"selectedOptionIndex":null}`;
+{"reply":"your spoken reply here","answerDetected":false,"selectedOptionIndex":null,"action":null,"conceptIdx":null}`;
   }
 
-  // ── Turn 1: normal conversation + answer detection ─────────────────────────
+  // ── Build cross-section knowledge block (shared by both phase-2 branches) ─
+  const crossSectionBlock = (() => {
+    if (!ctx.crossSectionContext?.length) return "";
+    const lines = ctx.crossSectionContext.map(s => {
+      const cards = s.conceptCards.map((c, i) => `      ${i}: "${c.title}"`).join("\n");
+      const marker = s.sectionId === ctx.activeSectionId ? " ← CURRENT SECTION" : "";
+      return `  Section "${s.sectionTitle}" (id: ${s.sectionId})${marker}:\n${cards || "      (no concept cards)"}`;
+    }).join("\n");
+    return `\nAll sections in this chapter (for cross-section navigation):\n${lines}`;
+  })();
+
+  // ── Phase 2 — Blog Concept explainer ─────────────────────────────────────
+  if (ctx.phaseId === 2 && ctx.blogPhase === "concept") {
+    const conceptMap = ctx.blogConceptCards
+      ?.map((c, i) => `  ${i}: "${c.title}" — ${c.hook}`)
+      .join("\n") ?? "";
+
+    const bodyBlock = ctx.blogConceptCardBody?.length
+      ? `\nFull explanation of current card:\n${ctx.blogConceptCardBody.map((p, i) => `  [${i + 1}] ${p}`).join("\n")}`
+      : "";
+
+    return `You are Ms. Aria, a warm and enthusiastic ${ctx.subject} teacher.
+You're guiding ${ctx.studentName} through the CONCEPT phase of "${ctx.sectionTitle}".
+Currently showing concept card: "${ctx.blogConceptCardTitle}"
+Hook: "${ctx.blogConceptCardHook}"${bodyBlock}
+
+Concept cards in this section (index: title — hook):
+${conceptMap}
+${crossSectionBlock}
+
+Your job:
+- Answer any question about the current concept in 1–3 spoken sentences.
+- If the student says they don't understand a specific concept that exists IN THIS SECTION → action "go_to_concept_card" with the matching index.
+- If the concept the student asks about is in a DIFFERENT section → action "navigate_section" with the matching sectionId.
+- If the student says "next", "continue", "move on" → action "next_concept_card".
+- If the student says "go back", "previous" → action "prev_concept_card".
+- If the student says "I'm ready", "let's try problems", "start solving" → action "start_solving".
+- Keep reply to 1–2 sentences max. No markdown. Spoken language only.
+
+ALWAYS respond with valid JSON (no markdown, no code fences):
+{"reply":"your spoken reply here","answerDetected":false,"selectedOptionIndex":null,"action":null,"conceptIdx":null,"sectionId":null}`;
+  }
+
+  // ── Phase 2 — Blog Problems walkthrough ──────────────────────────────────
+  if (ctx.phaseId === 2 && ctx.blogPhase === "problems") {
+    const whyBlock = ctx.blogStepWhy
+      ? `\nWhy this step works: "${ctx.blogStepWhy}"`
+      : "";
+
+    return `You are Ms. Aria, a warm and enthusiastic ${ctx.subject} teacher.
+You're guiding ${ctx.studentName} through the PROBLEMS phase of "${ctx.sectionTitle}".
+Current step instruction: "${ctx.blogStepInstruction}" (problem ${(ctx.blogProblemIdx ?? 0) + 1}, step ${(ctx.blogStepIdx ?? 0) + 1})${whyBlock}
+${crossSectionBlock}
+
+Your job:
+- Help the student understand the current step if they're confused. Use the "Why" text above.
+- If student says "next", "got it", "continue" → action "next_step".
+- If student says "go back", "previous step" → action "prev_step".
+- If student mentions a concept from THIS section (e.g. "explain ratio" while in the ratios section) → action "go_to_concept".
+- If student mentions a concept from a DIFFERENT section (check the cross-section list above) → action "navigate_section" with the correct sectionId.
+- Keep reply to 1–2 sentences. No markdown. Spoken language only.
+
+ALWAYS respond with valid JSON (no markdown, no code fences):
+{"reply":"your spoken reply here","answerDetected":false,"selectedOptionIndex":null,"action":null,"conceptIdx":null,"sectionId":null}`;
+  }
+
+  // ── Turn 1: Spark/Challenge/Reflect — normal conversation + answer detection
   return `You are Ms. Aria, a warm and enthusiastic ${ctx.subject} teacher for Class 8 students.
 You're guiding ${ctx.studentName} through "${ctx.sectionTitle}" in the "${ctx.chapterTitle}" chapter.
 
@@ -69,7 +148,7 @@ Answer detection (Spark phase only, when options are shown):
 - If it's a question or general comment → answerDetected: false.
 
 ALWAYS respond with valid JSON (no markdown, no code fences):
-{"reply":"your spoken reply here","answerDetected":false,"selectedOptionIndex":null}`;
+{"reply":"your spoken reply here","answerDetected":false,"selectedOptionIndex":null,"action":null,"conceptIdx":null}`;
 }
 
 export async function POST(req: NextRequest) {
@@ -92,6 +171,17 @@ export async function POST(req: NextRequest) {
       activeCardOptions?: string[];
       studentName: string;
       awaitingConfidenceAck?: boolean;
+      blogPhase?: string;
+      blogConceptCardTitle?: string;
+      blogConceptCardHook?: string;
+      blogConceptCardBody?: string[];
+      blogConceptCards?: { title: string; hook: string }[];
+      blogStepInstruction?: string;
+      blogStepWhy?: string;
+      blogProblemIdx?: number;
+      blogStepIdx?: number;
+      activeSectionId?: string;
+      crossSectionContext?: { sectionId: string; sectionTitle: string; conceptCards: { title: string; hook: string }[] }[];
     };
   };
 
@@ -122,16 +212,23 @@ export async function POST(req: NextRequest) {
   let reply = "That's interesting! Tell me more.";
   let answerDetected = false;
   let selectedOptionIndex: number | null = null;
+  let action: string | null = null;
+  let conceptIdx: number | null = null;
+  let sectionId: string | null = null;
 
   try {
     const parsed = JSON.parse(raw) as {
       reply?: string;
       answerDetected?: boolean;
       selectedOptionIndex?: number | null;
+      action?: string | null;
+      conceptIdx?: number | null;
+      sectionId?: string | null;
     };
-    // Guard: if reply itself looks like JSON the model double-encoded, fall back
     const replyVal = parsed.reply ?? "";
     reply = replyVal.trimStart().startsWith("{") ? reply : replyVal || reply;
+
+    // Answer detection (Spark phase only)
     if (
       context.phaseId === 1 &&
       context.activeCardQuestion &&
@@ -144,9 +241,16 @@ export async function POST(req: NextRequest) {
       answerDetected = true;
       selectedOptionIndex = parsed.selectedOptionIndex;
     }
+
+    // Blog navigation action (phase 2 only)
+    if (context.phaseId === 2 && parsed.action && parsed.action !== "null") {
+      action = parsed.action;
+      if (typeof parsed.conceptIdx === "number") conceptIdx = parsed.conceptIdx;
+      if (typeof parsed.sectionId === "string") sectionId = parsed.sectionId;
+    }
   } catch {
     reply = "That's interesting! Tell me more.";
   }
 
-  return NextResponse.json({ reply, answerDetected, selectedOptionIndex });
+  return NextResponse.json({ reply, answerDetected, selectedOptionIndex, action, conceptIdx, sectionId });
 }

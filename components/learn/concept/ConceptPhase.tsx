@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { LearnSection } from "@/lib/learnPath";
-import BlogView from "./BlogView";
+import BlogView, { BlogState, BlogViewHandle } from "./BlogView";
 import StoryView from "./StoryView";
 import PodcastView from "./PodcastView";
 import VideoView from "./VideoView";
@@ -22,9 +22,11 @@ interface Props {
   subject: string;
   gradeLevel: string;
   onPhaseComplete: () => void;
+  onBlogStateChange?: (state: BlogState) => void;
+  blogViewRef?: React.Ref<BlogViewHandle>;
 }
 
-export default function ConceptPhase({ section, subject, gradeLevel, onPhaseComplete }: Props) {
+export default function ConceptPhase({ section, subject, gradeLevel, onPhaseComplete, onBlogStateChange, blogViewRef }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>("blog");
   const [viewed, setViewed]       = useState<Set<TabId>>(new Set());
 
@@ -117,7 +119,7 @@ export default function ConceptPhase({ section, subject, gradeLevel, onPhaseComp
             transition={{ duration: 0.22 }}
             style={{ flex: 1, display: "flex", flexDirection: "column" }}
           >
-            {activeTab === "blog"    && <BlogView    section={section} subject={subject} gradeLevel={gradeLevel} onViewed={() => markViewed("blog")}    viewed={viewed.has("blog")} />}
+            {activeTab === "blog"    && <BlogView    ref={blogViewRef} section={section} subject={subject} gradeLevel={gradeLevel} onViewed={() => markViewed("blog")}    viewed={viewed.has("blog")} onBlogStateChange={onBlogStateChange} />}
             {activeTab === "podcast" && <PodcastView section={section} subject={subject} gradeLevel={gradeLevel} onViewed={() => markViewed("podcast")} viewed={viewed.has("podcast")} />}
             {activeTab === "story"   && <StoryView   section={section} subject={subject} gradeLevel={gradeLevel} onViewed={() => markViewed("story")}   viewed={viewed.has("story")} />}
             {activeTab === "video"   && <VideoView />}

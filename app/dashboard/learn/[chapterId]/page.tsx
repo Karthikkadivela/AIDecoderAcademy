@@ -6,10 +6,12 @@ import {
   getChapter, loadProgress, saveProgress,
   PHASES, PhaseId, PhaseStatus, ChapterProgress,
 } from "@/lib/learnPath";
+import { CONCEPT_SEEDS } from "@/lib/blogSeeds";
 import SectionSidebar from "@/components/learn/SectionSidebar";
 import PhaseBar from "@/components/learn/PhaseBar";
 import CuriosityPhase, { CuriosityPhaseHandle } from "@/components/learn/curiosity/CuriosityPhase";
 import ConceptPhase from "@/components/learn/concept/ConceptPhase";
+import { BlogState, BlogViewHandle } from "@/components/learn/concept/BlogView";
 import AssessmentPhase from "@/components/learn/assessment/AssessmentPhase";
 import SummaryPhase from "@/components/learn/summary/SummaryPhase";
 import LearnTeacher, { LearnTeacherHandle } from "@/components/learn/teacher/LearnTeacher";
@@ -25,8 +27,10 @@ export default function LearnChapterPage({ params }: { params: Promise<{ chapter
   const [celebratingSection, setCelebratingSection] = useState(false);
   const [activeCardQuestion, setActiveCardQuestion]  = useState<string | null>(null);
   const [activeCardOptions,  setActiveCardOptions]   = useState<string[]>([]);
-  const teacherRef      = useRef<LearnTeacherHandle>(null);
+  const teacherRef        = useRef<LearnTeacherHandle>(null);
   const curiosityPhaseRef = useRef<CuriosityPhaseHandle>(null);
+  const blogViewRef       = useRef<BlogViewHandle>(null);
+  const [blogState, setBlogState] = useState<BlogState | null>(null);
 
   useEffect(() => {
     if (!chapter) return;
@@ -138,7 +142,14 @@ export default function LearnChapterPage({ params }: { params: Promise<{ chapter
                 />
               )}
               {activeSection && activePhase === 2 && (
-                <ConceptPhase section={activeSection} subject={chapter.subject} gradeLevel={chapter.gradeLevel} onPhaseComplete={() => advancePhase(2)} />
+                <ConceptPhase
+                  section={activeSection}
+                  subject={chapter.subject}
+                  gradeLevel={chapter.gradeLevel}
+                  onPhaseComplete={() => advancePhase(2)}
+                  onBlogStateChange={setBlogState}
+                  blogViewRef={blogViewRef}
+                />
               )}
               {activeSection && activePhase === 3 && (
                 <AssessmentPhase section={activeSection} subject={chapter.subject} gradeLevel={chapter.gradeLevel} onPass={() => advancePhase(3)} onRetry={() => setActivePhase(2)} />
@@ -156,11 +167,20 @@ export default function LearnChapterPage({ params }: { params: Promise<{ chapter
         ref={teacherRef}
         chapter={chapter}
         activeSectionTitle={activeSection?.title ?? ""}
+        activeSectionId={activeSectionId}
         activePhase={activePhase as 1 | 2 | 3 | 4}
         activeCardQuestion={activePhase === 1 ? activeCardQuestion : null}
         activeCardOptions={activePhase === 1 ? activeCardOptions : []}
         onAutoSelectOption={(idx) => curiosityPhaseRef.current?.selectOption(idx)}
         onRevealCard={() => curiosityPhaseRef.current?.revealCard()}
+        blogState={activePhase === 2 ? blogState : null}
+        blogViewRef={activePhase === 2 ? blogViewRef : undefined}
+        onNavigateSection={handleSelectSection}
+        crossSectionContext={chapter.sections.map(s => ({
+          sectionId: s.id,
+          sectionTitle: s.title,
+          conceptCards: (CONCEPT_SEEDS[s.id]?.cards ?? []).map(c => ({ title: c.title, hook: c.hook })),
+        }))}
       />
 
       {/* Section complete celebration overlay */}

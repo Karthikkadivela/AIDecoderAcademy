@@ -15,10 +15,18 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "@clerk/nextjs";
 import { LearnChapter } from "@/lib/learnPath";
 import { useLiveVoiceWS } from "@/components/aida/voice/useLiveVoiceWS";
+import { BlogState, BlogViewHandle } from "@/components/learn/concept/BlogView";
+
+interface CrossSectionEntry {
+  sectionId: string;
+  sectionTitle: string;
+  conceptCards: { title: string; hook: string }[];
+}
 
 interface Props {
   chapter: LearnChapter;
   activeSectionTitle: string;
+  activeSectionId: string;
   activePhase: 1 | 2 | 3 | 4;
   activeCardQuestion?: string | null;
   /** Option texts for the current think card — used for answer detection. */
@@ -27,11 +35,20 @@ interface Props {
   onAutoSelectOption?: (idx: number) => void;
   /** Called after student gives confidence + reasoning — flips the card. */
   onRevealCard?: () => void;
+  /** Blog state from phase 2 — concept cards + problem steps. */
+  blogState?: BlogState | null;
+  /** Ref to BlogView imperative handle for voice-driven navigation. */
+  blogViewRef?: { current: BlogViewHandle | null };
+  /** Navigate to a different section (cross-section recall). */
+  onNavigateSection?: (sectionId: string, phase: 1 | 2 | 3 | 4) => void;
+  /** All sections in the chapter with their concept cards for cross-section context. */
+  crossSectionContext?: CrossSectionEntry[];
 }
 
 export interface LearnTeacherHandle {
   appreciateOption: (optionText: string) => void;
   explainHook:      (hookText: string)   => void;
+  navigateBlog:     (action: string, conceptIdx?: number) => void;
 }
 
 type Turn = { role: "user" | "assistant"; content: string };
@@ -58,7 +75,7 @@ function firstTwoSentences(text: string): string {
 }
 
 const LearnTeacher = forwardRef<LearnTeacherHandle, Props>(function LearnTeacher(
-  { chapter, activeSectionTitle, activePhase, activeCardQuestion, activeCardOptions, onAutoSelectOption, onRevealCard },
+  { chapter, activeSectionTitle, activeSectionId, activePhase, activeCardQuestion, activeCardOptions, onAutoSelectOption, onRevealCard, blogState, blogViewRef, onNavigateSection, crossSectionContext },
   ref,
 ) {
   const { user } = useUser();
@@ -83,6 +100,13 @@ const LearnTeacher = forwardRef<LearnTeacherHandle, Props>(function LearnTeacher
   const contextRef    = useRef({ chapter, activeSectionTitle, activePhase, activeCardQuestion, activeCardOptions, studentName });
   historyRef.current  = history;
   contextRef.current  = { chapter, activeSectionTitle, activePhase, activeCardQuestion, activeCardOptions, studentName };
+
+  const blogStateRef  = useRef(blogState);
+  blogStateRef.current = blogState;
+  const onNavigateSectionRef    = useRef(onNavigateSection);
+  onNavigateSectionRef.current  = onNavigateSection;
+  const crossSectionContextRef  = useRef(crossSectionContext);
+  crossSectionContextRef.current = crossSectionContext;
 
   const hasGreetedRef    = useRef(false);
   const prevPhaseRef     = useRef(activePhase);
@@ -243,7 +267,8 @@ const LearnTeacher = forwardRef<LearnTeacherHandle, Props>(function LearnTeacher
         return;
       }
 
-      // ── Turn 1: normal response + answer detection ────────────────────────
+      // ── Turn 1: normal response + answer detection + blog nav ─────────────
+      const blog = blogStateRef.current;
       const res = await fetch("/api/learn/teacher", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
@@ -258,11 +283,23 @@ const LearnTeacher = forwardRef<LearnTeacherHandle, Props>(function LearnTeacher
             activeCardQuestion: ctx.activeCardQuestion ?? undefined,
             activeCardOptions:  ctx.activeCardOptions  ?? [],
             studentName:        ctx.studentName,
+            // Blog context (phase 2 only)
+            blogPhase:              blog?.blogPhase,
+            blogConceptCardTitle:   blog?.conceptCardTitle,
+            blogConceptCardHook:    blog?.conceptCardHook,
+            blogConceptCardBody:    blog?.conceptCardBody,
+            blogConceptCards:       blog?.conceptCards,
+            blogStepInstruction:    blog?.stepInstruction,
+            blogStepWhy:            blog?.stepWhy,
+            blogProblemIdx:         blog?.problemIdx,
+            blogStepIdx:            blog?.stepIdx,
+            activeSectionId,
+            crossSectionContext:    crossSectionContextRef.current,
           },
         }),
       });
       const text = await res.text();
-      let data: { reply: string; answerDetected?: boolean; selectedOptionIndex?: number | null };
+      let data: { reply: string; answerDetected?: boolean; selectedOptionIndex?: number | null; action?: string; conceptIdx?: number; sectionId?: string };
       try {
         data = JSON.parse(text);
       } catch {
@@ -273,12 +310,32 @@ const LearnTeacher = forwardRef<LearnTeacherHandle, Props>(function LearnTeacher
       addTurn("assistant", data.reply);
       setCurrentText(data.reply);
 
+      // Blog navigation action (phase 2)
+      if (data.action && ctx.activePhase === 2) {
+        if (data.action === "navigate_section" && data.sectionId) {
+          // Cross-section: go to that section's concept phase (2)
+          onNavigateSectionRef.current?.(data.sectionId, 2 as 1 | 2 | 3 | 4);
+          // If a specific concept card index was returned, navigate there after
+          // BlogView mounts by letting the blog narration effect handle it naturally.
+        } else {
+          const bv = blogViewRef?.current;
+          if (bv) {
+            switch (data.action) {
+              case "next_concept_card":  bv.nextConceptCard(); break;
+              case "prev_concept_card":  bv.prevConceptCard(); break;
+              case "go_to_concept_card": bv.goToConceptCard(data.conceptIdx ?? 0); break;
+              case "start_solving":      bv.startSolving(); break;
+              case "go_to_concept":      bv.goToConcept(); break;
+              case "next_step":          bv.nextStep(); break;
+              case "prev_step":          bv.prevStep(); break;
+            }
+          }
+        }
+      }
+
       if (data.answerDetected && typeof data.selectedOptionIndex === "number") {
-        // Suppress the appreciation phrase from the onOptionSelect chain —
-        // the LLM reply already handles acknowledgement.
         suppressNextAppreciationRef.current = true;
         onAutoSelectRef.current?.(data.selectedOptionIndex);
-        // Next student response will be their confidence + reasoning
         awaitingConfidenceRef.current = true;
       }
 
@@ -324,13 +381,28 @@ const LearnTeacher = forwardRef<LearnTeacherHandle, Props>(function LearnTeacher
         });
       }, 750);
     },
-  }), [speakText, addTurn, liveVoice]);
+    navigateBlog(action: string, conceptIdx?: number) {
+      const bv = blogViewRef?.current;
+      if (!bv) return;
+      switch (action) {
+        case "next_concept_card":  bv.nextConceptCard(); break;
+        case "prev_concept_card":  bv.prevConceptCard(); break;
+        case "go_to_concept_card": bv.goToConceptCard(conceptIdx ?? 0); break;
+        case "start_solving":      bv.startSolving(); break;
+        case "go_to_concept":      bv.goToConcept(); break;
+        case "next_step":          bv.nextStep(); break;
+        case "prev_step":          bv.prevStep(); break;
+      }
+    },
+  }), [speakText, addTurn, liveVoice, blogViewRef]);
 
   // ── Phase transition announcements ────────────────────────────────────────
   useEffect(() => {
     if (!hasGreetedRef.current) return;
     if (activePhase === prevPhaseRef.current) return;
     prevPhaseRef.current = activePhase;
+    // Phase 2 narration is handled by the blog narration effect below
+    if (activePhase === 2) return;
     const msg = PHASE_INTROS[activePhase];
     if (!msg) return;
     addTurn("assistant", msg);
@@ -357,6 +429,54 @@ const LearnTeacher = forwardRef<LearnTeacherHandle, Props>(function LearnTeacher
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCardQuestion, activePhase]);
+
+  // ── Blog: narrate every page the student lands on (concept card or step) ──
+  // Fires whenever the blog position changes — whether from a button click,
+  // voice navigation, or entering the phase for the first time.
+  const prevBlogNarrationKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!hasGreetedRef.current || activePhase !== 2) {
+      prevBlogNarrationKeyRef.current = null;
+      return;
+    }
+    if (!blogState) return;
+
+    let key: string;
+    let msg: string;
+
+    if (blogState.blogPhase === "concept") {
+      key = `concept-${blogState.conceptCardIdx}`;
+      const isFirstInPhase = prevBlogNarrationKeyRef.current === null;
+      msg = isFirstInPhase
+        ? `Now let's learn the concepts! First up — ${blogState.conceptCardTitle}. ${blogState.conceptCardHook}`
+        : `${blogState.conceptCardTitle}. ${blogState.conceptCardHook}`;
+    } else {
+      key = `problems-${blogState.problemIdx}-${blogState.stepIdx}`;
+      const enteringProblems = !prevBlogNarrationKeyRef.current?.startsWith("problems");
+      msg = enteringProblems
+        ? `Great — now let's work through some problems! ${blogState.stepInstruction}`
+        : blogState.stepInstruction;
+    }
+
+    if (key === prevBlogNarrationKeyRef.current) return;
+    prevBlogNarrationKeyRef.current = key;
+
+    const t = setTimeout(() => {
+      if (!hasGreetedRef.current) return;
+      addTurn("assistant", msg);
+      setCurrentText(msg);
+      liveVoice.setAiSpeaking(true);
+      speakText(msg).finally(() => {
+        const ctx = audioCtxRef.current;
+        const remainingMs = ctx
+          ? Math.max(0, (playbackTimeRef.current - ctx.currentTime) * 1000)
+          : 0;
+        setTimeout(() => liveVoice.setAiSpeaking(false), remainingMs + 200);
+      });
+    }, 600);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [blogState?.conceptCardIdx, blogState?.stepIdx, blogState?.problemIdx, blogState?.blogPhase, activePhase]);
 
   // ── Cleanup on unmount ────────────────────────────────────────────────────
   useEffect(() => {
