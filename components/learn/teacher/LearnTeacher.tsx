@@ -544,11 +544,18 @@ const LearnTeacher = forwardRef<LearnTeacherHandle, Props>(function LearnTeacher
   }
 
   // ── Mute toggle ───────────────────────────────────────────────────────────
+  // On unmute: re-speak currentText so narrations dropped while muted are restored.
+  // Effects only fire on dep changes so they won't re-trigger if the page hasn't moved.
   function handleMuteToggle() {
     const next = !isMutedRef.current;
     isMutedRef.current = next;
     setIsMuted(next);
-    if (next) haltTts();
+    if (next) {
+      haltTts();
+    } else if (currentText) {
+      liveVoice.setAiSpeaking(true);
+      speakText(currentText).finally(() => liveVoice.setAiSpeaking(false));
+    }
   }
 
   // ── Derived UI state ───────────────────────────────────────────────────────
