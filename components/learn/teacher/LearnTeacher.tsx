@@ -12,6 +12,7 @@
 
 import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Volume2, VolumeX } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { LearnChapter } from "@/lib/learnPath";
 import { useLiveVoiceWS } from "@/components/aida/voice/useLiveVoiceWS";
@@ -88,6 +89,8 @@ const LearnTeacher = forwardRef<LearnTeacherHandle, Props>(function LearnTeacher
   const [ttsActive,  setTtsActive]  = useState(false);
   const [ttsError,   setTtsError]   = useState("");
   const [interim,    setInterim]    = useState("");
+  const [isMuted,    setIsMuted]    = useState(false);
+  const isMutedRef                  = useRef(false);
 
   // ── Component-level AudioContext (created synchronously in click handler) ──
   const audioCtxRef      = useRef<AudioContext | null>(null);
@@ -132,10 +135,12 @@ const LearnTeacher = forwardRef<LearnTeacherHandle, Props>(function LearnTeacher
     activeSrcsRef.current.forEach(s => { try { s.stop(); } catch { /**/ } });
     activeSrcsRef.current = [];
     playbackTimeRef.current = 0;
+    setTtsActive(false);
   }
 
   const speakText = useCallback(async (text: string) => {
     if (!text.trim()) return;
+    if (isMutedRef.current) return;
     const ctx = audioCtxRef.current;
     if (!ctx || ctx.state === "closed") return;
 
@@ -538,6 +543,14 @@ const LearnTeacher = forwardRef<LearnTeacherHandle, Props>(function LearnTeacher
     void greet(); // async — getUserMedia + WS happen here
   }
 
+  // ── Mute toggle ───────────────────────────────────────────────────────────
+  function handleMuteToggle() {
+    const next = !isMutedRef.current;
+    isMutedRef.current = next;
+    setIsMuted(next);
+    if (next) haltTts();
+  }
+
   // ── Derived UI state ───────────────────────────────────────────────────────
   const liveState   = liveVoice.state;
   const isSpeaking  = ttsActive;
@@ -585,10 +598,15 @@ const LearnTeacher = forwardRef<LearnTeacherHandle, Props>(function LearnTeacher
                 <div style={{ width: 30, height: 30, borderRadius: "50%", background: "linear-gradient(135deg,#F59E0B,#D97706)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>👩‍🏫</div>
                 <div>
                   <div style={{ fontFamily: "'Nunito',sans-serif", fontWeight: 800, fontSize: 12, color: "#1E293B" }}>Ms. Aria</div>
-                  <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 10, color: "#92400E", fontWeight: 600 }}>Always listening • Just speak</div>
+                  <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 10, color: "#92400E", fontWeight: 600 }}>{isMuted ? "Voice off • Still reading" : "Always listening • Just speak"}</div>
                 </div>
               </div>
-              <button onClick={() => setIsOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94A3B8", fontSize: 18, lineHeight: 1, padding: 4 }}>×</button>
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <button onClick={handleMuteToggle} aria-pressed={isMuted} aria-label={isMuted ? "Unmute Aria" : "Mute Aria"} title={isMuted ? "Unmute Aria" : "Mute Aria"} style={{ background: "none", border: "none", cursor: "pointer", color: isMuted ? "#F59E0B" : "#94A3B8", padding: 4, display: "flex", alignItems: "center" }}>
+                  {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                </button>
+                <button onClick={() => setIsOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94A3B8", fontSize: 18, lineHeight: 1, padding: 4 }}>×</button>
+              </div>
             </div>
 
             {/* Aria's current speech */}
