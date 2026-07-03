@@ -140,7 +140,6 @@ const LearnTeacher = forwardRef<LearnTeacherHandle, Props>(function LearnTeacher
 
   const speakText = useCallback(async (text: string) => {
     if (!text.trim()) return;
-    if (isMutedRef.current) return;
     const ctx = audioCtxRef.current;
     if (!ctx || ctx.state === "closed") return;
 
@@ -182,7 +181,7 @@ const LearnTeacher = forwardRef<LearnTeacherHandle, Props>(function LearnTeacher
         activeSrcsRef.current.push(src);
         src.onended = () => {
           activeSrcsRef.current = activeSrcsRef.current.filter(s => s !== src);
-          if (activeSrcsRef.current.length === 0 && streamDone) {
+          if (activeSrcsRef.current.length === 0 && (streamDone || abort.signal.aborted)) {
             setTtsActive(false);
           }
         };
@@ -216,7 +215,8 @@ const LearnTeacher = forwardRef<LearnTeacherHandle, Props>(function LearnTeacher
         setTtsError("Audio unavailable.");
         setTimeout(() => setTtsError(""), 3000);
       }
-      setTtsActive(false);
+      // When muted: audio is suspended in AudioContext, not destroyed — keep ttsActive
+      if (!isMutedRef.current) setTtsActive(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -229,6 +229,20 @@ const LearnTeacher = forwardRef<LearnTeacherHandle, Props>(function LearnTeacher
     onInterrupt:       ()     => { haltTts(); },
     onError:           (err)  => { console.error("[Aria STT]", err); },
   });
+
+  // Delays setAiSpeaking(false) until the Web Audio buffer actually drains so
+  // barge-in detection stays active for the full duration of the audio.
+  function releaseAiSpeaking() {
+    const ctx = audioCtxRef.current;
+    const remainingMs = ctx
+      ? Math.max(0, (playbackTimeRef.current - ctx.currentTime) * 1000)
+      : 0;
+    if (remainingMs < 80) {
+      liveVoice.setAiSpeaking(false);
+    } else {
+      setTimeout(() => liveVoice.setAiSpeaking(false), remainingMs + 150);
+    }
+  }
 
   // ── Handle student speech → LLM (with answer detection) → TTS ───────────
   async function handleStudentSpeech(transcript: string) {
@@ -348,7 +362,7 @@ const LearnTeacher = forwardRef<LearnTeacherHandle, Props>(function LearnTeacher
     } catch (e) {
       console.error("[Aria LLM]", e);
     } finally {
-      liveVoice.setAiSpeaking(false);
+      releaseAiSpeaking();
     }
   }
 
@@ -365,7 +379,7 @@ const LearnTeacher = forwardRef<LearnTeacherHandle, Props>(function LearnTeacher
       addTurn("assistant", phrase);
       setCurrentText(phrase);
       liveVoice.setAiSpeaking(true);
-      speakText(phrase).finally(() => liveVoice.setAiSpeaking(false));
+      speakText(phrase).finally(releaseAiSpeaking);
     },
     explainHook(hookText: string) {
       if (!hasGreetedRef.current) return;
@@ -373,17 +387,7 @@ const LearnTeacher = forwardRef<LearnTeacherHandle, Props>(function LearnTeacher
         addTurn("assistant", hookText);
         setCurrentText(hookText);
         liveVoice.setAiSpeaking(true);
-        speakText(hookText).finally(() => {
-          // speakText resolves when the SSE stream closes, but Web Audio API
-          // may still be playing buffered chunks. Wait for the remaining
-          // scheduled playback before re-enabling the mic to avoid Deepgram
-          // picking up Ms. Aria's voice from the speakers.
-          const ctx = audioCtxRef.current;
-          const remainingMs = ctx
-            ? Math.max(0, (playbackTimeRef.current - ctx.currentTime) * 1000)
-            : 0;
-          setTimeout(() => liveVoice.setAiSpeaking(false), remainingMs + 300);
-        });
+        speakText(hookText).finally(releaseAiSpeaking);
       }, 750);
     },
     navigateBlog(action: string, conceptIdx?: number) {
@@ -413,7 +417,7 @@ const LearnTeacher = forwardRef<LearnTeacherHandle, Props>(function LearnTeacher
     addTurn("assistant", msg);
     setCurrentText(msg);
     liveVoice.setAiSpeaking(true);
-    speakText(msg).finally(() => liveVoice.setAiSpeaking(false));
+    speakText(msg).finally(releaseAiSpeaking);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePhase]);
 
@@ -429,7 +433,7 @@ const LearnTeacher = forwardRef<LearnTeacherHandle, Props>(function LearnTeacher
       setCurrentText(msg);
       liveVoice.setAiSpeaking(true);
       await speakText(msg);
-      liveVoice.setAiSpeaking(false);
+      releaseAiSpeaking();
     }, 600);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -471,13 +475,7 @@ const LearnTeacher = forwardRef<LearnTeacherHandle, Props>(function LearnTeacher
       addTurn("assistant", msg);
       setCurrentText(msg);
       liveVoice.setAiSpeaking(true);
-      speakText(msg).finally(() => {
-        const ctx = audioCtxRef.current;
-        const remainingMs = ctx
-          ? Math.max(0, (playbackTimeRef.current - ctx.currentTime) * 1000)
-          : 0;
-        setTimeout(() => liveVoice.setAiSpeaking(false), remainingMs + 200);
-      });
+      speakText(msg).finally(releaseAiSpeaking);
     }, 600);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -514,7 +512,7 @@ const LearnTeacher = forwardRef<LearnTeacherHandle, Props>(function LearnTeacher
     setCurrentText(msg);
     liveVoice.setAiSpeaking(true);
     await speakText(msg);
-    liveVoice.setAiSpeaking(false);
+    releaseAiSpeaking();
 
     setTimeout(async () => {
       const intro = `Before we dive in, let me set the scene. ${activeSectionTitle ? `Today we're covering ${activeSectionTitle}.` : ""} Think about what you already know about ${chapter.title} — we'll build from there!`;
@@ -522,7 +520,7 @@ const LearnTeacher = forwardRef<LearnTeacherHandle, Props>(function LearnTeacher
       setCurrentText(intro);
       liveVoice.setAiSpeaking(true);
       await speakText(intro);
-      liveVoice.setAiSpeaking(false);
+      releaseAiSpeaking();
     }, 3500);
   }
 
@@ -544,23 +542,34 @@ const LearnTeacher = forwardRef<LearnTeacherHandle, Props>(function LearnTeacher
   }
 
   // ── Mute toggle ───────────────────────────────────────────────────────────
-  // On unmute: re-speak currentText so narrations dropped while muted are restored.
-  // Effects only fire on dep changes so they won't re-trigger if the page hasn't moved.
+  // Mute: abort in-flight TTS fetch + suspend AudioContext so buffered chunks
+  // freeze in place (sources stay scheduled).
+  // Unmute: resume the context — audio continues from the exact sample it paused at.
+  // If nothing was buffered (Aria wasn't speaking), fall back to re-narrating currentText.
   function handleMuteToggle() {
     const next = !isMutedRef.current;
     isMutedRef.current = next;
     setIsMuted(next);
     if (next) {
-      haltTts();
-    } else if (currentText) {
-      liveVoice.setAiSpeaking(true);
-      speakText(currentText).finally(() => liveVoice.setAiSpeaking(false));
+      ttsAbortRef.current?.abort();
+      audioCtxRef.current?.suspend();
+    } else {
+      void audioCtxRef.current?.resume();
+      if (activeSrcsRef.current.length > 0) {
+        // Buffered audio is now playing — keep barge-in active until it drains
+        liveVoice.setAiSpeaking(true);
+        releaseAiSpeaking();
+      } else if (currentText) {
+        // Nothing buffered — re-narrate the last line
+        liveVoice.setAiSpeaking(true);
+        speakText(currentText).finally(releaseAiSpeaking);
+      }
     }
   }
 
   // ── Derived UI state ───────────────────────────────────────────────────────
   const liveState   = liveVoice.state;
-  const isSpeaking  = ttsActive;
+  const isSpeaking  = ttsActive && !isMuted;
   const isListening = liveState === "listening" || liveState === "user-speaking";
   const isThinking  = liveState === "llm-thinking" && !ttsActive;
   const isArming    = liveState === "arming";
