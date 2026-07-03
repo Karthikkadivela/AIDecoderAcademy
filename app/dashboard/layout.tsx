@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
 import { ArenaEnvironment } from "@/components/dashboard/ArenaEnvironment";
 import { AidaAssistant } from "@/components/aida/AidaAssistant";
@@ -12,6 +13,8 @@ import type { Profile } from "@/types";
 
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const isLearnChapterPage = /^\/dashboard\/learn\/.+/.test(pathname ?? "");
   const [profile, setProfile] = useState<Profile | null>(null);
   const [arenaOverride, setArenaOverride] = useState<number | null>(null);
   const [navVisible, setNavVisible] = useState(false);
@@ -188,7 +191,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {children}
       </main>
 
-      <AidaAssistant profile={profile} />
+      {!isLearnChapterPage && <AidaAssistant profile={profile} />}
       <PersonalisationNudge profile={profile} />
     </div>
     </ChatChannelsProvider>

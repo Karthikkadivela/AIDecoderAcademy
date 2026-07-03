@@ -561,7 +561,7 @@ const LearnTeacher = forwardRef<LearnTeacherHandle, Props>(function LearnTeacher
   const showBars = isSpeaking || isListening;
 
   return (
-    <div style={{ position: "fixed", bottom: 24, right: 88, zIndex: 200, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 10 }}>
+    <div style={{ position: "fixed", bottom: 24, right: 48, zIndex: 200, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 10 }}>
 
       {/* Expanded panel */}
       <AnimatePresence>
