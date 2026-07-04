@@ -35,6 +35,7 @@ export const LEARN_CHAPTERS: LearnChapter[] = [
         description: "The language of chance — from coin flips to weather forecasts",
         topic: "Introduction to probability, random experiments, outcomes, sample space, and events in CBSE Class 10 Mathematics",
         emoji: "🪙",
+        thinkCards: LEARN_PATH_SEEDS["what-is-probability"],
       },
       {
         id: "types-of-events",
@@ -42,6 +43,7 @@ export const LEARN_CHAPTERS: LearnChapter[] = [
         description: "Certain, impossible, and equally likely events",
         topic: "Types of events in probability: certain events, impossible events, equally likely events, and elementary events in CBSE Class 10",
         emoji: "🎯",
+        thinkCards: LEARN_PATH_SEEDS["types-of-events"],
       },
       {
         id: "probability-formula",

@@ -301,18 +301,206 @@ function MissingValVisual({ known, target, scale, answer }: { known: [number, nu
   );
 }
 
+// ─── Probability Visuals ──────────────────────────────────────────────────────
+
+function ProbabilityBar({ favourable, total, label }: { favourable: number; total: number; label: string }) {
+  const pct = (favourable / total) * 100;
+  const decimal = (favourable / total).toFixed(3);
+  const fraction = favourable + "/" + total;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, alignItems: "center", width: "100%" }}>
+      <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 13, color: "#475569", fontWeight: 600, textAlign: "center" }}>{label}</div>
+      <div style={{ width: "100%", height: 36, background: "#E2E8F0", borderRadius: 18, overflow: "hidden", position: "relative", boxShadow: "inset 0 2px 6px rgba(0,0,0,0.08)" }}>
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${pct}%` }}
+          transition={{ duration: 0.9, ease: "easeOut" }}
+          style={{ height: "100%", background: "linear-gradient(90deg, #6366F1, #818CF8)", borderRadius: 18, display: "flex", alignItems: "center", paddingLeft: 14 }}
+        >
+          <span style={{ fontFamily: "'Nunito',sans-serif", fontWeight: 900, fontSize: 14, color: "#fff", whiteSpace: "nowrap" }}>
+            {favourable} favourable
+          </span>
+        </motion.div>
+      </div>
+      <div style={{ display: "flex", gap: 24, justifyContent: "center" }}>
+        {[
+          { label: "Fraction", value: fraction },
+          { label: "Decimal", value: decimal },
+          { label: "Percentage", value: pct.toFixed(1) + "%" },
+        ].map((item, i) => (
+          <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 + i * 0.15 }}
+            style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "#F8FAFC", border: "1.5px solid #E2E8F0", borderRadius: 12, padding: "10px 16px" }}>
+            <span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 800, fontSize: 18, color: "#6366F1" }}>{item.value}</span>
+            <span style={{ fontFamily: "'Outfit',sans-serif", fontSize: 11, color: "#94A3B8", fontWeight: 600 }}>{item.label}</span>
+          </motion.div>
+        ))}
+      </div>
+      <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 13, color: "#475569" }}>
+        <span style={{ color: "#6366F1", fontWeight: 700 }}>{favourable} favourable</span>
+        {" "}out of{" "}
+        <span style={{ color: "#1E293B", fontWeight: 700 }}>{total} total</span>
+        {" "}outcomes
+      </div>
+    </div>
+  );
+}
+
+function SampleSpaceGrid({ items, highlighted, label }: { items: string[]; highlighted: number[]; label: string }) {
+  const highlightSet = new Set(highlighted);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14, alignItems: "center" }}>
+      <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 13, color: "#475569", fontWeight: 600 }}>{label}</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", maxWidth: 320 }}>
+        {items.map((item, i) => {
+          const isHighlighted = highlightSet.has(i);
+          return (
+            <motion.div key={i}
+              initial={{ scale: 0.7, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: i * 0.06, type: "spring", stiffness: 280, damping: 18 }}
+              style={{
+                width: 52, height: 52, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center",
+                fontFamily: "'Nunito',sans-serif", fontWeight: 900, fontSize: 18,
+                background: isHighlighted ? "linear-gradient(135deg, #6366F1, #818CF8)" : "#F1F5F9",
+                border: `2px solid ${isHighlighted ? "#4F46E5" : "#E2E8F0"}`,
+                color: isHighlighted ? "#fff" : "#94A3B8",
+                boxShadow: isHighlighted ? "0 4px 14px rgba(99,102,241,0.35)" : "none",
+              }}>
+              {item}
+            </motion.div>
+          );
+        })}
+      </div>
+      <div style={{ display: "flex", gap: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div style={{ width: 14, height: 14, borderRadius: 4, background: "#6366F1" }} />
+          <span style={{ fontFamily: "'Outfit',sans-serif", fontSize: 12, color: "#475569" }}>Favourable ({highlighted.length})</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div style={{ width: 14, height: 14, borderRadius: 4, background: "#F1F5F9", border: "1.5px solid #E2E8F0" }} />
+          <span style={{ fontFamily: "'Outfit',sans-serif", fontSize: 12, color: "#475569" }}>Other ({items.length - highlighted.length})</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VennComplement({ eventLabel, complementLabel, pEvent, pComplement }: {
+  eventLabel: string; complementLabel: string; pEvent: string; pComplement: string;
+}) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14, alignItems: "center", width: "100%" }}>
+      <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, fontWeight: 700, color: "#94A3B8", letterSpacing: 1 }}>SAMPLE SPACE  S</div>
+      <div style={{ display: "flex", width: "100%", borderRadius: 16, overflow: "hidden", border: "2px solid #6366F1", boxShadow: "0 4px 16px rgba(99,102,241,0.15)" }}>
+        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}
+          style={{ flex: 1, background: "linear-gradient(135deg, #EEF2FF, #E0E7FF)", padding: "20px 16px", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+          <div style={{ fontFamily: "'Nunito',sans-serif", fontWeight: 900, fontSize: 13, color: "#4338CA" }}>Event E</div>
+          <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 12, color: "#3730A3", textAlign: "center" }}>{eventLabel}</div>
+          <div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 800, fontSize: 16, color: "#4338CA", background: "#C7D2FE", borderRadius: 8, padding: "4px 12px" }}>{pEvent}</div>
+        </motion.div>
+        <div style={{ width: 2, background: "#6366F1", opacity: 0.4 }} />
+        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }}
+          style={{ flex: 1, background: "#F8FAFC", padding: "20px 16px", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+          <div style={{ fontFamily: "'Nunito',sans-serif", fontWeight: 900, fontSize: 13, color: "#475569" }}>Complement E′</div>
+          <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 12, color: "#64748B", textAlign: "center" }}>{complementLabel}</div>
+          <div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 800, fontSize: 16, color: "#475569", background: "#E2E8F0", borderRadius: 8, padding: "4px 12px" }}>{pComplement}</div>
+        </motion.div>
+      </div>
+      <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}
+        style={{ fontFamily: "'Nunito',sans-serif", fontWeight: 800, fontSize: 14, color: "#059669", background: "#ECFDF5", border: "1.5px solid #6EE7B7", borderRadius: 10, padding: "8px 18px" }}>
+        P(E) + P(E′) = 1  ✓
+      </motion.div>
+    </div>
+  );
+}
+
+function NumberLineProb({ points }: { points: { label: string; value: number; color: string }[] }) {
+  const anchors = [
+    { v: 0,    text: "0\nImpossible" },
+    { v: 0.25, text: "0.25" },
+    { v: 0.5,  text: "0.5\nEven chance" },
+    { v: 0.75, text: "0.75" },
+    { v: 1,    text: "1\nCertain" },
+  ];
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20, alignItems: "stretch", padding: "8px 16px" }}>
+      <div style={{ position: "relative", height: 80, marginTop: 32 }}>
+        <div style={{ position: "absolute", top: 40, left: 0, right: 0, height: 4, background: "linear-gradient(90deg, #DC2626, #F59E0B, #059669)", borderRadius: 2 }} />
+        {anchors.map((a, i) => (
+          <div key={i} style={{ position: "absolute", left: `${a.v * 100}%`, transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center", top: 32 }}>
+            <div style={{ width: 2, height: 16, background: "#94A3B8" }} />
+            <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 10, color: "#94A3B8", textAlign: "center", whiteSpace: "pre-line", marginTop: 2 }}>{a.text}</div>
+          </div>
+        ))}
+        {points.map((pt, i) => (
+          <motion.div key={i}
+            initial={{ scale: 0, y: -20, opacity: 0 }}
+            animate={{ scale: 1, y: 0, opacity: 1 }}
+            transition={{ delay: 0.2 + i * 0.2, type: "spring", stiffness: 260, damping: 18 }}
+            style={{ position: "absolute", left: `${pt.value * 100}%`, top: 0, transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+            <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 10, color: pt.color, fontWeight: 700, textAlign: "center", maxWidth: 80, wordBreak: "break-word" }}>{pt.label}</div>
+            <div style={{ width: 14, height: 14, borderRadius: "50%", background: pt.color, boxShadow: `0 0 10px ${pt.color}88`, marginTop: 2 }} />
+          </motion.div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function EventTree({ root, branches }: { root: string; branches: { label: string; prob: string; color: string }[] }) {
+  const svgW = 320;
+  const svgH = 40 + branches.length * 52;
+  const rootX = svgW / 2;
+  const rootY = 30;
+  const spread = Math.min(svgW * 0.38, (branches.length - 1) * 52);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+      <div style={{ background: "#EEF2FF", border: "2px solid #A5B4FC", borderRadius: 12, padding: "6px 20px", fontFamily: "'Nunito',sans-serif", fontWeight: 900, fontSize: 14, color: "#4338CA" }}>
+        {root}
+      </div>
+      <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`} style={{ overflow: "visible" }}>
+        {branches.map((b, i) => {
+          const bx = branches.length === 1 ? rootX : rootX - spread / 2 + (i / Math.max(branches.length - 1, 1)) * spread;
+          const by = svgH - 20;
+          return (
+            <g key={i}>
+              <motion.line
+                x1={rootX} y1={rootY} x2={bx} y2={by - 22}
+                stroke={b.color} strokeWidth={2} strokeDasharray="4 3"
+                initial={{ pathLength: 0, opacity: 0 }}
+                animate={{ pathLength: 1, opacity: 0.7 }}
+                transition={{ delay: 0.1 + i * 0.12, duration: 0.4 }}
+              />
+              <motion.g initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 + i * 0.12 }}>
+                <rect x={bx - 36} y={by - 22} width={72} height={42} rx={10} fill={b.color + "22"} stroke={b.color} strokeWidth={1.5} />
+                <text x={bx} y={by - 6} textAnchor="middle" fontFamily="'Nunito',sans-serif" fontWeight="800" fontSize="12" fill={b.color}>{b.label}</text>
+                <text x={bx} y={by + 10} textAnchor="middle" fontFamily="'JetBrains Mono',monospace" fontWeight="700" fontSize="11" fill={b.color}>{b.prob}</text>
+              </motion.g>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
 // ─── Visual Router ────────────────────────────────────────────────────────────
 
 function ConceptVisualRenderer({ visual }: { visual: ConceptVisual }) {
   switch (visual.type) {
-    case "ratio-dots":    return <RatioDots groups={visual.groups} />;
-    case "ratio-forms":   return <RatioForms a={visual.a} b={visual.b} />;
-    case "factor-grid":   return <FactorGrid a={visual.a} b={visual.b} />;
-    case "simplify":      return <SimplifyVisual from={visual.from} hcf={visual.hcf} to={visual.to} />;
-    case "scale-chain":   return <ScaleChainVisual base={visual.base} steps={visual.steps} />;
-    case "cross-check":   return <CrossCheckVisual p={visual.p} q={visual.q} />;
-    case "missing-val":   return <MissingValVisual known={visual.known} target={visual.target} scale={visual.scale} answer={visual.answer} />;
-    default:              return null;
+    case "ratio-dots":         return <RatioDots groups={visual.groups} />;
+    case "ratio-forms":        return <RatioForms a={visual.a} b={visual.b} />;
+    case "factor-grid":        return <FactorGrid a={visual.a} b={visual.b} />;
+    case "simplify":           return <SimplifyVisual from={visual.from} hcf={visual.hcf} to={visual.to} />;
+    case "scale-chain":        return <ScaleChainVisual base={visual.base} steps={visual.steps} />;
+    case "cross-check":        return <CrossCheckVisual p={visual.p} q={visual.q} />;
+    case "missing-val":        return <MissingValVisual known={visual.known} target={visual.target} scale={visual.scale} answer={visual.answer} />;
+    case "probability-bar":    return <ProbabilityBar favourable={visual.favourable} total={visual.total} label={visual.label} />;
+    case "sample-space-grid":  return <SampleSpaceGrid items={visual.items} highlighted={visual.highlighted} label={visual.label} />;
+    case "venn-complement":    return <VennComplement eventLabel={visual.eventLabel} complementLabel={visual.complementLabel} pEvent={visual.pEvent} pComplement={visual.pComplement} />;
+    case "number-line-prob":   return <NumberLineProb points={visual.points} />;
+    case "event-tree":         return <EventTree root={visual.root} branches={visual.branches} />;
+    default:                   return null;
   }
 }
 

@@ -411,4 +411,164 @@ export const LEARN_PATH_SEEDS: Record<string, SeededThinkCard[]> = {
       ],
     },
   ],
+
+  // ─── PROBABILITY: Section 1 — What is Probability? ───────────────────────
+  "what-is-probability": [
+    {
+      question: "In IPL 2023, Mumbai Indians won the coin toss in 7 of their 14 matches — exactly half. But they won only 7 of those 14 matches overall. A fan says 'winning the toss is totally useless in IPL.' What do you think?",
+      imageUrl: "/learn-seeds/what-is-probability-0.png",
+      imagePrompt: "Vibrant cartoon illustration of a cricket coin toss, umpire in white uniform tossing a shiny gold coin high in the air, two team captains in blue and yellow cricket jerseys watching eagerly, packed colorful stadium crowd in background, bright sunny day, cheerful flat illustration style, no text",
+      options: [
+        {
+          text: "Mostly true — data shows toss-winners win only about 51% of IPL matches, barely better than chance",
+          hook: "Exactly right! Probability separates feeling from fact. Captains obsess over the toss, but across thousands of T20 matches the data says winning the toss barely changes your odds. P(win | won toss) ≈ 0.51 — almost identical to a coin flip itself.",
+        },
+        {
+          text: "False — winning the toss lets you choose conditions, which always helps",
+          hook: "It feels like an advantage, but real match data says otherwise! Choosing conditions helps sometimes and hurts other times. Probability averages all these situations out. Over many matches, the toss effect disappears into noise.",
+        },
+        {
+          text: "It depends on the pitch — on some grounds fielding first wins more",
+          hook: "You're thinking like a real analyst! Ground conditions do shift probabilities — at some venues P(win | field first) is noticeably higher. But across all IPL venues combined it evens out near 0.5. Probability always depends on the specific conditions of the experiment.",
+        },
+      ],
+    },
+    {
+      question: "Swiggy shows your order will arrive in '25–35 minutes.' Over your last 10 orders, it arrived within 25 minutes only 3 times. What does this tell you about the probability of getting it early?",
+      imageUrl: "/learn-seeds/what-is-probability-1.png",
+      imagePrompt: "Cheerful cartoon delivery rider on a red scooter with a large orange food delivery bag, riding through a busy colorful Indian street with shops and auto-rickshaws, smartphone showing order tracking timer on handlebars, warm golden city evening lighting, flat digital illustration style, no text",
+      options: [
+        {
+          text: "P(early delivery) = 3/10 = 0.3 — based on my own past experience",
+          hook: "You just calculated experimental probability! 3 favourable outcomes out of 10 trials = 3/10. Swiggy itself uses millions of such delivery records to build that time estimate. Your personal history is a small-scale version of exactly what their algorithm does.",
+        },
+        {
+          text: "Swiggy is always late — the estimate can't be trusted",
+          hook: "'Always late' is a feeling; 3/10 is a fact. Instead of a vague complaint, probability gives a precise answer: 30% chance of arriving before 25 minutes. That's actionable information — you know not to plan your meal for exactly 25 minutes from now.",
+        },
+        {
+          text: "The estimate is wrong — it should just say 35 minutes",
+          hook: "The range is actually honest! '25–35 minutes' means most deliveries fall there. 30% arriving before 25 minutes is consistent with that estimate. A single guaranteed time would often be wrong. Probability quantifies the uncertainty rather than hiding it.",
+        },
+      ],
+    },
+    {
+      question: "A WhatsApp forward says: 'Share this with 10 friends in 1 hour and you'll receive good news. 95% of people who did this got good news!' Your classmate believes it. What is wrong with calling this '95% probability'?",
+      imageUrl: "/learn-seeds/what-is-probability-2.png",
+      imagePrompt: "Cartoon illustration of a teenager in school uniform holding a smartphone showing a WhatsApp chat with chain message gold coins and lucky symbols, the teen has a raised eyebrow skeptical expression, colorful bedroom background with movie posters, purple and green color palette, flat cheerful illustration, no text",
+      options: [
+        {
+          text: "95% is made up — 'good news' isn't a defined measurable outcome, so it can't be a real probability",
+          hook: "Exactly right! The probability formula is P(E) = n(E) ÷ n(S). For this to work, you need a clearly defined sample space S and countable outcomes. 'Good news' has no fixed sample space — any positive thing qualifies. When Event E expands to fit any outcome, n(E) always equals n(S), and P = 1. That's not probability, that's certainty by definition.",
+        },
+        {
+          text: "It could be true — many people genuinely believe it works",
+          hook: "Belief doesn't change n(E) or n(S)! Probability requires a defined experiment with outcomes you can actually count. Here the sample space has no boundaries — 'good news' can mean anything from 'found a rupee' to 'passed my exams'. Without a fixed sample space, P(E) = n(E)/n(S) is meaningless. You need countable outcomes before probability applies.",
+        },
+        {
+          text: "The 5% who didn't get good news just didn't truly believe",
+          hook: "You've spotted the biggest flaw — the event E can never be counted! If someone who forwarded the message gets bad news, they just redefine 'good news' to include something else that day. An event whose outcomes shift to always be favourable has P = n(S)/n(S) = 1 forever. Real probability events have fixed, measurable outcomes — and this one doesn't.",
+        },
+      ],
+    },
+    {
+      question: "In Ludo you need a 6 to release your piece from home. You've rolled 8 times with no 6. Your sister shouts 'a 6 is coming now — you're overdue!' Your brother says 'still 1 in 6 chance every roll.' Who does science agree with?",
+      imageUrl: "/learn-seeds/what-is-probability-3.png",
+      imagePrompt: "Cheerful cartoon family of four sitting around a colorful Ludo board game on a living room floor, a large red dice with six dots floating dramatically in the air above the board, vibrant game pieces in red green blue yellow on the board, warm cozy Indian home setting with cushions, bright playful flat illustration, no text",
+      options: [
+        {
+          text: "Brother — a die has no memory. P(6) = 1/6 on every single roll, always",
+          hook: "Your brother understands one of probability's most important principles: independence. Each roll is a fresh random experiment. The die cannot 'owe' you a 6. Whether you've rolled 8 or 800 times without a 6, the next roll is still exactly 1/6.",
+        },
+        {
+          text: "Sister — after 8 misses, probability must catch up soon",
+          hook: "This is the Gambler's Fallacy — one of the most common mistakes humans make about probability! The die doesn't know its history. The 'balancing out' happens over millions of rolls in aggregate, not within a single game session. Each roll resets independently to 1/6.",
+        },
+        {
+          text: "Depends — maybe the die has worn down and is now biased",
+          hook: "Now you're thinking like a scientist! A physically biased die could have unequal probabilities. But for a fair die, P(6) = 1/6 always, regardless of history. Testing fairness by rolling many times and tracking each face's frequency is real statistical method.",
+        },
+      ],
+    },
+  ],
+
+  // ─── PROBABILITY: Section 2 — Types of Events ────────────────────────────
+  "types-of-events": [
+    {
+      question: "Your school test is out of 50 marks. Your classmate confidently says 'I'll score 55 on this test!' What type of probability event is scoring 55 out of 50?",
+      imageUrl: "/learn-seeds/types-of-events-0.png",
+      imagePrompt: "Cartoon Indian student in school uniform staring wide-eyed and shocked at an exam paper sitting at a classroom desk, bright cheerful school colors, blue school uniform, a thought bubble showing a big question mark above the student's head, blackboard with chalk marks in background, flat friendly illustration style, no text",
+      options: [
+        {
+          text: "Impossible — P = 0. Scoring more than the maximum is outside the sample space",
+          hook: "Correct! The sample space here is {0, 1, 2 … 50}. The score 55 doesn't exist in it. P(impossible event) = 0 — not just unlikely, but literally cannot happen under these conditions. This is the key difference between 'impossible' and 'very unlikely'.",
+        },
+        {
+          text: "Unlikely but possible — maybe the teacher gives grace marks",
+          hook: "The question says 'out of 50 marks' — that defines the sample space as S = {0, 1, 2 … 50}. Under those conditions, 55 simply doesn't exist in S, so P = 0. Grace marks would be a different experiment with a different sample space. Probability is always calculated for the experiment as stated — not a different version you imagine.",
+        },
+        {
+          text: "Possible with enough effort — in life anything can happen",
+          hook: "Effort changes how likely you are to score 48 or 50 — but it cannot create outcomes outside the sample space. P = 0 is not about effort. It's about whether the outcome can physically exist given the rules of the experiment. Maximum is 50; 55 is simply outside that boundary.",
+        },
+      ],
+    },
+    {
+      question: "You're stopped at a red traffic light in Bengaluru during peak hour. Which of the following is a certain event?",
+      imageUrl: "/learn-seeds/types-of-events-1.png",
+      imagePrompt: "Bright colorful cartoon aerial view of a busy Indian city intersection with cars buses and auto-rickshaws stopped neatly at a red traffic light, green signal glowing on the traffic light pole, sunny day with buildings around the intersection, cheerful flat illustration style, vibrant warm colors, no text",
+      options: [
+        {
+          text: "The light will turn green eventually — it's a standard red-amber-green cycle",
+          hook: "A certain event! P = 1. For a working traffic light, green must follow red — it covers the entire relevant sample space of what can happen next. Certain events (P = 1) always occur without exception. Compare to impossible events (P = 0) — both are the extreme ends of the probability scale.",
+        },
+        {
+          text: "You'll wait exactly 90 seconds — most Bengaluru signals are timed to 90 seconds",
+          hook: "This is likely, not certain! Signals vary, timers change, emergency vehicles can override cycles. P < 1 for any specific duration. Only outcomes guaranteed under all conditions qualify as certain. 'Will eventually turn green' is certain; 'will turn green in exactly 90 seconds' is not.",
+        },
+        {
+          text: "The light stays red — Bengaluru traffic is unpredictable",
+          hook: "Unpredictable doesn't mean 'stays red forever'! Traffic being unpredictable affects the timing, not the fundamental signal cycle. A working light will turn green — that IS certain. Probability distinguishes between what's predictable (the sequence) and what's uncertain (how long it takes).",
+        },
+      ],
+    },
+    {
+      question: "Before an India vs England Test match at Wankhede, the coin is tossed. Over the last 100 Test matches between these two teams, India won the toss 54 times. Is the coin biased towards India?",
+      imageUrl: "/learn-seeds/types-of-events-2.png",
+      imagePrompt: "Close-up cartoon illustration of a shiny gold coin spinning mid-air above a green cricket pitch, one side showing a lion emblem (heads) and the other showing a number (tails), soft motion blur on the spinning coin, bright light radiating from coin, minimal clean gradient background, vibrant flat illustration, no text",
+      options: [
+        {
+          text: "Probably not — 54/100 is very close to 50/50, completely normal random variation",
+          hook: "Great statistical thinking! For a fair coin over 100 tosses, results between 40 and 60 heads are completely expected. 54 is well within normal variation. To genuinely suspect bias, you'd want something like 80 out of 100. Small deviations are noise, not signal — this is what equally likely events look like in practice.",
+        },
+        {
+          text: "Yes — 54 is more than 50, so something must be slightly off",
+          hook: "This is where probability intuition misleads us! 54 vs 50 over 100 trials is well within expected random variation for a fair coin. You'd regularly see results between 40–60 without any bias. Probability tells us what range is 'normal' so we can distinguish genuine unfairness from randomness.",
+        },
+        {
+          text: "We can only know for certain by physically inspecting the coin",
+          hook: "Statistical testing is actually more rigorous than physical inspection! If India won 54 of 100, then 53 of the next 100, that's 107/200 — still consistent with a fair coin. Statistics sets a threshold: how extreme must results be before we conclude bias? Physical inspection often misses subtle imbalances that statistics would catch.",
+        },
+      ],
+    },
+    {
+      question: "A teacher randomly picks 1 student from a class of 40 to be class monitor. There are 22 girls and 18 boys. Which of these is an elementary event?",
+      imageUrl: "/learn-seeds/types-of-events-3.png",
+      imagePrompt: "Cheerful cartoon Indian classroom scene with rows of students at desks, a friendly teacher at the front pointing toward one student who is standing up confidently with a bright golden star glow around them, other students watching with curious smiles, bright school room with windows and colorful decorations, warm flat illustration style, no text",
+      options: [
+        {
+          text: "'Kavya is selected' — one specific student, exactly one outcome",
+          hook: "Exactly! An elementary event has exactly one outcome. 'Kavya is selected' = one student from 40 = P(1/40). It cannot be broken down further. Compare to 'a girl is selected' — that's 22 elementary events combined into one compound event. All of probability is built from these single-outcome building blocks.",
+        },
+        {
+          text: "'A girl is selected' — girls are one category so it's one event",
+          hook: "It's one compound event, but it contains 22 elementary events (each specific girl who could be chosen). P(a girl) = 22/40 = 11/20. Compound events are collections of elementary ones. The distinction matters because compound probability = the sum of its elementary event probabilities.",
+        },
+        {
+          text: "'The class topper is selected' — only one student is the topper",
+          hook: "If there's exactly one topper, this IS an elementary event with P = 1/40! But if two students share top rank, it becomes compound. Elementary events always have exactly one outcome in the sample space — which is why clearly defining your sample space is always the very first step.",
+        },
+      ],
+    },
+  ],
 };
