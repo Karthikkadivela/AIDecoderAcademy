@@ -5,37 +5,45 @@ import { CONCEPT_SEEDS } from "@/lib/blogSeeds";
 export const runtime     = "nodejs";
 export const maxDuration = 300;
 
-async function openrouterGenerate(prompt: string): Promise<string> {
-  const res = await fetch("https://openrouter.ai/api/v1/images", {
+async function falGenerate(prompt: string): Promise<string> {
+  const endpoint = "openai/gpt-image-2";
+  const res = await fetch(`https://queue.fal.run/${endpoint}`, {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      "Authorization": `Key ${process.env.FAL_KEY}`,
       "Content-Type":  "application/json",
     },
     body: JSON.stringify({
-      model:  "openai/gpt-image-2",
-      prompt: `${prompt}, educational illustration for middle school students aged 13-16, bright cheerful vivid colours, clean simple composition, no text overlays, no words, no letters`,
-      n:      1,
-      size:   "1024x1024",
+      prompt:     `${prompt}, educational illustration for middle school students aged 13-16, bright cheerful vivid colours, clean simple composition, no text overlays, no words, no letters`,
+      image_size: "square_hd",
+      quality:    "low",
+      n:          1,
     }),
   });
 
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`OpenRouter error: ${res.status} ${err}`);
+  if (!res.ok) throw new Error(`fal submit failed: ${res.status}`);
+  const { request_id } = await res.json();
+
+  for (let attempt = 0; attempt < 30; attempt++) {
+    await new Promise((r) => setTimeout(r, 4000));
+    const poll = await fetch(`https://queue.fal.run/${endpoint}/requests/${request_id}`, {
+      headers: { "Authorization": `Key ${process.env.FAL_KEY}` },
+    });
+    if (!poll.ok) continue;
+    const data = await poll.json();
+    const directUrl = data.images?.[0]?.url;
+    if (directUrl) return directUrl;
+    if (data.status === "COMPLETED") {
+      const url = data.output?.images?.[0]?.url;
+      if (url) return url;
+    }
+    if (data.status === "FAILED") throw new Error("fal generation failed");
   }
-
-  const data = await res.json();
-  const item = data.data?.[0];
-  if (!item) throw new Error("No image in response");
-
-  if (item.b64_json) return `data:image/png;base64,${item.b64_json}`;
-  if (item.url)      return item.url;
-  throw new Error(`Unexpected response shape: ${JSON.stringify(item)}`);
+  throw new Error("Timed out waiting for image");
 }
 
 async function generateAndUpload(imagePrompt: string, key: string): Promise<string> {
-  const imageSource = await openrouterGenerate(imagePrompt);
+  const imageSource = await falGenerate(imagePrompt);
 
   let buffer: Buffer;
   if (imageSource.startsWith("data:")) {
