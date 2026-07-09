@@ -30,7 +30,7 @@ const ACCENT: Record<string, string> = {
   json:   "#7BFFC4",
   image:  "#7AEFFF",
   audio:  "#FF8FB8",
-  slides: "#C8FF00",
+  slides: "#A3E635",
 };
 
 interface Props {
