@@ -4,6 +4,8 @@
 // The playground reads this to skin itself per arena.
 // ═══════════════════════════════════════════════════════
 
+// VERCEL PREVIEW TEST — comment to trigger preview deploy
+
 /** P1 dashboard "terrain" — one CSS motion layer per arena (`ArenaEnvironment`). */
 export type ArenaEnvironmentPreset =
   | "nebula"     // AI Explorer
